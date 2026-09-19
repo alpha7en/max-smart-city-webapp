@@ -1,0 +1,21 @@
+# Environment variables and secrets
+*.env
+.env
+token.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Node
+node_modules/
+dist/
+build/
+.next/
+
+# OS
+.DS_Store
+Thumbs.db

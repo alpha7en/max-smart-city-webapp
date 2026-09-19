@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>MAX Умный Дом — ЖКХ и Счетчики</title>
+  <!-- MAX Bridge SDK -->
+  <script src="https://st.max.ru/js/max-web-app.js"></script>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div id="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <span class="app-logo">🏙️</span>
+        <div class="header-titles">
+          <h1>MAX Умный Дом</h1>
+          <p class="header-sub">ул. Ленина, д. 42, кв. 15 (ЕЛС 1004567890)</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <span class="badge-status online" id="bridge-status">MAX Bridge</span>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="tab-meters">
+        <span class="tab-icon">📊</span>
+        <span class="tab-label">Счетчики</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-arshin">
+        <span class="tab-icon">🛡️</span>
+        <span class="tab-label">Антифрод</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-billing">
+        <span class="tab-icon">🧾</span>
+        <span class="tab-label">Оплата</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-nightflow">
+        <span class="tab-icon">🔍</span>
+        <span class="tab-label">Дозор</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-tickets">
+        <span class="tab-icon">🛠️</span>
+        <span class="tab-label">Заявки</span>
+      </button>
+    </nav>
+
+    <!-- Main Content Sections -->
+    <main class="content-area">
+
+      <!-- 1. METERS TAB -->
+      <section id="tab-meters" class="tab-content active">
+        <div class="card-hero">
+          <div class="hero-text">
+            <h2>Передача показаний ИПУ</h2>
+            <p>Сфотографируйте счетчик или перешлите фото из чата MAX. Нейросеть считает цифры и проверит поверку.</p>
+          </div>
+          <button class="btn btn-primary" id="btn-open-camera">
+            📸 Сделать фото счетчика
+          </button>
+          <input type="file" id="file-meter-input" accept="image/*" style="display:none;" />
+        </div>
+
+        <!-- AI Vision Recognition Result Preview Card -->
+        <div class="card card-ai-preview" id="ai-scan-result" style="display: none;">
+          <div class="card-header-with-badge">
+            <h3>🤖 Результат AI-детекции</h3>
+            <span class="badge badge-warning">AI STUB MOCK</span>
+          </div>
+          <p class="mock-disclaimer" id="ai-mock-notice">
+            [ЗАГЛУШКА / AI VISION STUB]: Модель YOLOv8 + TorchOk OCR. В рабочей версии выполняет нейросетевую сегментацию барабанов.
+          </p>
+
+          <div class="scan-visual-container">
+            <div class="dial-display">
+              <span class="digit-box black" id="ocr-black-digits">00142</span>
+              <span class="digit-box red" id="ocr-red-digits">789</span>
+            </div>
+            <div class="dial-caption">
+              <span class="caption-black">Черные: целые м³</span>
+              <span class="caption-red">Красные: литры (отсечены)</span>
+            </div>
+          </div>
+
+          <div class="scan-metrics-grid">
+            <div class="metric-item">
+              <span class="metric-label">Принятое показание</span>
+              <span class="metric-val highlight" id="ocr-reading-val">142.0 м³</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Заводской номер</span>
+              <span class="metric-val" id="ocr-serial-val">№ 2809142</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Точность OCR</span>
+              <span class="metric-val" id="ocr-confidence-val">96.8%</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Защита от ошибки *1000</span>
+              <span class="metric-val text-green">Активирована</span>
+            </div>
+          </div>
+
+          <div class="form-group inline-input">
+            <label for="input-reading-correct">Скорректировать вручную (м³):</label>
+            <input type="number" step="0.1" id="input-reading-correct" value="142.0" class="form-input" />
+          </div>
+
+          <div class="card-actions">
+            <button class="btn btn-success" id="btn-submit-reading">
+              ✅ Подтвердить и отправить в ГИС ЖКХ
+            </button>
+          </div>
+        </div>
+
+        <!-- Submission Feedback Alert -->
+        <div id="reading-feedback" class="alert-box" style="display:none;"></div>
+
+        <!-- Active Meters List -->
+        <div class="section-title">
+          <h3>Приборы учета квартиры (4)</h3>
+          <span class="section-badge">Срок сдачи: до 25 числа</span>
+        </div>
+        <div class="meters-list" id="meters-container">
+          <!-- Dynamically populated -->
+        </div>
+      </section>
+
+      <!-- 2. ARSHIN ANTI-FRAUD TAB -->
+      <section id="tab-arshin" class="tab-content">
+        <div class="card-hero shield-hero">
+          <div class="shield-badge-icon">🛡️</div>
+          <h2>Зеленый Щит Безопасности</h2>
+          <p>Проверка легитимности счетчиков в государственном реестре ФГИС «АРШИН» (102-ФЗ). Защита от липовых извещений мошенников.</p>
+        </div>
+
+        <div class="card">
+          <h3>Проверить счетчик по заводскому номеру</h3>
+          <p class="text-muted">Вам бросили в ящик угрожающую листовку «Срочно сделайте поверку или штраф»? Проверьте реальный срок поверки за 1 секунду:</p>
+          <div class="search-row">
+            <input type="text" id="input-arshin-serial" class="form-input" placeholder="Введите номер счетчика (напр. 2809142)" value="2809142" />
+            <button class="btn btn-primary" id="btn-check-arshin">Проверить</button>
+          </div>
+        </div>
+
+        <!-- Shield Result Banner -->
+        <div class="card shield-card" id="arshin-result-card" style="display:none;">
+          <div class="shield-header">
+            <span class="shield-status-icon" id="shield-icon">🟢</span>
+            <div>
+              <h3 id="shield-title">Поверка ДЕЙСТВИТЕЛЬНА</h3>
+              <p class="text-sm" id="shield-org">ФБУ «РОСТЕСТ-МОСКВА»</p>
+            </div>
+          </div>
+          <div class="shield-body" id="shield-message">
+            Счетчик официально поверен. Поверка НЕ требуется еще 3 года.
+          </div>
+          <div class="shield-footer">
+            <a href="#" target="_blank" id="shield-link" class="btn btn-outline btn-sm">
+              🔗 Открыть запись в реестре Росстандарта
+            </a>
+          </div>
+        </div>
+
+        <div class="card info-card">
+          <h4>💡 Как мошенники обманывают жителей:</h4>
+          <p class="text-sm">
+            Аферисты массово раскладывают псевдоофициальные бланки с печатями, угрожая переводом на повышенный норматив или штрафом в 50 000 руб.
+            По закону № 102-ФЗ единственным юридическим подтверждением поверки является <b>электронная запись во ФГИС «АРШИН»</b>.
+            Наш сервис считывает номер счетчика камерой и мгновенно разоблачает обман.
+          </p>
+        </div>
+      </section>
+
+      <!-- 3. BILLING & GOST QR TAB -->
+      <section id="tab-billing" class="tab-content">
+        <div class="card-hero">
+          <h2>Оплата ЖКУ по ГОСТ Р 56042-2014</h2>
+          <p>Сканируйте QR-код с квитанции через камеру MAX Bridge. Автоматическое расщепление платежей по 103-ФЗ на спецсчет 40821.</p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" id="btn-scan-qr-bridge">
+              📷 Сканировать QR код камерой MAX
+            </button>
+            <button class="btn btn-outline" id="btn-paste-sample-qr">
+              📋 Вставить образец квитанции
+            </button>
+          </div>
+        </div>
+
+        <!-- Bill Details & Split Visualizer -->
+        <div class="card" id="billing-details-card">
+          <div class="bill-summary-header">
+            <div>
+              <span class="text-muted text-sm">Сумма к оплате за сентябрь 2026:</span>
+              <div class="bill-total-price" id="bill-total-amount">4 850.50 ₽</div>
+            </div>
+            <span class="badge badge-success" id="account-checksum-badge">Счет ЦБ проверен ✓</span>
+          </div>
+
+          <div class="bill-meta-info">
+            <p><b>Получатель:</b> <span id="bill-payee-name">ООО «УК ДОМОВОЙ СЕРВИС»</span></p>
+            <p><b>Лицевой счет (ЕЛС):</b> <span id="bill-pers-acc">1004567890</span></p>
+            <p><b>Спецсчет платежного агента:</b> <span id="bill-account-40821">40821810500000001001</span> (Иммунитет от арестов 103-ФЗ)</p>
+          </div>
+
+          <div class="section-title" style="margin-top: 18px;">
+            <h4>Автоматическое расщепление платежа (Сплит 103-ФЗ / 59-ФЗ):</h4>
+          </div>
+
+          <div class="split-items-list" id="split-recipients-list">
+            <div class="split-row">
+              <div class="split-info">
+                <span class="split-name">💧 АО «Мосводоканал» (ХВС и водоотведение)</span>
+                <span class="split-sub">Прямой договор по 59-ФЗ</span>
+              </div>
+              <span class="split-amount">1 212.63 ₽</span>
+            </div>
+            <div class="split-row">
+              <div class="split-info">
+                <span class="split-name">♨️ ПАО «МОЭК» (Отопление и подогрев)</span>
+                <span class="split-sub">Прямой договор по 59-ФЗ</span>
+              </div>
+              <span class="split-amount">2 182.72 ₽</span>
+            </div>
+            <div class="split-row">
+              <div class="split-info">
+                <span class="split-name">⚡ АО «Мосэнергосбыт» (Электроэнергия)</span>
+                <span class="split-sub">Прямой договор по 59-ФЗ</span>
+              </div>
+              <span class="split-amount">727.58 ₽</span>
+            </div>
+            <div class="split-row">
+              <div class="split-info">
+                <span class="split-name">🏢 ООО «УК ДОМОВОЙ СЕРВИС» (Содержание жилья)</span>
+                <span class="split-sub">Текущий ремонт и обслуживание МКД</span>
+              </div>
+              <span class="split-amount">727.57 ₽</span>
+            </div>
+          </div>
+
+          <div class="card-actions" style="margin-top: 20px;">
+            <button class="btn btn-success btn-lg" id="btn-pay-sbp">
+              ⚡ Оплатить 4 850.50 ₽ через СБП без комиссии
+            </button>
+          </div>
+        </div>
+
+        <div id="payment-success-alert" class="alert-box alert-success" style="display:none;"></div>
+      </section>
+
+      <!-- 4. NIGHT FLOW / НОЧНОЙ ДОЗОР TAB -->
+      <section id="tab-nightflow" class="tab-content">
+        <div class="card-hero night-hero">
+          <div class="night-badge-icon">🌙</div>
+          <h2>Ночной дозор: Анализ небаланса ОДПУ</h2>
+          <p>Выявление скрытых ночных утечек воды в доме (261-ФЗ). Найдите утечку за 30 секунд и получите скидку 10% на квартплату!</p>
+        </div>
+
+        <!-- Telemetry Status Card -->
+        <div class="card">
+          <div class="card-header-with-badge">
+            <h3>Телеметрия общедомового счетчика (ОДПУ)</h3>
+            <span class="badge badge-danger" id="odpu-status-badge">Аномалия ночью</span>
+          </div>
+          <div class="odpu-meter-display">
+            <div class="odpu-flow-rate" id="odpu-flow-rate">1 650 л/час</div>
+            <div class="odpu-flow-sub">Расход воды в доме между 02:30 и 04:30 ночи (норма: до 100 л/час)</div>
+          </div>
+          <div class="odpu-warning-box">
+            ⚠️ <b>В вашем подъезде обнаружена ночная утечка!</b> Теряется 35 м³ в сутки, что увеличит ОДН на 200–300 руб. каждой квартире. Помогите локализовать протечку.
+          </div>
+        </div>
+
+        <!-- Gamified Express Diagnostics -->
+        <div class="card">
+          <h3>🧪 Экспресс-тест бачка за 30 секунд (Тест салфетки)</h3>
+          <p class="text-sm">85% ночных утечек приходятся на неисправные клапаны унитазов, протекающие бесшумно:</p>
+          <ol class="steps-list">
+            <li>Прижмите сухую бумажную салфетку к сухой задней стенке чаши унитаза.</li>
+            <li>Подождите 15 секунд.</li>
+            <li>Если салфетка намокла — у вас течет клапан бачка.</li>
+          </ol>
+          <div class="test-buttons-row">
+            <button class="btn btn-warning" id="btn-napkin-wet">💧 Салфетка намокла (Течет)</button>
+            <button class="btn btn-outline" id="btn-napkin-dry">✨ Салфетка сухая (Норма)</button>
+          </div>
+        </div>
+
+        <!-- Night Meter Photos Comparison -->
+        <div class="card">
+          <h3>📸 Способ 2: Ночной замер счетчика ХВС</h3>
+          <p class="text-sm">Сфотографируйте счетчик перед сном и сразу после пробуждения. Разница должна быть 0 литров:</p>
+          <div class="grid-2-inputs">
+            <div>
+              <label class="text-xs">Перед сном (м³):</label>
+              <input type="number" step="0.001" id="input-night-reading" class="form-input" value="142.780" />
+            </div>
+            <div>
+              <label class="text-xs">Утром (м³):</label>
+              <input type="number" step="0.001" id="input-morning-reading" class="form-input" value="142.960" />
+            </div>
+          </div>
+          <button class="btn btn-primary" id="btn-calc-night-diff" style="margin-top: 12px;">
+            Сравнить показания за ночь
+          </button>
+        </div>
+
+        <!-- Diagnostic Result Alert -->
+        <div id="night-flow-alert" class="card reward-card" style="display: none;">
+          <div class="reward-header">
+            <span class="reward-icon">🎁</span>
+            <div>
+              <h3 id="night-verdict-title">Утечка локализована!</h3>
+              <p class="text-sm" id="night-verdict-sub">Расход за ночь: 180 литров</p>
+            </div>
+          </div>
+          <p id="night-verdict-text" class="text-sm"></p>
+          <div class="card-actions">
+            <button class="btn btn-success" id="btn-claim-reward">
+              🎟️ Активировать скидку 10% на квартплату
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. TICKETS & GUEST ACCESS TAB -->
+      <section id="tab-tickets" class="tab-content">
+        <div class="card-hero">
+          <h2>Взаимодействие с УК (ПП РФ № 40)</h2>
+          <p>Официальные заявки в аварийно-диспетчерскую службу с гарантированными сроками SLA по закону РФ.</p>
+          <button class="btn btn-primary" id="btn-show-ticket-modal">
+            ➕ Создать заявку в УК
+          </button>
+        </div>
+
+        <!-- Tenant / Landlord Guest Access Box -->
+        <div class="card guest-box">
+          <div class="card-header-with-badge">
+            <h3>👥 Гостевой доступ для арендатора</h3>
+            <span class="badge badge-info">Без ЕСИА</span>
+          </div>
+          <p class="text-sm text-muted">
+            В официальных «Госуслугах Дом» арендатор не может передавать показания без авторизации собственника через ЕСИА.
+            В нашем сервисе собственник генерирует временную безопасную ссылку в MAX:
+          </p>
+          <button class="btn btn-outline" id="btn-generate-guest-link">
+            🔗 Сгенерировать гостевой доступ в MAX
+          </button>
+          <div id="guest-link-result" style="display:none; margin-top: 12px;" class="code-box"></div>
+        </div>
+
+        <!-- Active Tickets List -->
+        <div class="section-title">
+          <h3>История обращений в УК</h3>
+        </div>
+        <div class="tickets-list" id="tickets-container">
+          <!-- Dynamically populated -->
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast"></div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

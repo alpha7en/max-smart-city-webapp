@@ -1,0 +1,1339 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MAX Умный Дом — Платформа ЖКХ и Счетчиков",
+    "description": "Комплексное решение для трека «Умный город» на Хакатоне MAX:\n\n• Взаимодействие жителей и управляющих организаций по ПП РФ № 40 от 26.01.2026 г.;\n• Мгновенный прием показаний приборов учета через пересылку фото в чат-бот;\n• Зеленый Щит Безопасности: сверка заводских номеров с реестром ФГИС «АРШИН» (102-ФЗ);\n• Оплата квитанций по ГОСТ Р 56042-2014 с автоматическим расщеплением на спецсчет 40821 (103-ФЗ);\n• «Ночной дозор»: крауд-диагностика ночного небаланса ОДПУ со скидкой 10% на квартплату (261-ФЗ);\n• Гостевой доступ для арендаторов без авторизации через ЕСИА.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Smart City Housing API"
+        ],
+        "summary": "Проверка состояния сервиса",
+        "operationId": "health_check_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meters": {
+      "get": {
+        "tags": [
+          "Smart City Housing API"
+        ],
+        "summary": "Список приборов учета помещения",
+        "operationId": "get_meters_api_meters_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MeterBase"
+                  },
+                  "type": "array",
+                  "title": "Response Get Meters Api Meters Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meters/{meter_id}": {
+      "get": {
+        "tags": [
+          "Smart City Housing API"
+        ],
+        "summary": "Информация о конкретном приборе учета",
+        "operationId": "get_meter_api_meters__meter_id__get",
+        "parameters": [
+          {
+            "name": "meter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeterBase"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meters/submit": {
+      "post": {
+        "tags": [
+          "Smart City Housing API"
+        ],
+        "summary": "Передача и валидация показаний счетчика",
+        "operationId": "submit_reading_api_meters_submit_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeterReadingSubmitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeterReadingValidationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/scan": {
+      "post": {
+        "tags": [
+          "Smart City Housing API"
+        ],
+        "summary": "Распознавание показаний и заводского номера по фото (AI Stub)",
+        "operationId": "scan_meter_api_ai_scan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiVisionScanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiVisionScanResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/arshin/check": {
+      "get": {
+        "tags": [
+          "Smart City Housing API"
+        ],
+        "summary": "Проверка поверки во ФГИС АРШИН и Зеленый Щит Безопасности",
+        "operationId": "check_arshin_api_arshin_check_get",
+        "parameters": [
+          {
+            "name": "serial",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Заводской номер прибора учета",
+              "title": "Serial"
+            },
+            "description": "Заводской номер прибора учета"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArshinCheckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/billing/parse-qr": {
+      "post": {
+        "tags": [
+          "Smart City Housing API"
+        ],
+        "summary": "Парсинг QR-кода квитанции по ГОСТ Р 56042-2014 и расщепление на спецсчет 40821",
+        "operationId": "parse_qr_api_billing_parse_qr_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GostQrParseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GostQrParseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/night-flow/diagnose": {
+      "post": {
+        "tags": [
+          "Smart City Housing API"
+        ],
+        "summary": "Диагностика ночного небаланса ОДПУ и утечек в квартире",
+        "operationId": "diagnose_night_flow_api_night_flow_diagnose_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NightFlowCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NightFlowDiagnosticResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickets": {
+      "get": {
+        "tags": [
+          "Smart City Housing API"
+        ],
+        "summary": "Список заявок в УК",
+        "operationId": "get_tickets_api_tickets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TicketResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Get Tickets Api Tickets Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Smart City Housing API"
+        ],
+        "summary": "Создание заявки в аварийно-диспетчерскую службу",
+        "operationId": "create_ticket_api_tickets_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/guest/generate": {
+      "post": {
+        "tags": [
+          "Smart City Housing API"
+        ],
+        "summary": "Генерация гостевого доступа для арендатора",
+        "operationId": "generate_guest_access_api_guest_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestAccessGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestAccessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AiVisionScanRequest": {
+        "properties": {
+          "image_base64": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Base64",
+            "description": "Изображение в формате Base64"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url",
+            "description": "URL изображения, если загружено в MAX CDN"
+          },
+          "device_type_hint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeterType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Подсказка типа счетчика"
+          }
+        },
+        "type": "object",
+        "title": "AiVisionScanRequest"
+      },
+      "AiVisionScanResponse": {
+        "properties": {
+          "is_mock": {
+            "type": "boolean",
+            "title": "Is Mock",
+            "description": "Флаг заглушки (Mock AI inference)",
+            "default": true
+          },
+          "mock_notice": {
+            "type": "string",
+            "title": "Mock Notice",
+            "description": "Явное уведомление о заглушке для экспертов хакатона",
+            "default": "[ЗАГЛУШКА / AI VISION STUB]: Модель распознавания циферблата и OCR заводского номера"
+          },
+          "detected_meter_type": {
+            "$ref": "#/components/schemas/MeterType"
+          },
+          "recognized_reading": {
+            "type": "number",
+            "title": "Recognized Reading",
+            "description": "Распознанное основное показание (целая часть)"
+          },
+          "recognized_serial_number": {
+            "type": "string",
+            "title": "Recognized Serial Number",
+            "description": "Распознанный заводской номер счетчика"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "description": "Уверенность OCR-модели (0.0 - 1.0)",
+            "default": 0.96
+          },
+          "red_rollers_detected": {
+            "type": "boolean",
+            "title": "Red Rollers Detected",
+            "description": "Обнаружены ли красные ролики (дробные литры)",
+            "default": true
+          },
+          "raw_reading_with_fractions": {
+            "type": "number",
+            "title": "Raw Reading With Fractions",
+            "description": "Сырое значение до отсечения литров"
+          },
+          "perspective_rectified": {
+            "type": "boolean",
+            "title": "Perspective Rectified",
+            "description": "Применено ли геометрическое выравнивание угла съемки",
+            "default": true
+          },
+          "bounding_boxes": {
+            "items": {
+              "$ref": "#/components/schemas/BoundingBox"
+            },
+            "type": "array",
+            "title": "Bounding Boxes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detected_meter_type",
+          "recognized_reading",
+          "recognized_serial_number",
+          "raw_reading_with_fractions"
+        ],
+        "title": "AiVisionScanResponse"
+      },
+      "ArshinCheckResponse": {
+        "properties": {
+          "serial_number": {
+            "type": "string",
+            "title": "Serial Number"
+          },
+          "organization_name": {
+            "type": "string",
+            "title": "Organization Name",
+            "description": "Аккредитованная поверочная организация"
+          },
+          "verification_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Verification Date",
+            "description": "Дата проведения последней поверки"
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date",
+            "title": "Valid Until",
+            "description": "Срок действия поверки"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VerificationStatus"
+          },
+          "is_fraud_warning": {
+            "type": "boolean",
+            "title": "Is Fraud Warning",
+            "description": "Флаг: листовка с требованием немедленной поверки является обманом"
+          },
+          "shield_color": {
+            "type": "string",
+            "title": "Shield Color",
+            "description": "Цвет защитного бейджа: green, yellow, red",
+            "default": "green"
+          },
+          "safety_message": {
+            "type": "string",
+            "title": "Safety Message",
+            "description": "Текст Зеленого Щита Безопасности"
+          },
+          "fgis_arshin_url": {
+            "type": "string",
+            "title": "Fgis Arshin Url",
+            "description": "Официальная ссылка на запись в ФГИС АРШИН"
+          }
+        },
+        "type": "object",
+        "required": [
+          "serial_number",
+          "organization_name",
+          "verification_date",
+          "valid_until",
+          "status",
+          "is_fraud_warning",
+          "safety_message",
+          "fgis_arshin_url"
+        ],
+        "title": "ArshinCheckResponse"
+      },
+      "BoundingBox": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y"
+          },
+          "width": {
+            "type": "number",
+            "title": "Width"
+          },
+          "height": {
+            "type": "number",
+            "title": "Height"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height",
+          "label",
+          "confidence"
+        ],
+        "title": "BoundingBox"
+      },
+      "GostQrParseRequest": {
+        "properties": {
+          "qr_payload": {
+            "type": "string",
+            "title": "Qr Payload",
+            "description": "Строка QR-кода стандарта ST00012"
+          }
+        },
+        "type": "object",
+        "required": [
+          "qr_payload"
+        ],
+        "title": "GostQrParseRequest"
+      },
+      "GostQrParseResponse": {
+        "properties": {
+          "is_valid_gost": {
+            "type": "boolean",
+            "title": "Is Valid Gost",
+            "description": "Соответствует ли ГОСТ Р 56042-2014"
+          },
+          "format_version": {
+            "type": "string",
+            "title": "Format Version",
+            "description": "Идентификатор стандарта",
+            "default": "ST00012"
+          },
+          "recipient_name": {
+            "type": "string",
+            "title": "Recipient Name"
+          },
+          "inn": {
+            "type": "string",
+            "title": "Inn"
+          },
+          "kpp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kpp"
+          },
+          "cor_account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cor Account"
+          },
+          "bank_bik": {
+            "type": "string",
+            "title": "Bank Bik"
+          },
+          "payee_account": {
+            "type": "string",
+            "title": "Payee Account",
+            "description": "Расчетный счет получателя"
+          },
+          "is_account_checksum_valid": {
+            "type": "boolean",
+            "title": "Is Account Checksum Valid",
+            "description": "Контрольный ключ счета ЦБ РФ"
+          },
+          "personal_account": {
+            "type": "string",
+            "title": "Personal Account",
+            "description": "Лицевой счет плательщика (PersAcc / ЕЛС)"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "total_amount_rubles": {
+            "type": "number",
+            "title": "Total Amount Rubles"
+          },
+          "is_40821_split_supported": {
+            "type": "boolean",
+            "title": "Is 40821 Split Supported",
+            "description": "Поддержка прямого расщепления по 103-ФЗ / 59-ФЗ",
+            "default": true
+          },
+          "split_details": {
+            "items": {
+              "$ref": "#/components/schemas/SplitPaymentRecipient"
+            },
+            "type": "array",
+            "title": "Split Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_valid_gost",
+          "recipient_name",
+          "inn",
+          "bank_bik",
+          "payee_account",
+          "is_account_checksum_valid",
+          "personal_account",
+          "total_amount_rubles"
+        ],
+        "title": "GostQrParseResponse"
+      },
+      "GuestAccessGenerateRequest": {
+        "properties": {
+          "property_id": {
+            "type": "string",
+            "title": "Property Id"
+          },
+          "tenant_name": {
+            "type": "string",
+            "title": "Tenant Name"
+          },
+          "tenant_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant Phone"
+          },
+          "duration_days": {
+            "type": "integer",
+            "title": "Duration Days",
+            "description": "Срок действия временного доступа",
+            "default": 30
+          }
+        },
+        "type": "object",
+        "required": [
+          "property_id",
+          "tenant_name"
+        ],
+        "title": "GuestAccessGenerateRequest"
+      },
+      "GuestAccessResponse": {
+        "properties": {
+          "guest_token": {
+            "type": "string",
+            "title": "Guest Token"
+          },
+          "direct_max_link": {
+            "type": "string",
+            "title": "Direct Max Link"
+          },
+          "property_address": {
+            "type": "string",
+            "title": "Property Address"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "allowed_actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowed Actions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "guest_token",
+          "direct_max_link",
+          "property_address",
+          "expires_at",
+          "allowed_actions"
+        ],
+        "title": "GuestAccessResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MeterBase": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Уникальный идентификатор прибора учета"
+          },
+          "meter_type": {
+            "$ref": "#/components/schemas/MeterType",
+            "description": "Тип счетчика (ХВС, ГВС, свет, газ, тепло)"
+          },
+          "serial_number": {
+            "type": "string",
+            "title": "Serial Number",
+            "description": "Заводской номер прибора учета"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Название счетчика для пользователя"
+          },
+          "installation_place": {
+            "type": "string",
+            "title": "Installation Place",
+            "description": "Место установки (Кухня, Санузел и т.д.)",
+            "default": "Квартира"
+          },
+          "last_reading_value": {
+            "type": "number",
+            "title": "Last Reading Value",
+            "description": "Предыдущие показания"
+          },
+          "last_reading_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Last Reading Date",
+            "description": "Дата предыдущей передачи показаний"
+          },
+          "verification_date_valid_until": {
+            "type": "string",
+            "format": "date",
+            "title": "Verification Date Valid Until",
+            "description": "Срок действия поверки по ФГИС АРШИН"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "description": "Единица измерения (м³, кВт*ч, Гкал)",
+            "default": "м³"
+          },
+          "decimal_digits": {
+            "type": "integer",
+            "title": "Decimal Digits",
+            "description": "Количество разрядов литров (красные ролики)",
+            "default": 3
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "meter_type",
+          "serial_number",
+          "name",
+          "last_reading_value",
+          "last_reading_date",
+          "verification_date_valid_until"
+        ],
+        "title": "MeterBase"
+      },
+      "MeterReadingSubmitRequest": {
+        "properties": {
+          "meter_id": {
+            "type": "string",
+            "title": "Meter Id",
+            "description": "ID прибора учета"
+          },
+          "reading_value": {
+            "type": "number",
+            "title": "Reading Value",
+            "description": "Текущее значение расхода"
+          },
+          "reading_value_t2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading Value T2",
+            "description": "Показания ночного тарифа Т2 (для многотарифных)"
+          },
+          "reading_value_t3": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading Value T3",
+            "description": "Показания полупика Т3 (для трехтарифных)"
+          },
+          "photo_base64": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Base64",
+            "description": "Опциональное фото прибора для аудита"
+          },
+          "submission_channel": {
+            "type": "string",
+            "title": "Submission Channel",
+            "description": "Канал передачи: max_bot, max_miniapp, inspector_app",
+            "default": "max_miniapp"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment",
+            "description": "Комментарий"
+          }
+        },
+        "type": "object",
+        "required": [
+          "meter_id",
+          "reading_value"
+        ],
+        "title": "MeterReadingSubmitRequest"
+      },
+      "MeterReadingValidationResult": {
+        "properties": {
+          "is_valid": {
+            "type": "boolean",
+            "title": "Is Valid",
+            "description": "Прошли ли показания базовую и бизнес-проверку"
+          },
+          "consumption": {
+            "type": "number",
+            "title": "Consumption",
+            "description": "Рассчитанный расход за период"
+          },
+          "previous_value": {
+            "type": "number",
+            "title": "Previous Value",
+            "description": "Предыдущее значение"
+          },
+          "current_value": {
+            "type": "number",
+            "title": "Current Value",
+            "description": "Принятое значение"
+          },
+          "anomaly_detected": {
+            "type": "boolean",
+            "title": "Anomaly Detected",
+            "description": "Обнаружен ли подозрительно высокий или отрицательный расход",
+            "default": false
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Понятное пользователю объяснение"
+          },
+          "red_roller_filtered": {
+            "type": "boolean",
+            "title": "Red Roller Filtered",
+            "description": "Были ли отсечены красные ролики (литры)",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_valid",
+          "consumption",
+          "previous_value",
+          "current_value",
+          "message"
+        ],
+        "title": "MeterReadingValidationResult"
+      },
+      "MeterType": {
+        "type": "string",
+        "enum": [
+          "cold_water",
+          "hot_water",
+          "el_single",
+          "el_multi",
+          "gas",
+          "heat"
+        ],
+        "title": "MeterType"
+      },
+      "NightFlowCheckRequest": {
+        "properties": {
+          "entrance_id": {
+            "type": "integer",
+            "title": "Entrance Id",
+            "description": "Номер подъезда",
+            "default": 1
+          },
+          "night_reading_before_bed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Night Reading Before Bed",
+            "description": "Показания счетчика перед сном (ХВС)"
+          },
+          "morning_reading": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Morning Reading",
+            "description": "Показания счетчика после пробуждения"
+          },
+          "napkin_test_result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Napkin Test Result",
+            "description": "'wet' если салфетка намокла, 'dry' если сухая"
+          }
+        },
+        "type": "object",
+        "title": "NightFlowCheckRequest"
+      },
+      "NightFlowDiagnosticResponse": {
+        "properties": {
+          "entrance_odpu_flow_liters_per_hour": {
+            "type": "number",
+            "title": "Entrance Odpu Flow Liters Per Hour",
+            "description": "Ночной расход на вводе в дом (02:30 - 04:30)"
+          },
+          "normal_threshold_liters_per_hour": {
+            "type": "number",
+            "title": "Normal Threshold Liters Per Hour",
+            "description": "Норма ночного фона",
+            "default": 100.0
+          },
+          "leak_detected_in_building": {
+            "type": "boolean",
+            "title": "Leak Detected In Building"
+          },
+          "apartment_leak_detected": {
+            "type": "boolean",
+            "title": "Apartment Leak Detected"
+          },
+          "apartment_difference_liters": {
+            "type": "number",
+            "title": "Apartment Difference Liters"
+          },
+          "diagnosis_verdict": {
+            "type": "string",
+            "title": "Diagnosis Verdict"
+          },
+          "reward_eligible": {
+            "type": "boolean",
+            "title": "Reward Eligible",
+            "description": "Право на скидку 10% на услуги УК за найденную утечку",
+            "default": false
+          },
+          "recommendation": {
+            "type": "string",
+            "title": "Recommendation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entrance_odpu_flow_liters_per_hour",
+          "leak_detected_in_building",
+          "apartment_leak_detected",
+          "apartment_difference_liters",
+          "diagnosis_verdict",
+          "recommendation"
+        ],
+        "title": "NightFlowDiagnosticResponse"
+      },
+      "SplitPaymentRecipient": {
+        "properties": {
+          "recipient_name": {
+            "type": "string",
+            "title": "Recipient Name",
+            "description": "Наименование поставщика (Водоканал, ТЭК, УК)"
+          },
+          "inn": {
+            "type": "string",
+            "title": "Inn"
+          },
+          "account_40821": {
+            "type": "string",
+            "title": "Account 40821",
+            "description": "Спецсчет 40821 или транзитный расчетный счет"
+          },
+          "bik": {
+            "type": "string",
+            "title": "Bik"
+          },
+          "amount_rubles": {
+            "type": "number",
+            "title": "Amount Rubles",
+            "description": "Сумма, направляемая напрямую данному поставщику"
+          },
+          "purpose": {
+            "type": "string",
+            "title": "Purpose",
+            "description": "Назначение платежа (ХВС, Отопление, Содержание жилья)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipient_name",
+          "inn",
+          "account_40821",
+          "bik",
+          "amount_rubles",
+          "purpose"
+        ],
+        "title": "SplitPaymentRecipient"
+      },
+      "TicketCreateRequest": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Категория (сантехника, электрика, лифт, уборка, кровля)"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Описание неисправности"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TicketPriority",
+            "description": "Срочность",
+            "default": "urgent"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address",
+            "description": "Адрес",
+            "default": "ул. Ленина, д. 42, кв. 15"
+          },
+          "photo_urls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Photo Urls"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "description"
+        ],
+        "title": "TicketCreateRequest"
+      },
+      "TicketPriority": {
+        "type": "string",
+        "enum": [
+          "emergency",
+          "urgent",
+          "planned"
+        ],
+        "title": "TicketPriority"
+      },
+      "TicketResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TicketPriority"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TicketStatus"
+          },
+          "sla_hours": {
+            "type": "integer",
+            "title": "Sla Hours",
+            "description": "Срок выполнения по ПП РФ № 40"
+          },
+          "assigned_master": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Master"
+          },
+          "status_history": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Status History"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "category",
+          "description",
+          "priority",
+          "status",
+          "sla_hours"
+        ],
+        "title": "TicketResponse"
+      },
+      "TicketStatus": {
+        "type": "string",
+        "enum": [
+          "new",
+          "accepted",
+          "in_progress",
+          "resolved",
+          "confirmed"
+        ],
+        "title": "TicketStatus"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VerificationStatus": {
+        "type": "string",
+        "enum": [
+          "verified",
+          "expiring",
+          "expired",
+          "fraud_alert"
+        ],
+        "title": "VerificationStatus"
+      }
+    }
+  }
+}

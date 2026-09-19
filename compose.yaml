@@ -1,0 +1,22 @@
+services:
+  smart-city-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: max_smart_city_app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - BOT_TOKEN=${BOT_TOKEN:-}
+      - MAX_API_BASE=https://platform-api2.max.ru
+      - MINIAPP_URL=http://localhost:8080
+    volumes:
+      - ./token.env:/app/token.env:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3

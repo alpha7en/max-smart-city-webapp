@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Умный Дом ЖКХ — MAX Mini App</title>
+  <!-- MAX Bridge SDK -->
+  <script src="https://st.max.ru/js/max-web-app.js"></script>
+  <style>
+    :root {
+      --primary: #0077FF;
+      --primary-hover: #0060D6;
+      --bg: #F4F5F7;
+      --card-bg: #FFFFFF;
+      --text-main: #1A1A1A;
+      --text-muted: #6B7280;
+      --border: #E5E7EB;
+      --shield-green: #10B981;
+      --shield-bg: #ECFDF5;
+      --danger: #EF4444;
+      --warning: #F59E0B;
+      --roller-black: #1E293B;
+      --roller-red: #DC2626;
+      --radius: 14px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121212;
+        --card-bg: #1E1E1E;
+        --text-main: #F3F4F6;
+        --text-muted: #9CA3AF;
+        --border: #2E2E2E;
+        --shield-bg: #064E3B;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text-main); padding-bottom: 75px; }
+
+    /* Header */
+    .header {
+      background: var(--card-bg);
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .header h1 { font-size: 18px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+    .user-pill { font-size: 12px; background: rgba(0,119,255,0.1); color: var(--primary); padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+
+    /* Bottom Nav Bar */
+    .nav-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--card-bg);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      padding: 8px 0;
+      z-index: 50;
+    }
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      text-decoration: none;
+      flex: 1;
+      border: none;
+      background: none;
+    }
+    .nav-item.active { color: var(--primary); font-weight: 700; }
+    .nav-item span.icon { font-size: 20px; }
+
+    /* Containers */
+    .tab-content { display: none; padding: 16px; max-width: 600px; margin: 0 auto; }
+    .tab-content.active { display: block; animation: fadeIn 0.2s ease-in-out; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Cards */
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+
+    /* Roller Display (The Meter Counter Visualizer) */
+    .roller-container {
+      background: #0B0F19;
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      margin: 14px 0;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.6);
+    }
+    .roller-digit {
+      width: 38px;
+      height: 52px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: "SF Mono", Monaco, "Courier New", monospace;
+      font-size: 26px;
+      font-weight: 800;
+      color: #FFF;
+      box-shadow: inset 0 -4px 0 rgba(0,0,0,0.3);
+      position: relative;
+    }
+    .roller-black { background: linear-gradient(180deg, #2D3748 0%, #1A202C 100%); border: 1px solid #4A5568; }
+    .roller-red { background: linear-gradient(180deg, #EF4444 0%, #B91C1C 100%); border: 1px solid #F87171; }
+    .roller-dot { color: #FFF; font-size: 24px; font-weight: 900; margin: 0 2px; }
+
+    /* Buttons */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      height: 48px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+    .btn-primary { background: var(--primary); color: #FFF; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: rgba(0,119,255,0.1); color: var(--primary); margin-top: 8px; }
+    .btn-success { background: var(--shield-green); color: #FFF; }
+    .btn-danger { background: var(--danger); color: #FFF; }
+
+    /* Shield Alert */
+    .shield-box {
+      background: var(--shield-bg);
+      border: 1px solid var(--shield-green);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .shield-box.red-box {
+      background: #FEF2F2;
+      border-color: var(--danger);
+    }
+    .shield-title { font-size: 15px; font-weight: 700; color: var(--shield-green); display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .shield-desc { font-size: 13px; line-height: 1.45; color: var(--text-main); }
+
+    /* Form controls */
+    .input-group { margin-bottom: 12px; }
+    .input-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+    .input-control {
+      width: 100%;
+      height: 44px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 0 14px;
+      font-size: 14px;
+      background: var(--card-bg);
+      color: var(--text-main);
+    }
+
+    /* Tag badges */
+    .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 600; }
+    .tag-mock { background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; }
+    .tag-green { background: #D1FAE5; color: #065F46; }
+
+    /* Camera viewfinder preview */
+    .viewfinder {
+      position: relative;
+      height: 200px;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    .viewfinder-reticle {
+      width: 80%;
+      height: 70px;
+      border: 2px dashed #0077FF;
+      border-radius: 8px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFF;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Napkin countdown timer */
+    .timer-circle {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      border: 4px solid var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--primary);
+      margin: 16px auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <div class="header">
+    <h1>🏠 Умный Дом ЖКХ</h1>
+    <div class="user-pill" id="user-display">MAX Мессенджер</div>
+  </div>
+
+  <!-- TAB 1: СКАНЕР СЧЕТЧИКА -->
+  <div id="tab-scanner" class="tab-content active">
+    <div class="card">
+      <h2>📷 Сканер прибора учета <span class="tag tag-mock">ЗАГЛУШКА ИИ</span></h2>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">
+        Наведите камеру на табло или выберите сохраненное фото счетчика.
+      </p>
+
+      <div class="viewfinder">
+        <div class="viewfinder-reticle">Зона считывания барабана</div>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <button class="btn btn-secondary" onclick="simulateScan('ГВС')">🔥 Скан ГВС</button>
+        <button class="btn btn-secondary" onclick="simulateScan('ХВС')">💧 Скан ХВС</button>
+        <button class="btn btn-secondary" onclick="simulateScan('СВЕТ')">⚡ Электро 2Т</button>
+      </div>
+
+      <label class="btn btn-primary" style="margin-bottom:8px;">
+        📸 Сделать реальное фото
+        <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="handleFileInput(event)">
+      </label>
+    </div>
+
+    <!-- Результат распознавания -->
+    <div class="card" id="scan-result-card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2 id="meter-title" style="margin-bottom:0;">Счетчик ГВС Итэлма</h2>
+        <span class="tag tag-green">Точность: 98.4%</span>
+      </div>
+      <p style="font-size:12px; color:var(--text-muted); margin-top:4px;" id="meter-serial-text">Заводской номер: № 2809142</p>
+
+      <!-- Интерактивные ролики -->
+      <div class="roller-container" id="roller-box">
+        <div class="roller-digit roller-black">0</div>
+        <div class="roller-digit roller-black">0</div>
+        <div class="roller-digit roller-black">1</div>
+        <div class="roller-digit roller-black">4</div>
+        <div class="roller-digit roller-black">2</div>
+        <div class="roller-dot">,</div>
+        <div class="roller-digit roller-red">3</div>
+        <div class="roller-digit roller-red">8</div>
+        <div class="roller-digit roller-red">5</div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); margin-bottom:12px;">
+        <span>⬛ Черные: кубометры (м³)</span>
+        <span style="color:var(--roller-red);">🟥 Красные: литры</span>
+      </div>
+
+      <div style="background:rgba(0,119,255,0.06); padding:12px; border-radius:10px; margin-bottom:14px;">
+        <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;">
+          <span>Предыдущие показания:</span>
+          <strong id="prev-val">138.120 м³</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;">
+          <span>Расход за текущий месяц:</span>
+          <strong id="delta-val" style="color:var(--primary);">+4.265 м³</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:15px; font-weight:700; border-top:1px dashed var(--border); padding-top:6px; margin-top:6px;">
+          <span>К начислению:</span>
+          <span id="cost-val" style="color:var(--shield-green);">1 037.03 ₽</span>
+        </div>
+      </div>
+
+      <button class="btn btn-success" onclick="submitReadings()">
+        ✅ Подтвердить и отправить в УК
+      </button>
+    </div>
+  </div>
+
+  <!-- TAB 2: ЗЕЛЕНЫЙ ЩИТ (АРШИН) -->
+  <div id="tab-arshin" class="tab-content">
+    <div class="card">
+      <h2>🛡️ Зеленый Щит Безопасности</h2>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">
+        Защита от фальшивых предписаний мошенников. Проверка даты поверки в реестре Росстандарта ФГИС «АРШИН» (102-ФЗ).
+      </p>
+
+      <div class="input-group">
+        <label>Заводской серийный номер счетчика:</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="serial-input" class="input-control" value="2809142" placeholder="Например, 2809142">
+          <button class="btn btn-primary" style="width:110px;" onclick="verifyArshin()">Проверить</button>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:6px; margin-bottom:14px;">
+        <button class="btn btn-secondary" style="height:32px; font-size:11px;" onclick="setSerial('2809142')">Итэлма (2029)</button>
+        <button class="btn btn-secondary" style="height:32px; font-size:11px;" onclick="setSerial('4819024')">Меркурий (2037)</button>
+        <button class="btn btn-secondary" style="height:32px; font-size:11px;" onclick="setSerial('991201')">Истекший</button>
+      </div>
+
+      <div id="shield-result"></div>
+    </div>
+  </div>
+
+  <!-- TAB 3: НОЧНОЙ ДОЗОР (УТЕЧКИ) -->
+  <div id="tab-night" class="tab-content">
+    <div class="card">
+      <h2>🌙 «Ночной дозор» ОДПУ</h2>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">
+        Совместный поиск скрытых ночных утечек дома вместе с УК. Спасаем дом от переплаты за ОДН!
+      </p>
+
+      <div class="shield-box red-box">
+        <div class="shield-title" style="color:var(--danger);">⚠️ Подъезд № 2: зафиксирован ночной небаланс!</div>
+        <div class="shield-desc">
+          В период с 02:30 до 04:30 утра общедомовой счетчик (ОДПУ) зафиксировал постоянный расход <strong>35 л/мин</strong> (норма спящего дома: < 1 л/мин).<br>
+          Потери составляют <strong>50 м³/сутки</strong> (+180 ₽ к квитанции каждой квартиры).
+        </div>
+      </div>
+
+      <div class="card" style="border:1px dashed var(--primary); background:rgba(0,119,255,0.03);">
+        <h3 style="font-size:14px; margin-bottom:6px;">🧪 Экспресс-тест бачка с салфеткой (30 секунд)</h3>
+        <p style="font-size:12px; color:var(--text-muted); line-height:1.4;">
+          90% ночных утечек происходят из-за незаметного перелива клапана унитаза.
+          Положите сухую бумажную салфетку на сухую заднюю стенку чаши унитаза и запустите таймер.
+        </p>
+
+        <div class="timer-circle" id="timer-box">15</div>
+
+        <button class="btn btn-primary" id="btn-timer" onclick="startNapkinTimer()">⏱️ Запустить тест (15 сек)</button>
+
+        <div id="napkin-verdict" style="display:none; margin-top:14px;">
+          <p style="font-size:13px; font-weight:600; margin-bottom:8px; text-align:center;">Результат проверки салфетки:</p>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-success" onclick="reportLeak(false)">✅ Сухая (норма)</button>
+            <button class="btn btn-danger" onclick="reportLeak(true)">💧 Намокла (утечка!)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: АРЕНДАТОР -->
+  <div id="tab-tenant" class="tab-content">
+    <div class="card">
+      <h2>🔑 Гостевой доступ для Арендатора</h2>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">
+        Передача показаний и оплата без Госуслуг/ЕСИА и без риска раскрытия персональных данных собственника.
+      </p>
+
+      <div style="background:rgba(0,119,255,0.05); padding:14px; border-radius:10px; margin-bottom:14px;">
+        <strong style="font-size:13px;">Квартира № 48 (ул. Ленина, д. 12)</strong>
+        <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">Собственник: Иванов А. С.</p>
+      </div>
+
+      <button class="btn btn-primary" onclick="generateGuestLink()">
+        🔗 Сгенерировать гостевую ссылку для жильца
+      </button>
+
+      <div id="guest-link-box" style="display:none; margin-top:14px; padding:12px; background:#F8FAFC; border:1px solid #CBD5E1; border-radius:10px;">
+        <p style="font-size:12px; color:#475569; margin-bottom:6px;">Отправьте эту ссылку арендатору в MAX:</p>
+        <input type="text" readonly class="input-control" value="https://max.ru/t226_hakaton_max_bot?guest=kv48_7f9a2" style="font-size:12px; margin-bottom:8px;">
+        <p style="font-size:11px; color:#10B981;">🛡️ Арендатор сможет передавать показания и оплачивать счета, но не имеет доступа к документам собственника.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 5: ОБХОДЧИК УК -->
+  <div id="tab-inspector" class="tab-content">
+    <div class="card">
+      <h2>📋 Мобильный инструмент обходчика УК</h2>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">
+        Формирование юридически значимого цифрового акта контролера с GPS-привязкой и криптографическим хэшем.
+      </p>
+
+      <div class="input-group">
+        <label>Адрес проверки:</label>
+        <input type="text" class="input-control" value="г. Москва, ул. Тверская, д. 7, кв. 14" id="insp-address">
+      </div>
+
+      <button class="btn btn-primary" onclick="createInspectorAct()">
+        📍 Зафиксировать показания с GPS и сформировать Акт
+      </button>
+
+      <div id="inspector-act-box" style="display:none; margin-top:14px;"></div>
+    </div>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <div class="nav-bar">
+    <button class="nav-item active" onclick="switchTab('tab-scanner', this)">
+      <span class="icon">📷</span>
+      <span>Счетчик</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('tab-arshin', this)">
+      <span class="icon">🛡️</span>
+      <span>АРШИН</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('tab-night', this)">
+      <span class="icon">🌙</span>
+      <span>Дозор</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('tab-tenant', this)">
+      <span class="icon">🔑</span>
+      <span>Аренда</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('tab-inspector', this)">
+      <span class="icon">📋</span>
+      <span>Обходчик</span>
+    </button>
+  </div>
+
+  <script>
+    // Инициализация MAX Bridge
+    const webapp = window.WebApp;
+    if (webapp) {
+      if (webapp.initDataUnsafe && webapp.initDataUnsafe.user) {
+        document.getElementById('user-display').innerText = webapp.initDataUnsafe.user.first_name || 'MAX';
+      }
+      if (webapp.BackButton) {
+        webapp.BackButton.show();
+        webapp.BackButton.onClick(() => {
+          switchTab('tab-scanner', document.querySelector('.nav-item'));
+        });
+      }
+    }
+
+    function haptic(type = 'medium') {
+      if (webapp && webapp.HapticFeedback) {
+        webapp.HapticFeedback.impactOccurred(type);
+      }
+    }
+
+    function switchTab(tabId, navElement) {
+      haptic('light');
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      if (navElement) navElement.classList.add('active');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Симуляция распознавания счетчика
+    async function simulateScan(meterType) {
+      haptic('medium');
+      try {
+        const resp = await fetch(`/api/meter/scan?meter_hint=${encodeURIComponent(meterType)}`, { method: 'POST' });
+        const data = await resp.json();
+        updateScannerUI(data);
+      } catch (err) {
+        alert('Ошибка связи с сервером');
+      }
+    }
+
+    function handleFileInput(e) {
+      simulateScan('ХВС');
+    }
+
+    function updateScannerUI(data) {
+      document.getElementById('meter-title').innerText = data.meter_name;
+      document.getElementById('meter-serial-text').innerText = `Заводской номер: № ${data.serial_number}`;
+      document.getElementById('prev-val').innerText = `${data.calculation.previous_reading} ${data.readings.unit}`;
+      document.getElementById('delta-val').innerText = `+${data.calculation.delta} ${data.readings.unit}`;
+      document.getElementById('cost-val').innerText = `${data.calculation.estimated_rub} ₽`;
+
+      // Отрисовка барабанов
+      const box = document.getElementById('roller-box');
+      box.innerHTML = '';
+      data.rollers.black_digits.forEach(d => {
+        const el = document.createElement('div');
+        el.className = 'roller-digit roller-black';
+        el.innerText = d;
+        box.appendChild(el);
+      });
+      const dot = document.createElement('div');
+      dot.className = 'roller-dot';
+      dot.innerText = ',';
+      box.appendChild(dot);
+      data.rollers.red_digits.forEach(d => {
+        const el = document.createElement('div');
+        el.className = 'roller-digit roller-red';
+        el.innerText = d;
+        box.appendChild(el);
+      });
+    }
+
+    function submitReadings() {
+      haptic('heavy');
+      if (webapp && webapp.HapticFeedback) {
+        webapp.HapticFeedback.notificationOccurred('success');
+      }
+      alert('✅ Показания успешно переданы в управляющую компанию!\nСформирован счет для оплаты через СБП.');
+    }
+
+    // АРШИН проверка
+    function setSerial(s) {
+      document.getElementById('serial-input').value = s;
+      verifyArshin();
+    }
+
+    async function verifyArshin() {
+      haptic('light');
+      const serial = document.getElementById('serial-input').value;
+      const resp = await fetch(`/api/arshin/verify?serial_number=${encodeURIComponent(serial)}`);
+      const data = await resp.json();
+      
+      const resBox = document.getElementById('shield-result');
+      const isOk = data.is_valid;
+      resBox.innerHTML = `
+        <div class="shield-box ${isOk ? '' : 'red-box'}">
+          <div class="shield-title" style="color:${data.shield_color};">
+            ${data.shield_badge}
+          </div>
+          <div class="shield-desc" style="white-space:pre-line;">
+            ${data.resident_alert_text}
+          </div>
+          <div style="margin-top:10px; font-size:11px; color:var(--text-muted);">
+            Официальный реестр: <code>${data.law_reference}</code>
+          </div>
+        </div>
+      `;
+    }
+
+    // Ночной дозор таймер
+    let timerInt = null;
+    function startNapkinTimer() {
+      haptic('medium');
+      let t = 15;
+      const circle = document.getElementById('timer-box');
+      const btn = document.getElementById('btn-timer');
+      btn.disabled = true;
+      circle.innerText = t;
+
+      clearInterval(timerInt);
+      timerInt = setInterval(() => {
+        t--;
+        circle.innerText = t;
+        if (t <= 0) {
+          clearInterval(timerInt);
+          haptic('heavy');
+          btn.style.display = 'none';
+          document.getElementById('napkin-verdict').style.display = 'block';
+        }
+      }, 1000);
+    }
+
+    function reportLeak(hasLeak) {
+      haptic('heavy');
+      if (hasLeak) {
+        alert('💧 Спасибо за бдительность!\nИнформация об утечке передана дежурному сантехнику УК.\nВам начислена скидка 10% на содержание жилья за содействие дому!');
+      } else {
+        alert('✅ Отлично! В вашей квартире утечек не обнаружено. Спасибо за участие в Ночном Дозоре!');
+      }
+    }
+
+    // Гостевой доступ
+    function generateGuestLink() {
+      haptic('medium');
+      document.getElementById('guest-link-box').style.display = 'block';
+    }
+
+    // Обходчик УК
+    async function createInspectorAct() {
+      haptic('medium');
+      const addr = document.getElementById('insp-address').value;
+      const resp = await fetch(`/api/uk/inspector-act?address=${encodeURIComponent(addr)}`, { method: 'POST' });
+      const data = await resp.json();
+      const box = document.getElementById('inspector-act-box');
+      box.style.display = 'block';
+      box.innerHTML = `
+        <div style="background:#F0FDF4; border:1px solid #86EFAC; padding:12px; border-radius:10px;">
+          <strong style="color:#166534; font-size:13px;">${data.act_title}</strong>
+          <p style="font-size:12px; margin-top:4px;">Номер акта: <strong>${data.act_number}</strong></p>
+          <p style="font-size:11px; color:#4B5563;">GPS: ${data.gps_coordinates} | Время: ${data.timestamp}</p>
+          <p style="font-size:11px; color:#4B5563;">Хэш фото (SHA-256): <code>${data.crypto_hash.substring(0,24)}...</code></p>
+          <p style="font-size:11px; color:#15803D; margin-top:6px;">✅ Акт подписан ЭЦП и выгружен в 1С:ЖКХ биллинг.</p>
+        </div>
+      `;
+    }
+
+    // Первичная загрузка
+    verifyArshin();
+  </script>
+</body>
+</html>
