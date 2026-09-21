@@ -60,6 +60,18 @@ INITIAL_METERS: Dict[str, MeterBase] = {
         verification_date_valid_until=date(2027, 9, 30),
         unit="Гкал",
         decimal_digits=2
+    ),
+    "meter-gas-1": MeterBase(
+        id="meter-gas-1",
+        meter_type=MeterType.GAS,
+        serial_number="5540912",
+        name="Газоснабжение (ВК-G4)",
+        installation_place="Кухня",
+        last_reading_value=340.0,
+        last_reading_date=date(2026, 8, 20),
+        verification_date_valid_until=date(2030, 6, 15),
+        unit="м³",
+        decimal_digits=3
     )
 }
 
@@ -74,16 +86,27 @@ class MeterService:
     def get_meter(self, meter_id: str) -> Optional[MeterBase]:
         return self._meters.get(meter_id)
 
-    def filter_red_rollers(self, raw_value: float, meter_type: MeterType) -> float:
+    def filter_red_rollers(self, raw_value: float, meter_type: MeterType, prev_value: Optional[float] = None) -> float:
         """
         Prevents the 1000x error by cutting off red decimal roller digits.
-        If a water meter has 5 black digits and 3 red digits (liters),
+        If a water or gas meter has 5 black digits and 3 red digits (liters),
         reading '142789' means 142 m³ and 789 liters.
         """
-        if meter_type in [MeterType.COLD_WATER, MeterType.HOT_WATER]:
-            # If raw value looks like unscaled 8 digits (e.g. > 10,000 when prev was ~100)
+        if meter_type in [MeterType.COLD_WATER, MeterType.HOT_WATER, MeterType.GAS]:
+            scaled = float(int(raw_value) // 1000)
+            if prev_value is not None and prev_value >= 0:
+                # If entering unscaled integer with 3 extra decimal digits, e.g.:
+                # prev was 0.0 (new meter), user enters 1250 -> scaled is 1.0 (diff 1.0 vs diff 1250.0)
+                # prev was 4.0, user enters 5789 -> scaled is 5.0 (diff 1.0 vs diff 5785.0)
+                # prev was 142.0, user enters 145200 -> scaled is 145.0 (diff 3.0 vs diff 145058.0)
+                if raw_value >= 1000 and abs(scaled - prev_value) < abs(raw_value - prev_value) and (raw_value - prev_value > 100):
+                    return scaled
+                # If legitimate high meter reading e.g. prev was 10500, user enters 10505
+                if prev_value > 1000 and raw_value >= prev_value and (raw_value - prev_value < 500):
+                    return raw_value
+            # Fallback when prev_value is None: unscaled integer > 10000
             if raw_value > 10000:
-                return float(int(raw_value) // 1000)
+                return scaled
         return raw_value
 
     def validate_and_submit_reading(self, req: MeterReadingSubmitRequest) -> MeterReadingValidationResult:
@@ -100,10 +123,9 @@ class MeterService:
             )
 
         original_val = req.reading_value
-        filtered_val = self.filter_red_rollers(original_val, meter.meter_type)
-        red_roller_filtered = (filtered_val != original_val)
-
         prev_val = meter.last_reading_value
+        filtered_val = self.filter_red_rollers(original_val, meter.meter_type, prev_value=prev_val)
+        red_roller_filtered = (filtered_val != original_val)
         consumption = round(filtered_val - prev_val, 3)
 
         # 1. Monotonicity check
@@ -136,6 +158,10 @@ class MeterService:
             if consumption > 1000.0:
                 anomaly = True
                 message = f"Внимание: Расход электроэнергии ({consumption} кВт*ч) аномально высок."
+        elif meter.meter_type == MeterType.GAS:
+            if consumption > 50.0:
+                anomaly = True
+                message = f"Внимание: Расход газа ({consumption} м³) превышает среднемесячную норму."
 
         # Update meter state if valid
         meter.last_reading_value = filtered_val

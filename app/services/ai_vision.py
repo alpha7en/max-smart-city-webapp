@@ -47,6 +47,15 @@ class AiVisionService:
                 BoundingBox(x=90.0, y=60.0, width=320.0, height=80.0, label="lcd_digits_kwh", confidence=0.99),
                 BoundingBox(x=130.0, y=190.0, width=240.0, height=45.0, label="barcode_and_serial", confidence=0.97),
             ]
+        elif target_type == MeterType.GAS:
+            raw_value = 345.812
+            integer_reading = 345.0
+            serial = "5540912"
+            boxes = [
+                BoundingBox(x=110.0, y=75.0, width=275.0, height=72.0, label="black_digit_rollers_m3", confidence=0.96),
+                BoundingBox(x=390.0, y=75.0, width=150.0, height=72.0, label="red_digit_rollers_liters", confidence=0.93),
+                BoundingBox(x=145.0, y=195.0, width=215.0, height=40.0, label="serial_number_plate", confidence=0.95),
+            ]
         else:
             raw_value = 14.25
             integer_reading = 14.2
@@ -67,7 +76,7 @@ class AiVisionService:
             recognized_reading=integer_reading,
             recognized_serial_number=serial,
             confidence=0.968,
-            red_rollers_detected=(target_type in [MeterType.COLD_WATER, MeterType.HOT_WATER]),
+            red_rollers_detected=(target_type in [MeterType.COLD_WATER, MeterType.HOT_WATER, MeterType.GAS]),
             raw_reading_with_fractions=raw_value,
             perspective_rectified=True,
             bounding_boxes=boxes

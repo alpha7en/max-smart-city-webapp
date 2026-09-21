@@ -27,12 +27,23 @@ INITIAL_TICKETS: List[Dict] = [
     }
 ]
 
+import threading
+
 class TicketService:
     def __init__(self):
+        self._lock = threading.Lock()
         self._tickets: List[Dict] = list(INITIAL_TICKETS)
 
     def get_all_tickets(self) -> List[TicketResponse]:
-        return [TicketResponse(**t) for t in self._tickets]
+        with self._lock:
+            return [TicketResponse(**t) for t in self._tickets]
+
+    def get_ticket(self, ticket_id: str) -> Optional[TicketResponse]:
+        with self._lock:
+            for t in self._tickets:
+                if t["id"] == ticket_id:
+                    return TicketResponse(**t)
+        return None
 
     def create_ticket(self, req: TicketCreateRequest) -> TicketResponse:
         sla = 1 if req.priority == TicketPriority.EMERGENCY else (24 if req.priority == TicketPriority.URGENT else 72)
@@ -56,7 +67,31 @@ class TicketService:
                 }
             ]
         }
-        self._tickets.insert(0, ticket_dict)
+        with self._lock:
+            self._tickets.insert(0, ticket_dict)
         return TicketResponse(**ticket_dict)
+
+    def update_ticket_status(
+        self,
+        ticket_id: str,
+        new_status: TicketStatus,
+        comment: Optional[str] = None,
+        assigned_master: Optional[str] = None
+    ) -> Optional[TicketResponse]:
+        with self._lock:
+            for t in self._tickets:
+                if t["id"] == ticket_id:
+                    now = datetime.now()
+                    t["status"] = new_status
+                    if assigned_master:
+                        t["assigned_master"] = assigned_master
+                    entry = {
+                        "status": new_status.value if hasattr(new_status, 'value') else str(new_status),
+                        "time": now.isoformat(),
+                        "comment": comment or f"Статус обновлен диспетчером: {new_status}"
+                    }
+                    t["status_history"].append(entry)
+                    return TicketResponse(**t)
+        return None
 
 ticket_service = TicketService()

@@ -135,11 +135,28 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # Mount API Router
 app.include_router(api_router)
 
-@app.get("/", include_in_schema=False)
-@app.get("/app", include_in_schema=False)
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/app", methods=["GET", "HEAD"], include_in_schema=False)
 async def serve_miniapp():
     """
     Serves the MAX Mini-App single page application.
     """
     index_file = STATIC_DIR / "index.html"
     return FileResponse(str(index_file))
+
+@app.api_route("/styles.css", methods=["GET", "HEAD"], include_in_schema=False)
+async def serve_styles():
+    css_file = STATIC_DIR / "styles.css"
+    return FileResponse(str(css_file), media_type="text/css")
+
+@app.api_route("/app.js", methods=["GET", "HEAD"], include_in_schema=False)
+async def serve_app_js():
+    js_file = STATIC_DIR / "app.js"
+    return FileResponse(str(js_file), media_type="application/javascript")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    from fastapi.responses import Response
+    return Response(status_code=204)
+

@@ -12,7 +12,15 @@ from app.models.schemas import GuestAccessGenerateRequest, GuestAccessResponse
 
 class GuestAccessService:
     def __init__(self):
-        self._active_tokens: Dict[str, Dict] = {}
+        self._active_tokens: Dict[str, Dict] = {
+            "guest_test_token_2026": {
+                "property_id": "flat-42-15",
+                "tenant_name": "Петров Петр Сергеевич",
+                "tenant_phone": "+7 (999) 123-45-67",
+                "expires_at": datetime.now() + timedelta(days=365),
+                "actions": ["submit_meter_readings", "view_bills", "pay_split_sbp"]
+            }
+        }
 
     def generate_guest_token(self, req: GuestAccessGenerateRequest) -> GuestAccessResponse:
         token = f"guest_{secrets.token_urlsafe(16)}"

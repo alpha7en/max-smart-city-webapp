@@ -60,13 +60,13 @@ def send_message(chat_id=None, user_id=None, text="Привет из бота!")
 def run_test_listener():
     info = get_bot_info()
     print("=" * 60)
-    print(f"✅ Бот успешно подключен к API MAX!")
-    print(f"🤖 Имя:     {info.get('name') or info.get('first_name')}")
-    print(f"🔗 Никнейм: @{info.get('username')}")
-    print(f"🆔 ID бота: {info.get('id') or info.get('user_id')}")
+    print(f"[OK] Бот успешно подключен к API MAX!")
+    print(f"[BOT] Имя:     {info.get('name') or info.get('first_name')}")
+    print(f"[BOT] Никнейм: @{info.get('username')}")
+    print(f"[BOT] ID бота: {info.get('id') or info.get('user_id')}")
     print("=" * 60)
-    print(f"👉 Откройте мессенджер MAX, найдите бота @{info.get('username')} и напишите ему любое сообщение.")
-    print("⏳ Ожидание сообщений (Long Polling)... Нажмите Ctrl+C для выхода.\n")
+    print(f"-> Откройте мессенджер MAX, найдите бота @{info.get('username')} и напишите ему любое сообщение.")
+    print("... Ожидание сообщений (Long Polling)... Нажмите Ctrl+C для выхода.\n")
     
     marker = None
     while True:
@@ -86,7 +86,7 @@ def run_test_listener():
                 
                 for upd in updates:
                     upd_type = upd.get("update_type")
-                    print(f"\n📩 Получено событие: [{upd_type}]")
+                    print(f"\n[EVENT] Получено событие: [{upd_type}]")
                     
                     # Событие старта бота пользователем
                     if upd_type == "bot_started":
@@ -94,7 +94,7 @@ def run_test_listener():
                         chat_id = upd.get("chat_id")
                         user_id = user.get("user_id") or user.get("id")
                         user_name = user.get("name") or user.get("first_name", "Пользователь")
-                        print(f"👋 Бот запущен пользователем: {user_name} (ID: {user_id})")
+                        print(f"[START] Бот запущен пользователем: {user_name} (ID: {user_id})")
                         
                         welcome_text = (
                             f"Здравствуйте, {user_name}!\n\n"
@@ -102,7 +102,7 @@ def run_test_listener():
                             "Бот успешно запущен и готов к разработке сценариев!"
                         )
                         send_message(chat_id=chat_id, user_id=user_id, text=welcome_text)
-                        print("💬 Приветственное сообщение отправлено!")
+                        print("[INFO] Приветственное сообщение отправлено!")
                         
                     # Событие нового сообщения
                     elif upd_type == "message_created":
@@ -114,11 +114,11 @@ def run_test_listener():
                         chat_id = recipient.get("chat_id")
                         user_id = sender.get("user_id") or sender.get("id")
                         
-                        print(f"💬 Текст сообщения: \"{text}\" от {sender.get('first_name', 'User')} (ID: {user_id})")
+                        print(f"[MSG] Текст сообщения: \"{text}\" от {sender.get('first_name', 'User')} (ID: {user_id})")
                         
-                        reply_text = f"Эхо-ответ: Я получил ваше сообщение «{text}»! Бот работает корректно 🚀"
+                        reply_text = f"Эхо-ответ: Я получил ваше сообщение «{text}»! Бот работает корректно [OK]"
                         send_message(chat_id=chat_id, user_id=user_id, text=reply_text)
-                        print("💬 Эхо-ответ успешно отправлен в ответ!")
+                        print("[INFO] Эхо-ответ успешно отправлен в ответ!")
                         
         except urllib.error.HTTPError as e:
             print(f"HTTP Ошибка {e.code}: {e.reason}")

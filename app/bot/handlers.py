@@ -1,182 +1,274 @@
 """
 MAX Bot event and message handlers.
-Implements the core scenarios:
-1. Instant photo reception & recognition from gallery/chat forwarding
+Refactored using max_bot_sdk.
+Core Scenarios:
+1. Instant meter photo recognition & red roller filtering
 2. Green Security Shield (FGIS Arshin anti-fraud)
 3. GOST R 56042-2014 bill payment & Account 40821 splitting
-4. Night Flow ODPU leak crowd-diagnostics
-5. Tenant guest access links
-6. Emergency UK requests under PP RF No. 40
+4. Tenant guest access links (no ESIA required)
+5. UK Emergency tickets under PP RF No. 40
+6. UK Inspector mobile tool (digital act with GPS and SHA-256)
 """
 
 from typing import Dict, Any, List, Optional
 import logging
-from app.bot.client import MaxBotClient
+import re
+
+from max_bot_sdk import MaxBotClient, Button, KeyboardBuilder, Update
 from app.config import settings
 from app.services.meter_service import meter_service
 from app.services.arshin import arshin_service
 from app.services.ai_vision import ai_vision_service
 from app.services.gost_qr import parse_gost_qr_payload
-from app.services.night_flow import night_flow_service
 from app.services.ticket_service import ticket_service
 from app.services.guest_service import guest_service
+from app.services.inspector_service import inspector_service
+from app.services.profile_service import profile_service, UserProperty
 from app.models.schemas import (
     AiVisionScanRequest,
     MeterReadingSubmitRequest,
-    NightFlowCheckRequest,
-    GuestAccessGenerateRequest
+    GuestAccessGenerateRequest,
+    InspectorActCreateRequest
 )
 from app.models.domain import MeterType, TicketPriority
 
 logger = logging.getLogger("max_bot_handlers")
 
-def get_main_menu_buttons() -> List[List[Dict[str, Any]]]:
-    app_url = settings.MINIAPP_URL
-    return [
+def get_main_menu_keyboard() -> Dict[str, Any]:
+    """
+    Лаконичное меню жителя по гайдлайнам MAX UI.
+    Все лейблы короче 18 символов — строгий ФинTech стиль без лишнего шума.
+    Кнопка 'open_app' строго передает web_app=BOT_USERNAME для нативного открытия внутри MAX WebView.
+    """
+    return KeyboardBuilder.inline([
         [
-            {
-                "type": "link",
-                "text": "📱 Открыть Мини-приложение MAX",
-                "url": app_url
-            }
+            Button.open_app("Мини-приложение", settings.BOT_USERNAME)
         ],
         [
-            {
-                "type": "callback",
-                "text": "📸 Передать показания",
-                "payload": "cmd_meters"
-            },
-            {
-                "type": "callback",
-                "text": "🛡️ Проверить поверку (АРШИН)",
-                "payload": "cmd_arshin"
-            }
+            Button.callback("Сдать показания", "cmd_meters"),
+            Button.callback("Проверка АРШИН", "cmd_arshin")
         ],
         [
-            {
-                "type": "callback",
-                "text": "🧾 Оплатить квитанцию (ГОСТ)",
-                "payload": "cmd_pay"
-            },
-            {
-                "type": "callback",
-                "text": "🔍 Ночной дозор (Утечки)",
-                "payload": "cmd_night_flow"
-            }
+            Button.callback("Оплата ЖКУ", "cmd_pay"),
+            Button.callback("Арендатор", "cmd_guest")
         ],
         [
-            {
-                "type": "callback",
-                "text": "🛠️ Подать заявку в УК",
-                "payload": "cmd_ticket"
-            },
-            {
-                "type": "callback",
-                "text": "👥 Доступ для арендатора",
-                "payload": "cmd_guest"
-            }
+            Button.callback("Мой профиль", "cmd_profile"),
+            Button.callback("Мои адреса", "cmd_address")
         ]
-    ]
+    ])
+
 
 class BotHandler:
     def __init__(self, client: MaxBotClient):
         self.client = client
+        self._pending_scans: Dict[Any, float] = {}
 
-    def handle_bot_started(self, update: Dict[str, Any]):
-        user = update.get("user", {})
-        chat_id = update.get("chat_id")
-        user_id = user.get("user_id") or user.get("id")
-        name = user.get("first_name") or user.get("name") or "Житель"
+    def process_update(self, update: Any):
+        if isinstance(update, dict):
+            update = Update.from_dict(update)
+        logger.info("Processing MAX update: %s", update.update_type)
+
+        if update.update_type == "bot_started":
+            self.handle_bot_started(update)
+        elif update.update_type == "message_created":
+            self.handle_message_created(update)
+        elif update.update_type == "message_callback":
+            self.handle_callback(update)
+
+    def _send(self, chat_id: Optional[Any], user_id: Optional[int], text: str, keyboard: Optional[Dict[str, Any]] = None):
+        # Строгая очистка: удаление любых технических скобок [..] и псевдокода
+        clean_text = re.sub(r"\[(MAX|ИНФО|WEB-APP|ИПУ|АРШИН|ОПЛАТА|Водоканал|ХВС|ГВС|Сервис|ГИС ЖКХ|АРМ|СБП|ST0001)[^\]]*\]\s*", "", text).strip()
+        buttons = None
+        if keyboard and isinstance(keyboard, dict) and "payload" in keyboard:
+            buttons = keyboard.get("payload", {}).get("buttons")
+        try:
+            return self.client.send_message(
+                chat_id=chat_id,
+                user_id=user_id,
+                text=clean_text,
+                keyboard=keyboard,
+                buttons=buttons
+            )
+        except Exception as e:
+            logger.error("Failed to send message to chat=%s user=%s: %s", chat_id, user_id, e)
+            return {}
+
+    def handle_bot_started(self, update: Any, guest_token: Optional[str] = None):
+        if isinstance(update, dict):
+            update = Update.from_dict(update)
+        user_id = update.sender_user_id
+        chat_id = update.effective_chat_id
+
+        if user_id:
+            profile = profile_service.get_profile(user_id)
+            if update.user:
+                if update.user.first_name:
+                    profile.first_name = update.user.first_name
+                if update.user.last_name:
+                    profile.last_name = update.user.last_name
+                if update.user.username:
+                    profile.username = update.user.username
+        else:
+            profile = profile_service.get_profile()
+
+        name = (update.user.first_name if update.user and update.user.first_name else profile.first_name) or "Иван"
+
+        # Проверка гостевого токена арендатора
+        if not guest_token and isinstance(getattr(update, "raw", None), dict):
+            raw_payload = str(update.raw.get("payload") or "")
+            if raw_payload.startswith("guest_"):
+                guest_token = raw_payload
+
+        if guest_token:
+            guest_info = guest_service.validate_guest_token(guest_token)
+            if guest_info:
+                tenant_name = guest_info.get("tenant_name", "Арендатор")
+                prop_address = guest_info.get("property_address", "ул. Ленина, д. 42, кв. 15")
+                guest_text = (
+                    f"**MAX Умный Дом — Гостевой доступ для арендатора**\n\n"
+                    f"• Адрес: **{prop_address}**\n"
+                    f"• Арендатор: **{tenant_name}**\n\n"
+                    f"Вам предоставлен безопасный доступ без авторизации через Госуслуги:\n"
+                    f"• Передача показаний счетчиков (вода, свет, газ, тепло)\n"
+                    f"• Просмотр и оплата квитанций ЖКУ по СБП\n\n"
+                    f"Откройте **Мини-приложение** для интерактивной работы:"
+                )
+                guest_kb = KeyboardBuilder.inline([
+                    [Button.open_app("Мини-приложение", settings.BOT_USERNAME, payload=f"guest_{guest_token}")],
+                    [Button.callback("Сдать показания", "cmd_meters"), Button.callback("Оплата ЖКУ", "cmd_pay")]
+                ])
+                self._send(chat_id=chat_id, user_id=user_id, text=guest_text, keyboard=guest_kb)
+                return
+
+        active_prop = profile_service.get_active_property(user_id)
+        role_label = "Собственник" if active_prop.role == "owner" else "Арендатор"
 
         text = (
-            f"👋 **Здравствуйте, {name}!**\n\n"
-            f"Добро пожаловать в **«MAX Умный Дом»** — единый сервис взаимодействия жителей с "
-            f"Управляющей компанией по Постановлению Правительства РФ № 40 от 26.01.2026 г.\n\n"
-            f"✨ **Что вы можете сделать прямо в MAX:**\n"
-            f"• 📸 **Мгновенно передать показания**: просто перешлите фото счетчика из галереи или семейного чата в этот диалог!\n"
-            f"• 🛡️ **Защититься от мошенников**: автоматическая сверка заводского номера с реестром ФГИС «АРШИН» (102-ФЗ);\n"
-            f"• 🧾 **Оплатить ЖКУ без комиссии**: сканирование QR по ГОСТ Р 56042-2014 и сплит на спецсчет 40821;\n"
-            f"• 🔍 **«Ночной дозор»**: выявление скрытых ночных утечек дома по ОДПУ со скидкой 10% на квартплату;\n"
-            f"• 👥 **Гостевой доступ**: арендатор передает данные без входа через ЕСИА.\n\n"
-            f"Выберите действие ниже или запустите мини-приложение 👇"
+            f"**MAX Умный Дом — Сервис ЖКХ**\n"
+            f"Лицевой счет: {active_prop.els} | Адрес: {active_prop.address}\n"
+            f"Пользователь: {name} ({role_label})\n\n"
+            f"**Быстрая передача показаний:**\n"
+            f"Отправьте фотографию любого счетчика (вода, свет, газ, тепло) прямо в этот диалог.\n\n"
+            f"**Возможности сервиса:**\n"
+            f"• Автоматическое распознавание цифр с фото и защита от переплаты\n"
+            f"• Проверка поверки приборов в реестре ФГИС «АРШИН» (102-ФЗ)\n"
+            f"• Оплата ЖКУ по СБП с расщеплением на спецсчет 40821 (103-ФЗ)\n"
+            f"• Гостевой доступ для арендаторов без авторизации через Госуслуги\n"
+            f"• Подача заявок в диспетчерскую службу УК с контролем сроков\n"
+            f"• Цифровые акты обходчика с GPS-меткой и фиксацией времени\n\n"
+            f"Для работы с интерактивным интерфейсом нажмите кнопку **«Мини-приложение»** ниже:"
         )
-        self.client.send_message(
+        self._send(
             chat_id=chat_id,
             user_id=user_id,
             text=text,
-            buttons=get_main_menu_buttons()
+            keyboard=get_main_menu_keyboard()
         )
 
-    def handle_message_created(self, update: Dict[str, Any]):
-        msg = update.get("message", {})
-        body = msg.get("body", {})
-        text = body.get("text", "").strip()
-        attachments = body.get("attachments", [])
-        sender = msg.get("sender", {})
-        recipient = msg.get("recipient", {})
-        chat_id = recipient.get("chat_id")
-        user_id = sender.get("user_id") or sender.get("id")
+    def handle_message_created(self, update: Any):
+        if isinstance(update, dict):
+            update = Update.from_dict(update)
+        chat_id = update.effective_chat_id
+        user_id = update.sender_user_id
+        text = update.text.strip()
 
-        # 1. Check if user sent an image (photo of meter or bill)
-        has_image = any(att.get("type") in ["image", "photo"] for att in attachments)
-        if has_image:
-            self._process_incoming_photo(chat_id, user_id, attachments)
+        if user_id:
+            profile = profile_service.get_profile(user_id)
+            if update.user:
+                if update.user.first_name:
+                    profile.first_name = update.user.first_name
+                if update.user.last_name:
+                    profile.last_name = update.user.last_name
+                if update.user.username:
+                    profile.username = update.user.username
+
+        # 1. Проверка наличия фотографии
+        if update.has_image:
+            hint = self._detect_meter_type_from_hint(text)
+            self._process_incoming_photo(chat_id, user_id, meter_type_hint=hint)
             return
 
-        # 2. Command routing
+        # 2. Проверка наличия контакта (кнопка request_contact)
+        if update.has_contact:
+            self._process_incoming_contact(chat_id, user_id, update)
+            return
+
+        # 3. Роутинг текстовых команд
         lower_text = text.lower()
-        if lower_text in ["/start", "старт", "меню"]:
-            self.handle_bot_started({"chat_id": chat_id, "user": sender})
+        if lower_text.startswith("/start guest_") or lower_text.startswith("start guest_"):
+            parts = text.split(maxsplit=1)
+            token = parts[1].strip() if len(parts) > 1 else ""
+            self.handle_bot_started(update, guest_token=token)
+        elif lower_text in ["/start", "старт", "меню"]:
+            self.handle_bot_started(update)
+        elif lower_text in ["/profile", "/account", "профиль", "аккаунт"]:
+            self._send_user_profile(chat_id, user_id)
+        elif lower_text in ["/address", "/addresses", "адрес", "адреса"]:
+            self._send_address_management(chat_id, user_id)
+        elif lower_text in ["/register", "регистрация"]:
+            self._send_registration_info(chat_id, user_id)
         elif lower_text in ["/app", "приложение"]:
-            self.client.send_message(
+            self._send(
                 chat_id=chat_id,
                 user_id=user_id,
-                text="📱 Нажмите кнопку ниже, чтобы открыть интерактивное мини-приложение:",
-                buttons=[[{"type": "link", "text": "🚀 Открыть Мини-приложение MAX", "url": settings.MINIAPP_URL}]]
+                text=(
+                    f"**Интерфейс Мини-приложения MAX**\n\n"
+                    f"Запуск в MAX: https://max.ru/{settings.BOT_USERNAME}?startapp\n\n"
+                    f"Нажмите кнопку **«Мини-приложение»** ниже для открытия:"
+                ),
+                keyboard=KeyboardBuilder.inline([[Button.open_app("Мини-приложение", settings.BOT_USERNAME)]])
             )
         elif lower_text in ["/meters", "счетчики", "показания"]:
             self._send_meters_list(chat_id, user_id)
-        elif lower_text.startswith("/check") or "поверка" in lower_text:
+        elif lower_text.startswith("/check") or "поверка" in lower_text or "аршин" in lower_text:
             parts = text.split(maxsplit=1)
             serial = parts[1] if len(parts) > 1 else "2809142"
             self._process_arshin_check(chat_id, user_id, serial)
         elif lower_text in ["/pay", "оплата", "квитанция"]:
             self._send_payment_info(chat_id, user_id)
         elif lower_text.startswith("st0001"):
-            # User pasted GOST QR string directly!
             self._process_gost_qr_text(chat_id, user_id, text)
-        elif lower_text in ["/leak", "утечка", "ночной дозор"]:
-            self._send_night_flow_info(chat_id, user_id)
         elif lower_text in ["/ticket", "заявка", "мастер"]:
             self._send_ticket_form(chat_id, user_id)
         elif lower_text in ["/guest", "арендатор"]:
             self._generate_guest_link(chat_id, user_id)
+        elif lower_text in ["/inspector", "обходчик", "акт"]:
+            self._process_inspector_act(chat_id, user_id)
+        elif any(lower_text.startswith(p) for p in ["хвс", "гвс", "свет", "электро", "тепло", "показания", "вода"]):
+            self._process_text_reading(chat_id, user_id, text)
         else:
-            # General helper response
             reply = (
-                f"🤖 Я получил сообщение: «{text}»\n\n"
-                f"💡 **Быстрые сценарии:**\n"
-                f"• Отправьте **фото счетчика** прямо в чат для мгновенного AI-распознавания.\n"
-                f"• Напишите `поверка 2809142` для проверки любого прибора во ФГИС «АРШИН».\n"
-                f"• Или воспользуйтесь кнопками меню:"
+                f"Команда «{text}» не распознана. Доступные действия:\n\n"
+                f"• Пришлите **фото счетчика** прямо в чат для мгновенного считывания\n"
+                f"• Или напишите показания текстом (например: `ХВС 148.5`)\n"
+                f"• Для проверки поверки счетчика укажите: `/check 2809142`\n"
+                f"• Либо выберите нужное действие в меню ниже:"
             )
-            self.client.send_message(
+            self._send(
                 chat_id=chat_id,
                 user_id=user_id,
                 text=reply,
-                buttons=get_main_menu_buttons()
+                keyboard=get_main_menu_keyboard()
             )
 
-    def handle_callback(self, update: Dict[str, Any]):
-        callback = update.get("callback", {})
-        callback_id = callback.get("callback_id") or callback.get("id")
-        payload = callback.get("payload", "")
-        sender = update.get("user") or update.get("sender", {})
-        chat_id = update.get("chat_id")
-        user_id = sender.get("user_id") or sender.get("id")
+    def handle_callback(self, update: Any):
+        if isinstance(update, dict):
+            update = Update.from_dict(update)
+        if not update.callback:
+            return
 
-        if callback_id:
-            self.client.answer_callback(callback_id=str(callback_id))
+        cb_id = update.callback.callback_id
+        payload = update.callback.payload
+        chat_id = update.effective_chat_id
+        user_id = update.sender_user_id
+
+        # Всегда подтверждаем callback для закрытия индикатора загрузки
+        if cb_id:
+            try:
+                self.client.answer_callback(callback_id=cb_id, notification="Принято")
+            except Exception as e:
+                logger.warning("Could not answer callback %s: %s", cb_id, e)
 
         if payload == "cmd_meters":
             self._send_meters_list(chat_id, user_id)
@@ -184,82 +276,141 @@ class BotHandler:
             self._process_arshin_check(chat_id, user_id, "2809142")
         elif payload == "cmd_pay":
             self._send_payment_info(chat_id, user_id)
-        elif payload == "cmd_night_flow":
-            self._send_night_flow_info(chat_id, user_id)
+        elif payload in ("cmd_profile", "cmd_account"):
+            self._send_user_profile(chat_id, user_id)
+        elif payload in ("cmd_address", "cmd_addresses"):
+            self._send_address_management(chat_id, user_id)
+        elif payload == "cmd_register":
+            self._send_registration_info(chat_id, user_id)
+        elif payload == "cmd_add_address":
+            self._send_add_address_prompt(chat_id, user_id)
+        elif payload.startswith("switch_prop_"):
+            prop_id = payload.replace("switch_prop_", "")
+            self._process_switch_property(chat_id, user_id, prop_id)
         elif payload == "cmd_ticket":
             self._send_ticket_form(chat_id, user_id)
         elif payload == "cmd_guest":
             self._generate_guest_link(chat_id, user_id)
+        elif payload == "cmd_inspector":
+            self._process_inspector_act(chat_id, user_id)
+        elif payload == "cmd_menu":
+            self.handle_bot_started(update)
         elif payload.startswith("submit_meter_"):
-            meter_id = payload.replace("submit_meter_", "")
-            self._simulate_meter_photo_flow(chat_id, user_id, meter_id)
-        elif payload == "test_napkin_wet":
-            diag = night_flow_service.diagnose_leak(NightFlowCheckRequest(entrance_id=1, napkin_test_result="wet"))
-            self.client.send_message(
-                chat_id=chat_id,
-                user_id=user_id,
-                text=f"{diag.diagnosis_verdict}\n\n🎁 **{diag.recommendation}**",
-                buttons=get_main_menu_buttons()
-            )
-        elif payload == "test_napkin_dry":
-            diag = night_flow_service.diagnose_leak(NightFlowCheckRequest(entrance_id=1, napkin_test_result="dry"))
-            self.client.send_message(
-                chat_id=chat_id,
-                user_id=user_id,
-                text=f"{diag.diagnosis_verdict}\n\n✅ {diag.recommendation}",
-                buttons=get_main_menu_buttons()
-            )
+            rest = payload.replace("submit_meter_", "")
+            parts = rest.split("_")
+            meter_id = parts[0]
+            reading_val = None
+            if len(parts) > 1:
+                try:
+                    reading_val = float(parts[1])
+                except ValueError:
+                    reading_val = None
+            if reading_val is None:
+                reading_val = self._pending_scans.pop(user_id, None) or self._pending_scans.pop(chat_id, None)
+            self._simulate_meter_photo_flow(chat_id, user_id, meter_id, reading_value=reading_val)
+        elif payload in ("rescan_hvs", "rescan_meter_cold_water"):
+            self._process_incoming_photo(chat_id, user_id, meter_type_hint=MeterType.COLD_WATER)
+        elif payload in ("rescan_gvs", "rescan_meter_hot_water"):
+            self._process_incoming_photo(chat_id, user_id, meter_type_hint=MeterType.HOT_WATER)
+        elif payload in ("rescan_el", "rescan_meter_electricity"):
+            self._process_incoming_photo(chat_id, user_id, meter_type_hint=MeterType.ELECTRICITY_MULTI)
+        elif payload in ("rescan_gas", "rescan_meter_gas"):
+            self._process_incoming_photo(chat_id, user_id, meter_type_hint=MeterType.GAS)
+        elif payload in ("rescan_heat", "rescan_meter_heat"):
+            self._process_incoming_photo(chat_id, user_id, meter_type_hint=MeterType.HEAT)
         else:
-            self.client.send_message(
+            self._send(
                 chat_id=chat_id,
                 user_id=user_id,
                 text="Действие выполнено.",
-                buttons=get_main_menu_buttons()
+                keyboard=get_main_menu_keyboard()
             )
 
-    # ----------------- Scenario Helpers -----------------
 
-    def _process_incoming_photo(self, chat_id, user_id, attachments):
-        # AI Vision Stub processing
-        scan = ai_vision_service.scan_meter_image(AiVisionScanRequest(device_type_hint=MeterType.COLD_WATER))
-        # Automatic FGIS Arshin verification
+    # ----------------- Scenario Handlers -----------------
+
+    def _detect_meter_type_from_hint(self, text: Optional[str]) -> Optional[MeterType]:
+        if not text:
+            return None
+        t = text.lower().strip()
+        if any(k in t for k in ["гвс", "горяч", "hot"]):
+            return MeterType.HOT_WATER
+        if any(k in t for k in ["хвс", "холодн", "cold"]):
+            return MeterType.COLD_WATER
+        if any(k in t for k in ["свет", "электр", "энерг", "меркурий", "квт"]):
+            return MeterType.ELECTRICITY_MULTI
+        if any(k in t for k in ["газ", "gas"]):
+            return MeterType.GAS
+        if any(k in t for k in ["тепло", "отоплен", "гкал"]):
+            return MeterType.HEAT
+        return None
+
+    def _process_incoming_photo(
+        self,
+        chat_id: Optional[int],
+        user_id: Optional[int],
+        meter_type_hint: Optional[MeterType] = None
+    ):
+        target_type = meter_type_hint or MeterType.COLD_WATER
+
+        meta_map = {
+            MeterType.COLD_WATER: ("ХВС (Холодная вода)", "м³", "meter-khvs-1"),
+            MeterType.HOT_WATER: ("ГВС (Горячая вода)", "м³", "meter-gvs-1"),
+            MeterType.ELECTRICITY_MULTI: ("Электроэнергия (Т1/Т2)", "кВт*ч", "meter-el-1"),
+            MeterType.GAS: ("Газоснабжение", "м³", "meter-gas-1"),
+            MeterType.HEAT: ("Отопление (Тепло)", "Гкал", "meter-heat-1"),
+        }
+        title, unit, meter_id = meta_map.get(target_type, meta_map[MeterType.COLD_WATER])
+
+        scan = ai_vision_service.scan_meter_image(AiVisionScanRequest(device_type_hint=target_type))
+        if user_id:
+            self._pending_scans[user_id] = scan.recognized_reading
+        if chat_id:
+            self._pending_scans[chat_id] = scan.recognized_reading
+
         arshin = arshin_service.check_verification(scan.recognized_serial_number)
-        
+        clean_safety = re.sub(r"\[.*?\]\s*", "", arshin.safety_message)
+
         reply = (
-            f"📸 **Фотография счетчика получена и обработана нейросетью!**\n\n"
-            f"🔍 **Результаты детекции:**\n"
-            f"• Тип прибора: **ХВС (Холодная вода)**\n"
-            f"• Заводской номер: `{scan.recognized_serial_number}`\n"
-            f"• Распознанный расход: **{scan.recognized_reading} м³**\n"
-            f"• Отсечение красных роликов (литров): **Да (предотвращена ошибка в 1000 раз)**\n"
-            f"• Точность OCR: **{int(scan.confidence * 100)}%**\n\n"
-            f"🛡️ **Статус поверки (ФГИС «АРШИН»):**\n"
-            f"{arshin.safety_message}\n\n"
-            f"Подтвердите передачу показаний в ГИС ЖКХ 👇"
+            f"**Фото счетчика успешно распознано**\n\n"
+            f"• Прибор: **{title}**\n"
+            f"• Режим: автоматическое распознавание\n"
+            f"• Серийный номер: {scan.recognized_serial_number}\n"
+            f"• Показания: **{scan.recognized_reading} {unit}**\n"
+            f"• Защита от переплаты: дробная часть (литры) отсечена\n"
+            f"• Точность распознавания: {int(scan.confidence * 100)}%\n\n"
+            f"**Статус поверки (ФГИС «АРШИН» 102-ФЗ):**\n"
+            f"{clean_safety}\n\n"
+            f"Подтвердите отправку показаний:"
         )
+
+        confirm_text = f"Принять {scan.recognized_reading}"
+
         buttons = [
             [
-                {
-                    "type": "callback",
-                    "text": f"✅ Подтвердить {scan.recognized_reading} м³",
-                    "payload": f"submit_meter_meter-khvs-1"
-                }
+                Button.callback(confirm_text, f"submit_meter_{meter_id}")
             ],
             [
-                {
-                    "type": "link",
-                    "text": "✏️ Скорректировать в Мини-приложении",
-                    "url": settings.MINIAPP_URL
-                }
+                Button.callback("Сдать ХВС", "rescan_meter_cold_water"),
+                Button.callback("Сдать ГВС", "rescan_meter_hot_water")
+            ],
+            [
+                Button.callback("Сдать Свет", "rescan_meter_electricity"),
+                Button.callback("Сдать Газ", "rescan_meter_gas")
+            ],
+            [
+                Button.callback("Сдать Тепло", "rescan_meter_heat"),
+                Button.open_app("Мини-приложение", settings.BOT_USERNAME)
             ]
         ]
-        self.client.send_message(chat_id=chat_id, user_id=user_id, text=reply, buttons=buttons)
+        self._send(chat_id=chat_id, user_id=user_id, text=reply, keyboard=KeyboardBuilder.inline(buttons))
 
-    def _simulate_meter_photo_flow(self, chat_id, user_id, meter_id):
-        m = meter_service.get_meter(meter_id)
-        if not m:
-            m = meter_service.get_all_meters()[0]
-        new_val = m.last_reading_value + 3.5
+    def _simulate_meter_photo_flow(self, chat_id, user_id, meter_id, reading_value: Optional[float] = None):
+        m = meter_service.get_meter(meter_id) or meter_service.get_all_meters()[0]
+        if reading_value is not None and reading_value > 0:
+            new_val = reading_value
+        else:
+            new_val = round(m.last_reading_value + 3.5, 3)
         res = meter_service.validate_and_submit_reading(
             MeterReadingSubmitRequest(
                 meter_id=m.id,
@@ -268,173 +419,352 @@ class BotHandler:
             )
         )
         text = (
-            f"✅ **Показания успешно зафиксированы!**\n\n"
+            f"**ГИС ЖКХ: Показания успешно приняты**\n\n"
             f"• Прибор: **{m.name}**\n"
-            f"• Предыдущие: {res.previous_value} {m.unit}\n"
-            f"• Текущие: **{res.current_value} {m.unit}**\n"
-            f"• Расход за период: **+{res.consumption} {m.unit}**\n"
-            f"• Статус интеграции: **Отправлено в ГИС ЖКХ (WSDL hcs-device-meterings)**\n\n"
-            f"{res.message}"
+            f"• Предыдущие показания: {res.previous_value} {m.unit}\n"
+            f"• Текущие показания: **{res.current_value} {m.unit}**\n"
+            f"• Расход за месяц: **+{res.consumption} {m.unit}**\n\n"
+            f"Показания успешно зафиксированы в ГИС ЖКХ."
         )
-        self.client.send_message(chat_id=chat_id, user_id=user_id, text=text, buttons=get_main_menu_buttons())
+        self._send(chat_id=chat_id, user_id=user_id, text=text, keyboard=get_main_menu_keyboard())
 
     def _send_meters_list(self, chat_id, user_id):
         meters = meter_service.get_all_meters()
-        lines = ["📊 **Ваши приборы учета (Лицевой счет 1004567890):**\n"]
+        lines = ["**Реестр приборов учета (Лицевой счет 1004567890)**\n"]
         buttons = []
+        meter_buttons = []
         for m in meters:
             lines.append(
-                f"• **{m.name}** (№ `{m.serial_number}`)\n"
-                f"  Текущие показания: **{m.last_reading_value} {m.unit}** (от {m.last_reading_date})\n"
-                f"  Поверка действительна до: **{m.verification_date_valid_until.strftime('%d.%m.%Y')}**\n"
+                f"• **{m.name}** (№ {m.serial_number})\n"
+                f"  Показания: **{m.last_reading_value} {m.unit}** ({m.last_reading_date})\n"
+                f"  Поверка до: {m.verification_date_valid_until.strftime('%d.%m.%Y')}\n"
             )
-            buttons.append([
-                {
-                    "type": "callback",
-                    "text": f"📸 Сдать {m.name[:18]}...",
-                    "payload": f"submit_meter_{m.id}"
-                }
-            ])
+            name_short = m.name.split('(')[0].strip()
+            if name_short == "Электроэнергия":
+                name_short = "Свет"
+            elif name_short == "Газоснабжение":
+                name_short = "Газ"
+            elif len(name_short) > 10:
+                name_short = name_short[:10]
+            btn_label = f"Сдать {name_short}"
+            meter_buttons.append(Button.callback(btn_label, f"submit_meter_{m.id}"))
+        for i in range(0, len(meter_buttons), 2):
+            buttons.append(meter_buttons[i:i + 2])
         buttons.append([
-            {
-                "type": "link",
-                "text": "📱 Открыть Мини-приложение",
-                "url": settings.MINIAPP_URL
-            }
+            Button.open_app("Мини-приложение", settings.BOT_USERNAME)
         ])
-        lines.append("\n👉 Вы можете просто **отправить фото счетчика в этот чат** в любое время!")
-        self.client.send_message(chat_id=chat_id, user_id=user_id, text="\n".join(lines), buttons=buttons)
+        lines.append(f"\nМини-приложение: https://max.ru/{settings.BOT_USERNAME}?startapp\nОтправьте **фото счетчика прямо в чат** для распознавания.")
+        self._send(chat_id=chat_id, user_id=user_id, text="\n".join(lines), keyboard=KeyboardBuilder.inline(buttons))
 
     def _process_arshin_check(self, chat_id, user_id, serial):
         arshin = arshin_service.check_verification(serial)
-        self.client.send_message(
+        clean_safety = re.sub(r"\[.*?\]\s*", "", arshin.safety_message)
+        self._send(
             chat_id=chat_id,
             user_id=user_id,
-            text=f"{arshin.safety_message}\n\n🔗 Проверка в открытом реестре: [ФГИС АРШИН]({arshin.fgis_arshin_url})",
-            buttons=get_main_menu_buttons()
+            text=f"**Проверка во ФГИС «АРШИН» (102-ФЗ)**\n\n{clean_safety}\n\nОфициальный реестр Росстандарта.",
+            keyboard=get_main_menu_keyboard()
         )
 
     def _send_payment_info(self, chat_id, user_id):
         sample_gost = (
-            "ST00012|Name=ООО УК ДОМОВОЙ СЕРВИС|PersonalAcc=40702810938000012345|"
+            "ST00012|Name=ООО УК ДОМОВОЙ СЕРВИС|PersonalAcc=40821810938000012345|"
             "BIC=044525225|CorrespAcc=30101810400000000225|PayeeINN=7701234567|"
             "Sum=485050|PersAcc=1004567890|Period=092026"
         )
         parsed = parse_gost_qr_payload(sample_gost)
         text = (
-            f"🧾 **Оплата квитанций ЖКУ по стандарту ГОСТ Р 56042-2014**\n\n"
-            f"Сумма к оплате за сентябрь 2026: **{parsed.total_amount_rubles:.2f} ₽**\n"
-            f"Лицевой счет ЕЛС: `{parsed.personal_account}`\n\n"
-            f"🔒 **Прямое расщепление по 103-ФЗ на специальный счет 40821:**\n"
-            f"• 💧 АО «Мосводоканал»: **{parsed.split_details[0].amount_rubles} ₽**\n"
-            f"• ♨️ ПАО «МОЭК» (Отопление): **{parsed.split_details[1].amount_rubles} ₽**\n"
-            f"• ⚡ АО «Мосэнергосбыт»: **{parsed.split_details[2].amount_rubles} ₽**\n"
-            f"• 🏢 УК (Содержание жилья): **{parsed.split_details[3].amount_rubles} ₽**\n\n"
-            f"Деньги поступают ресурсоснабжающим организациям напрямую, защищены от долгов УК!"
+            f"**Начисления ЖКУ: Сентябрь 2026**\n\n"
+            f"• К оплате: **{parsed.total_amount_rubles:.2f} ₽**\n"
+            f"• Лицевой счет: {parsed.personal_account}\n\n"
+            f"**Расщепление по 103-ФЗ на спецсчет 40821:**\n"
+            f"• Водоканал (ХВС и стоки): {parsed.split_details[0].amount_rubles:.2f} ₽\n"
+            f"• МОЭК (Отопление): {parsed.split_details[1].amount_rubles:.2f} ₽\n"
+            f"• Мосэнергосбыт (Свет): {parsed.split_details[2].amount_rubles:.2f} ₽\n"
+            f"• УК Домовой Сервис (Содержание): {parsed.split_details[3].amount_rubles:.2f} ₽\n\n"
+            f"Платеж защищен законом от списаний по долгам УК."
         )
         buttons = [
             [
-                {
-                    "type": "link",
-                    "text": "💳 Оплатить 4850.50 ₽ через СБП",
-                    "url": f"{settings.MINIAPP_URL}#payment"
-                }
+                Button.open_app("Оплатить по СБП", settings.BOT_USERNAME)
             ],
             [
-                {
-                    "type": "link",
-                    "text": "📱 Сканировать QR квитанции в приложении",
-                    "url": settings.MINIAPP_URL
-                }
+                Button.open_app("Сканировать QR", settings.BOT_USERNAME)
             ]
         ]
-        self.client.send_message(chat_id=chat_id, user_id=user_id, text=text, buttons=buttons)
+        self._send(chat_id=chat_id, user_id=user_id, text=text, keyboard=KeyboardBuilder.inline(buttons))
 
     def _process_gost_qr_text(self, chat_id, user_id, qr_text):
         try:
             parsed = parse_gost_qr_payload(qr_text)
             text = (
-                f"✅ **Квитанция успешно распознана по ГОСТ Р 56042-2014!**\n\n"
+                f"**Квитанция по ГОСТ Р 56042-2014 успешно распознана**\n\n"
                 f"• Получатель: **{parsed.recipient_name}**\n"
-                f"• ИНН: `{parsed.inn}` | БИК: `{parsed.bank_bik}`\n"
+                f"• ИНН: {parsed.inn} | БИК: {parsed.bank_bik}\n"
                 f"• Сумма: **{parsed.total_amount_rubles:.2f} ₽**\n"
-                f"• Расчетный счет ЦБ: **Проверен (Контрольный разряд валиден)**\n"
-                f"• Защищенный спецсчет 40821: **Активирован**"
+                f"• Спецсчет 40821: защищен по 103-ФЗ"
             )
+            pay_label = f"Оплата {parsed.total_amount_rubles:.0f} ₽"
             buttons = [
-                [
-                    {
-                        "type": "link",
-                        "text": f"💳 Оплатить {parsed.total_amount_rubles:.2f} ₽ (СБП)",
-                        "url": f"{settings.MINIAPP_URL}#payment"
-                    }
-                ]
+                [Button.open_app(pay_label, settings.BOT_USERNAME)]
             ]
-            self.client.send_message(chat_id=chat_id, user_id=user_id, text=text, buttons=buttons)
+            self._send(chat_id=chat_id, user_id=user_id, text=text, keyboard=KeyboardBuilder.inline(buttons))
         except Exception as e:
-            self.client.send_message(chat_id=chat_id, user_id=user_id, text=f"Ошибка парсинга QR-кода: {e}")
-
-    def _send_night_flow_info(self, chat_id, user_id):
-        text = (
-            f"🔍 **Сервис «Ночной дозор» (Анализ небаланса ОДПУ)**\n\n"
-            f"По данным радиомодема ОДПУ на вводе в ваш дом, в период **02:30 – 04:30 ночи** "
-            f"зафиксирован постоянный расход воды **1 650 л/час** (при норме до 100 л/час).\n\n"
-            f"Это скрытая утечка, из-за которой дом теряет до 35 кубов в сутки (+200 руб. к ОДН каждой квартире!).\n\n"
-            f"🧪 **Экспресс-тест за 30 секунд (Тест салфетки):**\n"
-            f"1. Положите сухую бумажную салфетку на сухую заднюю стенку чаши унитаза.\n"
-            f"2. Подождите 15 секунд.\n"
-            f"3. Что произошло с салфеткой?"
-        )
-        buttons = [
-            [
-                {"type": "callback", "text": "💧 Намокла (Клапан течет)", "payload": "test_napkin_wet"},
-                {"type": "callback", "text": "✨ Осталась сухой", "payload": "test_napkin_dry"}
-            ],
-            [
-                {"type": "link", "text": "📱 Интерактивный замер в приложении", "url": settings.MINIAPP_URL}
-            ]
-        ]
-        self.client.send_message(chat_id=chat_id, user_id=user_id, text=text, buttons=buttons)
+            self._send(chat_id=chat_id, user_id=user_id, text=f"Ошибка парсинга QR-кода: {e}")
 
     def _send_ticket_form(self, chat_id, user_id):
         text = (
-            f"🛠️ **Аварийно-диспетчерская служба (ПП РФ № 40 от 26.01.2026 г.)**\n\n"
-            f"Нормативные сроки рассмотрения в сервисе MAX:\n"
-            f"• 🚨 **Аварийная**: локализация за **30 минут**, устранение за **3 часа**;\n"
-            f"• ⚠️ **Срочная**: устранение неисправности до **24 часов**;\n"
-            f"• 📋 **Плановая**: до **3 рабочих дней**.\n\n"
-            f"Чтобы подать заявку с фотофиксацией и отслеживанием статуса, откройте мини-приложение:"
+            f"**Диспетчерская служба УК (ПП РФ № 40)**\n\n"
+            f"Нормативы реагирования:\n"
+            f"• Аварийные работы: локализация за 30 мин, ремонт до 3 ч\n"
+            f"• Срочные заявки: устранение до 24 ч\n"
+            f"• Плановые работы: до 3 рабочих дней\n\n"
+            f"Для оформления заявки нажмите кнопку ниже:"
         )
         buttons = [
-            [
-                {
-                    "type": "link",
-                    "text": "📝 Оформить заявку в УК",
-                    "url": f"{settings.MINIAPP_URL}#tickets"
-                }
-            ]
+            [Button.open_app("Создать заявку", settings.BOT_USERNAME)]
         ]
-        self.client.send_message(chat_id=chat_id, user_id=user_id, text=text, buttons=buttons)
+        self._send(chat_id=chat_id, user_id=user_id, text=text, keyboard=KeyboardBuilder.inline(buttons))
 
     def _generate_guest_link(self, chat_id, user_id):
         res = guest_service.generate_guest_token(
             GuestAccessGenerateRequest(property_id="flat-42-15", tenant_name="Арендатор")
         )
         text = (
-            f"👥 **Гостевой доступ для арендатора сгенерирован!**\n\n"
-            f"В отличие от «Госуслуги Дом», арендатору **НЕ требуется авторизация через ЕСИА** "
-            f"и доступ к личным документам собственника.\n\n"
-            f"🔗 Отправьте эту ссылку вашему жильцу в MAX:\n"
-            f"`{res.direct_max_link}`\n\n"
-            f"Арендатор сможет в 1 клик пересылать фото счетчиков и оплачивать начисления."
+            f"**Гостевой доступ для арендатора**\n\n"
+            f"Авторизация через Госуслуги не требуется.\n\n"
+            f"Ссылка для жильца в MAX:\n"
+            f"{res.direct_max_link}\n\n"
+            f"Для открытия используйте кнопку ниже."
+        )
+        buttons = [
+            [Button.open_app("Гостевой доступ", settings.BOT_USERNAME, payload=f"guest_{res.guest_token}")]
+        ]
+        self._send(chat_id=chat_id, user_id=user_id, text=text, keyboard=KeyboardBuilder.inline(buttons))
+
+    def _process_inspector_act(self, chat_id, user_id):
+        act = inspector_service.create_act(
+            InspectorActCreateRequest(
+                meter_id="meter-khvs-1",
+                reading_value=142.385,
+                address="г. Москва, ул. Ленина, д. 42, кв. 15",
+                inspector_name="Смирнов А. В. (Служба учета)",
+                gps_coordinates="55.7558° N, 37.6173° E"
+            )
+        )
+        text = (
+            f"**АРМ Обходчика УК: Цифровой акт**\n\n"
+            f"**{act.act_title}**\n"
+            f"• Номер акта: {act.act_number}\n"
+            f"• Инспектор: **{act.inspector_name}**\n"
+            f"• Адрес: **{act.address}**\n"
+            f"• Показания: **{act.meter_reading}**\n"
+            f"• GPS-метка: {act.gps_coordinates}\n"
+            f"• Хэш-подпись (63-ФЗ): {act.crypto_hash[:16]}...\n"
+            f"• Синхронизация: 1С:ЖКХ готова"
         )
         buttons = [
             [
-                {
-                    "type": "link",
-                    "text": "🔗 Открыть гостевую ссылку",
-                    "url": res.direct_max_link
-                }
+                Button.open_app("Акт обходчика", settings.BOT_USERNAME),
+                Button.callback("Главное меню", "cmd_menu")
             ]
         ]
-        self.client.send_message(chat_id=chat_id, user_id=user_id, text=text, buttons=buttons)
+        self._send(chat_id=chat_id, user_id=user_id, text=text, keyboard=KeyboardBuilder.inline(buttons))
+
+    def _process_text_reading(self, chat_id, user_id, text: str):
+        lower = text.lower().replace(",", ".")
+        meter_id = "meter-khvs-1"
+        if "гвс" in lower or "горяч" in lower:
+            meter_id = "meter-gvs-1"
+        elif "свет" in lower or "электр" in lower:
+            meter_id = "meter-el-1"
+        elif "тепл" in lower or "отопл" in lower:
+            meter_id = "meter-heat-1"
+
+        match = re.search(r"\b\d+(?:\.\d+)?\b", lower)
+        if not match:
+            self._send(
+                chat_id=chat_id,
+                user_id=user_id,
+                text="Укажите числовое значение, например: `ХВС 145.5`",
+                keyboard=get_main_menu_keyboard()
+            )
+            return
+
+        val = float(match.group(0))
+        m = meter_service.get_meter(meter_id) or meter_service.get_all_meters()[0]
+        res = meter_service.validate_and_submit_reading(
+            MeterReadingSubmitRequest(
+                meter_id=m.id,
+                reading_value=val,
+                submission_channel="max_chat_text"
+            )
+        )
+        if res.is_valid:
+            filter_note = "Да (отсечены литры)" if res.red_roller_filtered else "Не требовалось"
+            reply = (
+                f"**ГИС ЖКХ: Показания успешно приняты**\n\n"
+                f"• Прибор: **{m.name}**\n"
+                f"• Принято: **{res.current_value} {m.unit}**\n"
+                f"• Предыдущие: {res.previous_value} {m.unit}\n"
+                f"• Расход: **+{res.consumption} {m.unit}**\n"
+                f"• Отсечение литров: **{filter_note}**"
+            )
+        else:
+            reply = f"**Ошибка валидации показаний**\n\n{res.message}"
+
+        self._send(chat_id=chat_id, user_id=user_id, text=reply, keyboard=get_main_menu_keyboard())
+
+    def _format_property_button_label(self, prop: UserProperty) -> str:
+        addr = prop.address
+        parts = [p.strip() for p in addr.split(",") if p.strip()]
+        if len(parts) >= 2:
+            candidate = f"{parts[1]} {parts[2] if len(parts) > 2 else ''}".strip()
+            candidate = re.sub(r"\b(ул\.|д\.|кв\.|г\.)\s*", "", candidate).strip()
+        else:
+            candidate = addr
+        if len(candidate) > 16 or not candidate:
+            candidate = f"Адрес {prop.els[-4:]}"
+        return candidate[:17]
+
+    def _process_incoming_contact(self, chat_id: Optional[int], user_id: Optional[int], update: Update):
+        contact = update.contact or {}
+        payload = contact.get("payload") if isinstance(contact.get("payload"), dict) else {}
+        vcf_info = payload.get("vcf_info") or contact.get("vcf_info")
+        phone = payload.get("phone") or contact.get("phone")
+        hash_val = payload.get("hash") or contact.get("hash")
+
+        prof = profile_service.verify_phone_contact(
+            user_id=user_id,
+            phone=phone,
+            vcf_info=vcf_info,
+            hash_val=hash_val
+        )
+        active_prop = profile_service.get_active_property(user_id)
+
+        reply = (
+            f"**Телефон успешно подтвержден**\n\n"
+            f"• Номер телефона: **{prof.phone}**\n"
+            f"• Статус в MAX: подтвержден (без ручного ввода)\n\n"
+            f"Автоматически найдены и привязаны объекты ГИС ЖКХ:\n"
+            f"• **{active_prop.address}** (ЕЛС {active_prop.els})\n\n"
+            f"Теперь вы можете передавать показания и оплачивать квитанции в 1 клик."
+        )
+        buttons = [
+            [Button.open_app("Мини-приложение", settings.BOT_USERNAME)],
+            [Button.callback("Сдать показания", "cmd_meters"), Button.callback("Мой профиль", "cmd_profile")]
+        ]
+        self._send(chat_id=chat_id, user_id=user_id, text=reply, keyboard=KeyboardBuilder.inline(buttons))
+
+    def _send_user_profile(self, chat_id: Optional[int], user_id: Optional[int]):
+        prof = profile_service.get_profile(user_id)
+        active_prop = profile_service.get_active_property(user_id)
+        phone_status = f"Подтвержден: {prof.phone}" if prof.is_verified and prof.phone else "Не подтвержден"
+        status_name = "Собственник" if active_prop.role == "owner" else "Арендатор"
+        full_name = f"{prof.first_name} {prof.last_name}".strip() if prof.last_name else prof.first_name
+
+        text = (
+            f"**Личный кабинет жителя**\n\n"
+            f"• Профиль: **{full_name}**\n"
+            f"• Статус: **{status_name}**\n"
+            f"• Телефон: {phone_status}\n"
+            f"• Активный адрес: **{active_prop.address}**\n"
+            f"• ЕЛС ГИС ЖКХ: **{active_prop.els}**\n"
+            f"• Управляющая компания: {active_prop.management_company}\n"
+            f"• Всего объектов: **{len(prof.properties)}**"
+        )
+        buttons = [
+            [Button.open_app("Мини-приложение", settings.BOT_USERNAME)]
+        ]
+        if not prof.is_verified:
+            buttons.append([Button.request_contact("Поделиться тел.")])
+        else:
+            buttons.append([Button.callback("Сменить адрес", "cmd_address")])
+        buttons.append([
+            Button.callback("Мои адреса", "cmd_address"),
+            Button.callback("Главное меню", "cmd_menu")
+        ])
+        self._send(chat_id=chat_id, user_id=user_id, text=text, keyboard=KeyboardBuilder.inline(buttons))
+
+    def _send_address_management(self, chat_id: Optional[int], user_id: Optional[int]):
+        prof = profile_service.get_profile(user_id)
+        text = (
+            f"**Управление объектами недвижимости (ЕЛС)**\n\n"
+            f"Выберите адрес для переключения в 1 клик:\n\n"
+        )
+        for idx, p in enumerate(prof.properties, 1):
+            tag = "(активен)" if p.is_active else ""
+            text += f"{idx}. **{p.address}**\n   ЕЛС: `{p.els}` • {p.management_company} {tag}\n"
+
+        buttons = []
+        prop_row = []
+        for p in prof.properties:
+            label = self._format_property_button_label(p)
+            prop_row.append(Button.callback(label, f"switch_prop_{p.id}"))
+            if len(prop_row) == 2:
+                buttons.append(prop_row)
+                prop_row = []
+        if prop_row:
+            buttons.append(prop_row)
+
+        buttons.append([
+            Button.callback("Добавить адрес", "cmd_add_address"),
+            Button.callback("Главное меню", "cmd_menu")
+        ])
+        self._send(chat_id=chat_id, user_id=user_id, text=text, keyboard=KeyboardBuilder.inline(buttons))
+
+    def _process_switch_property(self, chat_id: Optional[int], user_id: Optional[int], prop_id: str):
+        prof = profile_service.switch_active_property(user_id, prop_id)
+        if prof:
+            active = profile_service.get_active_property(user_id)
+            reply = (
+                f"**Активный адрес переключен**\n\n"
+                f"• Текущий объект: **{active.address}**\n"
+                f"• ЕЛС ГИС ЖКХ: **{active.els}**\n"
+                f"• Управляющая компания: {active.management_company}\n\n"
+                f"Показания счетчиков и квитанции теперь относятся к этому объекту."
+            )
+            buttons = [
+                [Button.open_app("Мини-приложение", settings.BOT_USERNAME)],
+                [Button.callback("Сдать показания", "cmd_meters"), Button.callback("Мой профиль", "cmd_profile")]
+            ]
+            self._send(chat_id=chat_id, user_id=user_id, text=reply, keyboard=KeyboardBuilder.inline(buttons))
+        else:
+            self._send(chat_id=chat_id, user_id=user_id, text="Объект недвижимости не найден.", keyboard=get_main_menu_keyboard())
+
+    def _send_registration_info(self, chat_id: Optional[int], user_id: Optional[int]):
+        text = (
+            f"**Быстрая регистрация в MAX**\n\n"
+            f"Для мгновенной привязки лицевых счетов ГИС ЖКХ без ручного ввода подтвердите номер телефона в 1 клик.\n\n"
+            f"Нажмите кнопку «Поделиться» ниже:"
+        )
+        buttons = [
+            [Button.request_contact("Поделиться")],
+            [Button.open_app("В приложении", settings.BOT_USERNAME)]
+        ]
+        self._send(chat_id=chat_id, user_id=user_id, text=text, keyboard=KeyboardBuilder.inline(buttons))
+
+    def _send_add_address_prompt(self, chat_id: Optional[int], user_id: Optional[int]):
+        text = (
+            f"**Добавление нового адреса**\n\n"
+            f"Чтобы привязать новое помещение, вы можете:\n"
+            f"1. Открыть **Мини-приложение** и нажать «Добавить адрес»\n"
+            f"2. Отправить в чат QR-код с квитанции (ГОСТ Р 56042-2014) — адрес и ЕЛС привяжутся автоматически!\n"
+            f"3. Или введите команду `/address` для управления существующими объектами."
+        )
+        buttons = [
+            [Button.open_app("В приложении", settings.BOT_USERNAME)],
+            [Button.callback("Мои адреса", "cmd_address")]
+        ]
+        self._send(chat_id=chat_id, user_id=user_id, text=text, keyboard=KeyboardBuilder.inline(buttons))
+
+# Singleton instance
+
+_default_bot_handler: Optional[BotHandler] = None
+
+def get_bot_handler() -> BotHandler:
+    global _default_bot_handler
+    if _default_bot_handler is None:
+        client = MaxBotClient(settings.BOT_TOKEN, settings.MAX_API_BASE)
+        _default_bot_handler = BotHandler(client)
+    return _default_bot_handler

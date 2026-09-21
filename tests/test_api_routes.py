@@ -1,6 +1,6 @@
-"""
-Integration tests for FastAPI REST API endpoints.
-"""
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import pytest
 from fastapi.testclient import TestClient
@@ -62,17 +62,6 @@ def test_billing_gost_qr_endpoint():
     assert data["total_amount_rubles"] == 4850.50
     assert len(data["split_details"]) == 4
 
-def test_night_flow_endpoint():
-    payload = {
-        "entrance_id": 1,
-        "napkin_test_result": "wet"
-    }
-    res = client.post("/api/night-flow/diagnose", json=payload)
-    assert res.status_code == 200
-    data = res.json()
-    assert data["apartment_leak_detected"] is True
-    assert data["reward_eligible"] is True
-
 def test_tickets_crud_endpoints():
     # 1. List
     res = client.get("/api/tickets")
@@ -102,3 +91,111 @@ def test_guest_token_generation():
     assert res.status_code == 200
     data = res.json()
     assert "startapp=guest_" in data["direct_max_link"]
+
+# ----------------- Milestone 1 Tests -----------------
+
+def test_inspector_act_endpoint_with_json_payload():
+    payload = {
+        "meter_id": "meter-khvs-1",
+        "reading_value": 142.385,
+        "address": "г. Москва, ул. Тверская, д. 7, кв. 14",
+        "inspector_name": "Контролер Смирнов В. И.",
+        "photo_base64": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDA..."
+    }
+    res = client.post("/api/uk/inspector-act", json=payload)
+    assert res.status_code in (200, 201)
+    data = res.json()
+    assert data["status"] == "success"
+    assert data["act_id"].startswith("ACT-ЖКХ-")
+    assert data["act_number"] == data["act_id"]
+    assert data["meter_id"] == "meter-khvs-1"
+    assert data["reading_value"] == 142.385
+    assert data["address"] == "г. Москва, ул. Тверская, д. 7, кв. 14"
+    assert "55.7558° N, 37.6173° E" in data["gps"]
+    assert len(data["photo_hash_sha256"]) == 64
+    assert data["crypto_hash"] == data["photo_hash_sha256"]
+    assert data["export_1c_ready"] is True
+    assert data["billing_export_status"] == "EXPORTED_TO_1C_ZHKH"
+    assert "63-ФЗ" in data["legal_significance"]
+
+def test_inspector_act_endpoint_legacy_webapp_query():
+    res = client.post("/api/uk/inspector-act?address=г.+Москва,+ул.+Ленина,+д.+42")
+    assert res.status_code in (200, 201)
+    data = res.json()
+    assert data["status"] == "success"
+    assert "Ленина" in data["address"]
+    assert data["act_id"].startswith("ACT-ЖКХ-")
+    assert len(data["photo_hash_sha256"]) == 64
+    assert data["export_1c_ready"] is True
+
+def test_arshin_check_expired_meter_991201():
+    res = client.get("/api/arshin/check?serial=991201")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["serial_number"] == "991201"
+    assert data["status"] == "expired"
+    assert data["shield_color"] == "red"
+    assert data["is_fraud_warning"] is True
+    assert "ИСТЕК" in data["safety_message"]
+    assert "МОШЕННИК" in data["safety_message"].upper()
+
+def test_auth_verify_endpoint_dev_bypass():
+    res = client.get("/api/auth/verify-init-data")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "authenticated"
+    assert data["is_dev_bypass"] is True
+    assert data["user"]["role"] == "resident"
+
+def test_auth_verify_endpoint_with_valid_and_invalid_header():
+    from app.config import settings
+    from app.api.security import generate_init_data
+    import time
+    import json
+
+    token = settings.BOT_TOKEN or "test_token_123"
+    raw_data = {
+        "auth_date": str(int(time.time())),
+        "query_id": "test_query_id",
+        "user": json.dumps({"id": 423938205, "first_name": "Иван"})
+    }
+    signed_query = generate_init_data(raw_data, token)
+
+    # Valid
+    res_valid = client.get("/api/auth/verify-init-data", headers={"X-Init-Data": signed_query})
+    assert res_valid.status_code == 200
+    data = res_valid.json()
+    assert data["status"] == "authenticated"
+    assert data["is_dev_bypass"] is False
+    assert data["user"]["id"] == 423938205
+
+    # Invalid
+    res_invalid = client.get("/api/auth/verify-init-data", headers={"X-Init-Data": "invalid=signature&hash=deadbeef"})
+    assert res_invalid.status_code == 401
+    assert "Invalid initData" in res_invalid.json()["detail"]
+
+def test_bot_webhook_endpoint_single_and_batch():
+    # 1. Single
+    single_payload = {
+        "update_type": "message_created",
+        "message": {
+            "body": {"text": "/start"},
+            "sender": {"id": 12345, "first_name": "Тестер"},
+            "recipient": {"chat_id": "chat_123"}
+        }
+    }
+    res1 = client.post("/api/bot/webhook", json=single_payload)
+    assert res1.status_code == 200
+    assert res1.json() == {"status": "ok"}
+
+    # 2. Batch
+    batch_payload = {
+        "updates": [
+            {"update_type": "bot_started", "user": {"id": 12345}},
+            {"update_type": "message_created", "message": {"body": {"text": "поверка"}}}
+        ]
+    }
+    res2 = client.post("/api/bot/webhook", json=batch_payload)
+    assert res2.status_code == 200
+    assert res2.json() == {"status": "ok"}
+

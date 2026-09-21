@@ -42,29 +42,29 @@ def parse_gost_qr_payload(payload: str) -> GostQrParseResponse:
     Example payload:
     ST00012|Name=ООО "УК ДОМОВОЙ СЕРВИС"|PersonalAcc=40702810938000012345|BankName=ПАО СБЕРБАНК|BIC=044525225|CorrespAcc=30101810400000000225|PayeeINN=7701234567|KPP=770101001|Sum=485050|PersAcc=1004567890|Period=092026|TechCode=01
     """
-    payload = payload.strip()
-    if not payload.startswith("ST0001"):
+    payload = payload.strip().lstrip("\ufeff")
+    if not payload.upper().startswith("ST0001"):
         raise ValueError("Строка не соответствует стандарту ГОСТ Р 56042-2014 (префикс ST0001X отсутствует)")
     
     parts = payload.split("|")
-    version = parts[0]
+    version = parts[0].upper()
     tags: Dict[str, str] = {}
     for part in parts[1:]:
         if "=" in part:
             k, v = part.split("=", 1)
-            tags[k.strip()] = v.strip()
+            tags[k.strip().lower()] = v.strip()
             
-    name = tags.get("Name", "Управляющая организация")
-    payee_account = tags.get("PersonalAcc", "")
-    bik = tags.get("BIC", "")
-    cor_account = tags.get("CorrespAcc")
-    inn = tags.get("PayeeINN", "")
-    kpp = tags.get("KPP")
-    pers_acc = tags.get("PersAcc") or tags.get("payerId") or tags.get("ELS", "ELS-77-2026-99")
-    period = tags.get("Period", "09.2026")
+    name = tags.get("name", "Управляющая организация")
+    payee_account = tags.get("personalacc", "")
+    bik = tags.get("bic", "")
+    cor_account = tags.get("correspacc")
+    inn = tags.get("payeeinn") or tags.get("inn", "")
+    kpp = tags.get("kpp")
+    pers_acc = tags.get("persacc") or tags.get("payerid") or tags.get("els", "ELS-77-2026-99")
+    period = tags.get("period", "09.2026")
     
-    # Sum in kopecks or rubles
-    raw_sum = tags.get("Sum", "0")
+    # Sum in kopecks or rubles (supports comma or dot decimals)
+    raw_sum = tags.get("sum", "0").strip().replace(",", ".")
     try:
         amount_rubles = float(raw_sum) / 100.0 if raw_sum.isdigit() else float(raw_sum)
     except ValueError:

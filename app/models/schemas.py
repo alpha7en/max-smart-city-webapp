@@ -4,7 +4,7 @@ Pydantic v2 schemas for API requests, responses and data validation.
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from app.models.domain import (
     MeterType,
     TariffZone,
@@ -98,6 +98,30 @@ class ArshinCheckResponse(BaseModel):
 class GostQrParseRequest(BaseModel):
     qr_payload: str = Field(..., description="Строка QR-кода стандарта ST00012")
 
+    @model_validator(mode="before")
+    @classmethod
+    def extract_qr_payload(cls, data: Any) -> Any:
+        if isinstance(data, str):
+            return {"qr_payload": data}
+        if isinstance(data, dict):
+            if "payload" in data:
+                inner = data["payload"]
+                if isinstance(inner, dict):
+                    val = inner.get("qr_payload") or inner.get("qr_string") or inner.get("qr_data")
+                    if val:
+                        return {"qr_payload": val}
+                elif isinstance(inner, str):
+                    return {"qr_payload": inner}
+            for container_key in ("data", "body"):
+                if container_key in data and isinstance(data[container_key], dict):
+                    val = data[container_key].get("qr_payload") or data[container_key].get("qr_string")
+                    if val:
+                        return {"qr_payload": val}
+            val = data.get("qr_payload") or data.get("qr_string") or data.get("qr_data")
+            if isinstance(val, str):
+                return {"qr_payload": val}
+        return data
+
 class SplitPaymentRecipient(BaseModel):
     recipient_name: str = Field(..., description="Наименование поставщика (Водоканал, ТЭК, УК)")
     inn: str
@@ -160,6 +184,25 @@ class TicketResponse(BaseModel):
     assigned_master: Optional[str] = None
     status_history: List[Dict[str, Any]] = Field(default_factory=list)
 
+class TicketStatusUpdateRequest(BaseModel):
+    status: TicketStatus = Field(..., description="Новый статус заявки")
+    comment: Optional[str] = Field(None, description="Комментарий диспетчера или мастера")
+    assigned_master: Optional[str] = Field(None, description="Назначенный мастер")
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            v_lower = v.lower().strip()
+            aliases = {
+                "completed": TicketStatus.COMPLETED,
+                "done": TicketStatus.COMPLETED,
+                "closed": TicketStatus.RESOLVED,
+            }
+            if v_lower in aliases:
+                return aliases[v_lower]
+        return v
+
 # ----------------- Guest / Tenant Access Schemas -----------------
 
 class GuestAccessGenerateRequest(BaseModel):
@@ -174,3 +217,88 @@ class GuestAccessResponse(BaseModel):
     property_address: str
     expires_at: datetime
     allowed_actions: List[str]
+
+# ----------------- UK Inspector ARM (Обходчик УК) Schemas -----------------
+
+class InspectorActCreateRequest(BaseModel):
+    meter_id: str = Field(default="meter-khvs-1", description="Идентификатор прибора учета")
+    reading_value: float = Field(default=142.385, description="Контрольное показание, снятое обходчиком")
+    address: str = Field(default="г. Москва, ул. Тверская, д. 7, кв. 14", description="Адрес объекта")
+    inspector_name: str = Field(default="Контролер Службы Учета Водоснабжения Смирнов В. И.", description="ФИО контролера УК")
+    photo_base64: Optional[str] = Field(None, description="Фотофиксация прибора учета / пломбы")
+    gps_coordinates: Optional[str] = Field("55.7558° N, 37.6173° E", description="Геолокация обходчика")
+
+class InspectorActResponse(BaseModel):
+    # Contract fields (SCOPE.md / PROJECT.md)
+    act_id: Optional[str] = Field(None, description="Уникальный идентификатор цифрового акта")
+    timestamp: str = Field(..., description="ISO-8601 таймстемп фиксации осмотра")
+    gps: str = Field("55.7558° N, 37.6173° E", description="GPS координаты фиксации")
+    photo_hash_sha256: Optional[str] = Field(None, description="Криптографический SHA-256 хеш фотофиксации или акта")
+    meter_id: str = Field("meter-khvs-1", description="Идентификатор прибора учета")
+    reading_value: float = Field(142.385, description="Зафиксированное контрольное показание")
+    status: str = Field("success", description="Статус операции")
+    export_1c_ready: bool = Field(True, description="Флаг готовности к автоматической выгрузке в 1С:ЖКХ")
+
+    # Backward compatibility fields (WebApp Mini-App & Legacy routes)
+    act_number: str = Field(..., description="Уникальный номер цифрового акта")
+    act_title: str = Field("Электронный акт контрольного осмотра ПУ", description="Наименование документа")
+    inspector_name: str
+    address: str
+    gps_coordinates: str = Field("55.7558° N, 37.6173° E (Метка подтверждена)", description="Подтвержденная геометка")
+    meter_reading: str
+    crypto_hash: str = Field(..., description="SHA-256 криптографический хеш акта")
+    billing_export_status: str = Field("EXPORTED_TO_1C_ZHKH", description="Статус синхронизации с 1С:ЖКХ")
+    legal_significance: str = Field(
+        "Заверен усиленной квалифицированной ЭЦП УК (63-ФЗ)",
+        description="Юридическая сила документа"
+    )
+
+    def model_post_init(self, __context):
+        if self.act_id is None:
+            self.act_id = self.act_number
+        if self.photo_hash_sha256 is None:
+            self.photo_hash_sha256 = self.crypto_hash
+
+
+# ----------------- User Profile & Linked Properties Schemas -----------------
+
+class UserProperty(BaseModel):
+    id: str = Field(..., description="Уникальный идентификатор объекта недвижимости")
+    address: str = Field(..., description="Адрес помещения")
+    els: str = Field(..., description="Единый лицевой счет (ЕЛС) ГИС ЖКХ / Лицевой счет")
+    management_company: str = Field("ООО УК Столица-Сервис", description="Управляющая организация")
+    is_active: bool = Field(False, description="Флаг: является ли объект активным в данный момент")
+    role: str = Field("owner", description="Роль пользователя: owner (собственник) или tenant (арендатор)")
+    linked_at: datetime = Field(default_factory=datetime.now, description="Дата и время привязки объекта")
+
+class UserProfile(BaseModel):
+    user_id: int = Field(..., description="Идентификатор пользователя в MAX")
+    phone: Optional[str] = Field(None, description="Номер телефона пользователя")
+    first_name: str = Field("Иван", description="Имя пользователя")
+    last_name: Optional[str] = Field("Иванов", description="Фамилия пользователя")
+    username: Optional[str] = Field(None, description="Никнейм в MAX")
+    is_verified: bool = Field(False, description="Подтвержден ли номер через MAX request_contact")
+    active_property_id: str = Field(..., description="ID текущего выбранного объекта")
+    properties: List[UserProperty] = Field(default_factory=list, description="Список привязанных объектов")
+
+class ProfileSwitchPropertyRequest(BaseModel):
+    property_id: str = Field(..., description="ID объекта для активации")
+    user_id: Optional[int] = Field(None, description="ID пользователя MAX (опционально)")
+
+class ProfileAddPropertyRequest(BaseModel):
+    address: Optional[str] = Field(None, description="Адрес нового помещения (опционально при передаче gost_qr_payload)")
+    els: Optional[str] = Field(None, description="Единый лицевой счет (10 цифр) или номер ЛС (опционально при передаче gost_qr_payload)")
+    management_company: Optional[str] = Field("ООО УК Столица-Сервис", description="Управляющая компания")
+    role: Optional[str] = Field("owner", description="Роль: owner (собственник) или tenant (арендатор)")
+    user_id: Optional[int] = Field(None, description="ID пользователя MAX")
+    gost_qr_payload: Optional[str] = Field(None, description="Опциональный сырой ГОСТ QR-код для автозаполнения")
+
+class ProfileVerifyContactRequest(BaseModel):
+    phone: Optional[str] = Field(None, description="Номер телефона пользователя")
+    vcf_info: Optional[str] = Field(None, description="VCF контакт из MAX Bot API")
+    hash: Optional[str] = Field(None, description="Криптографическая подпись HMAC-SHA256")
+    auth_date: Optional[int] = Field(None, description="Отметка времени auth_date")
+    user_id: Optional[int] = Field(None, description="ID пользователя MAX")
+
+
+

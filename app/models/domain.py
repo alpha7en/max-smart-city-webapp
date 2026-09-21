@@ -30,6 +30,7 @@ class VerificationStatus(str, Enum):
     VERIFIED = "verified"          # Действительна
     EXPIRING_SOON = "expiring"     # Истекает в течение 60 дней
     EXPIRED = "expired"            # Просрочена (требуется поверка)
+    UNREGISTERED = "unregistered"  # Прибор не найден во ФГИС АРШИН
     FRAUD_ALERT = "fraud_alert"    # Выявлена мошенническая угроза (поверка не требуется)
 
 class TicketPriority(str, Enum):
@@ -42,6 +43,7 @@ class TicketStatus(str, Enum):
     ACCEPTED = "accepted"
     IN_PROGRESS = "in_progress"
     RESOLVED = "resolved"
+    COMPLETED = "completed"
     CONFIRMED_BY_RESIDENT = "confirmed"
 
 class UserRole(str, Enum):

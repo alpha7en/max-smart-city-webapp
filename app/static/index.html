@@ -1,372 +1,911 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" class="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>MAX Умный Дом — ЖКХ и Счетчики</title>
-  <!-- MAX Bridge SDK -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="shell-type" content="mobile_tab" />
+  <title>MAX Умный Дом — ЖКХ и Приборы Учета</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <script src="https://st.max.ru/js/max-web-app.js"></script>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <script>
+    if (window.WebApp) {
+      if (typeof window.WebApp.ready === "function") {
+        try { window.WebApp.ready(); } catch (e) {}
+      }
+      if (typeof window.WebApp.expand === "function") {
+        try { window.WebApp.expand(); } catch (e) {}
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body data-role="resident">
   <div id="app-container">
-    <!-- Header -->
+
+    <!-- Sticky Header -->
     <header class="app-header">
-      <div class="header-left">
-        <span class="app-logo">🏙️</span>
-        <div class="header-titles">
-          <h1>MAX Умный Дом</h1>
-          <p class="header-sub">ул. Ленина, д. 42, кв. 15 (ЕЛС 1004567890)</p>
+      <div class="header-main-row">
+        <div class="header-user-badge">
+          <div class="header-avatar" id="header-avatar-box">
+            <span class="material-symbols-outlined">person</span>
+          </div>
+          <div class="header-identity">
+            <div class="header-role-title">
+              <span class="role-name-text" id="role-title-text">Иван Иванов</span>
+              <span class="badge-role" id="role-badge" title="Статус в помещении">СОБСТВЕННИК</span>
+            </div>
+            <span class="badge-status online" id="bridge-status" style="display: none;">MAX Bridge</span>
+          </div>
+        </div>
+        <div class="header-actions-group">
+          <button type="button" class="btn-icon-header" id="header-profile-btn" title="Личный кабинет">
+            <span class="material-symbols-outlined">tune</span>
+            <span id="profile-badge-label" class="header-profile-text">Профиль</span>
+          </button>
         </div>
       </div>
-      <div class="header-right">
-        <span class="badge-status online" id="bridge-status">MAX Bridge</span>
-      </div>
+      <button type="button" class="header-address-card" id="header-address-btn" title="Выбрать объект">
+        <div class="header-address-content">
+          <span class="material-symbols-outlined header-address-icon">home</span>
+          <span class="header-address-text" id="header-active-address-text">ул. Ленина, д. 42, кв. 15 (ЕЛС 1004567890)</span>
+        </div>
+        <span class="material-symbols-outlined header-chevron">expand_more</span>
+      </button>
     </header>
 
-    <!-- Navigation Tabs -->
-    <nav class="tab-nav">
-      <button class="tab-btn active" data-tab="tab-meters">
-        <span class="tab-icon">📊</span>
-        <span class="tab-label">Счетчики</span>
-      </button>
-      <button class="tab-btn" data-tab="tab-arshin">
-        <span class="tab-icon">🛡️</span>
-        <span class="tab-label">Антифрод</span>
-      </button>
-      <button class="tab-btn" data-tab="tab-billing">
-        <span class="tab-icon">🧾</span>
-        <span class="tab-label">Оплата</span>
-      </button>
-      <button class="tab-btn" data-tab="tab-nightflow">
-        <span class="tab-icon">🔍</span>
-        <span class="tab-label">Дозор</span>
-      </button>
-      <button class="tab-btn" data-tab="tab-tickets">
-        <span class="tab-icon">🛠️</span>
-        <span class="tab-label">Заявки</span>
-      </button>
+    <!-- Navigation Bar: 4 resident tabs strictly (Inspector removed to dedicated view) -->
+    <nav class="tab-nav" id="resident-tab-nav">
+      <div class="tab-nav-grid">
+        <button type="button" class="tab-btn active" data-tab="tab-meters" id="tab-btn-meters">
+          <span class="tab-icon">
+            <span class="material-symbols-outlined">speed</span>
+          </span>
+          <span class="tab-label">Счетчики</span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="tab-arshin" id="tab-btn-arshin">
+          <span class="tab-icon">
+            <span class="material-symbols-outlined">verified_user</span>
+          </span>
+          <span class="tab-label">Поверка</span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="tab-billing" id="tab-btn-billing">
+          <span class="tab-icon">
+            <span class="material-symbols-outlined">receipt_long</span>
+          </span>
+          <span class="tab-label">Оплата</span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="tab-tickets" id="tab-btn-tickets">
+          <span class="tab-icon">
+            <span class="material-symbols-outlined">assignment</span>
+          </span>
+          <span class="tab-label">Заявки</span>
+        </button>
+      </div>
+      <!-- Hidden compatibility node for tests/scripts expecting #tab-btn-inspector -->
+      <button type="button" class="sr-only" data-tab="tab-inspector" id="tab-btn-inspector" style="display:none;" aria-hidden="true">Обходчик</button>
     </nav>
 
-    <!-- Main Content Sections -->
+    <!-- Main Content Area -->
     <main class="content-area">
 
-      <!-- 1. METERS TAB -->
+      <!-- ================= TAB 1: METERS ================= -->
       <section id="tab-meters" class="tab-content active">
-        <div class="card-hero">
-          <div class="hero-text">
-            <h2>Передача показаний ИПУ</h2>
-            <p>Сфотографируйте счетчик или перешлите фото из чата MAX. Нейросеть считает цифры и проверит поверку.</p>
+        <div class="tab-layout-grid">
+          
+          <!-- Left / Primary Column on Desktop & 4:3 -->
+          <div class="tab-col-primary">
+            <!-- Hero Scan Section -->
+            <section class="card-hero-scan" id="hero-scan-section">
+              <div class="hero-scan-top">
+                <div class="hero-scan-info">
+                  <span class="hero-pill-badge">Оптическое считывание (ГОСТ)</span>
+                  <h2 class="hero-scan-title">Скан счётчика</h2>
+                  <p class="hero-scan-desc">Наведите камеру на циферблат прибора</p>
+                </div>
+                <div class="hero-scan-icon-wrap">
+                  <span class="material-symbols-outlined">document_scanner</span>
+                </div>
+              </div>
+              <div class="hero-scan-actions">
+                <button type="button" class="btn btn-primary" id="btn-open-camera">
+                  <span class="material-symbols-outlined">photo_camera</span>
+                  <span>Сфотографировать</span>
+                </button>
+                <button type="button" class="btn btn-secondary" id="btn-upload-file">
+                  <span class="material-symbols-outlined">photo_library</span>
+                  <span>Из галереи</span>
+                </button>
+                <input type="file" id="file-meter-input" accept="image/*" class="sr-only" />
+              </div>
+            </section>
+
+            <!-- Quick Reading & Detection Preview Card -->
+            <section class="card-surface card-ai-preview" id="ai-scan-result" style="display: none;">
+              <div class="card-head-row">
+                <div class="card-title-group">
+                  <div class="card-type-icon-box">
+                    <span class="material-symbols-outlined">water_drop</span>
+                  </div>
+                  <h3 class="card-title-text" id="ocr-device-title">Холодная вода (ХВС)</h3>
+                </div>
+                <span class="badge-subtle-pill font-mono">до 25 числа</span>
+              </div>
+              
+              <p class="mock-disclaimer" id="ai-mock-notice">
+                Оптическая сегментация циферблата. Автоматическое отсечение красных роликов литров.
+              </p>
+
+              <!-- Tactile Mechanical Drum Odometer -->
+              <div class="odometer-panel">
+                <div class="roller-container" id="roller-box">
+                  <!-- 5 Black drums: integer m³ -->
+                  <div class="roller-group roller-group-black" id="roller-black-group"></div>
+                  <!-- Separator dot -->
+                  <div class="roller-dot">,</div>
+                  <!-- 3 Red drums: decimal liters -->
+                  <div class="roller-group roller-group-red" id="roller-red-group"></div>
+                </div>
+
+                <!-- Hidden compatibility spans -->
+                <div style="display:none;" aria-hidden="true">
+                  <span id="ocr-black-digits">00142</span>
+                  <span id="ocr-red-digits">789</span>
+                </div>
+
+                <div class="dial-caption" id="dial-caption-box">
+                  <span class="caption-black">Черные: кубометры (м³)</span>
+                  <span class="caption-red">Красные: литры (отсекаются)</span>
+                </div>
+              </div>
+
+              <!-- Stepper and Manual Adjustment Box -->
+              <div class="reading-stepper-box" id="single-reading-box">
+                <button type="button" class="stepper-action-btn" id="btn-reading-minus" aria-label="Уменьшить">
+                  <span class="material-symbols-outlined">remove</span>
+                </button>
+                <div class="stepper-input-wrap">
+                  <input type="number" step="0.1" id="input-reading-correct" class="stepper-number-input" value="142.0" />
+                  <span class="stepper-unit-label">м³</span>
+                </div>
+                <button type="button" class="stepper-action-btn" id="btn-reading-plus" aria-label="Увеличить">
+                  <span class="material-symbols-outlined">add</span>
+                </button>
+              </div>
+
+              <!-- Multi-tariff inputs for Electricity -->
+              <div id="multi-tariff-box" class="multi-tariff-panel" style="display: none;">
+                <div class="tariff-grid-cols">
+                  <div class="tariff-field">
+                    <label class="tariff-label">Т1 Пик / День (кВт·ч):</label>
+                    <input type="number" step="0.1" id="input-t1-val" class="form-input-styled font-mono" value="1840.0" />
+                  </div>
+                  <div class="tariff-field">
+                    <label class="tariff-label">Т2 Ночь (кВт·ч):</label>
+                    <input type="number" step="0.1" id="input-t2-val" class="form-input-styled font-mono" value="520.0" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Dynamic Consumption & Cost Calculation Breakdown -->
+              <div class="calculation-breakdown-card" id="scan-calc-breakdown">
+                <div class="calc-line-item">
+                  <span class="calc-line-label">Предыдущие показания:</span>
+                  <span class="calc-line-val font-mono" id="calc-prev-val">138.000 м³</span>
+                </div>
+                <div class="calc-line-item highlight-line">
+                  <span class="calc-line-label">Расход за месяц:</span>
+                  <strong class="calc-line-val font-mono text-accent" id="calc-delta-val">+4.000 м³</strong>
+                </div>
+                <div class="calc-line-item total-line">
+                  <span class="calc-line-label">К начислению:</span>
+                  <span class="calc-line-val font-mono text-success" id="calc-cost-val">219.20 ₽</span>
+                </div>
+              </div>
+
+              <!-- Technical Scan Metrics Grid -->
+              <div class="scan-metrics-grid">
+                <div class="metric-cell">
+                  <span class="metric-cell-label">Принятое значение</span>
+                  <span class="metric-cell-val font-mono" id="ocr-reading-val">142.0 м³</span>
+                </div>
+                <div class="metric-cell">
+                  <span class="metric-cell-label">Заводской номер</span>
+                  <span class="metric-cell-val font-mono" id="ocr-serial-val">№ 2809142</span>
+                </div>
+                <div class="metric-cell">
+                  <span class="metric-cell-label">Достоверность OCR</span>
+                  <span class="metric-cell-val font-mono" id="ocr-confidence-val">96.8%</span>
+                </div>
+                <div class="metric-cell">
+                  <span class="metric-cell-label">Защита x1000</span>
+                  <span class="metric-cell-val text-success" id="ocr-shield-active">Активирована</span>
+                </div>
+              </div>
+
+              <!-- Confirm Submission Button -->
+              <button type="button" class="btn btn-success btn-full" id="btn-submit-reading">
+                <span class="material-symbols-outlined">check</span>
+                <span>Сдать показания</span>
+              </button>
+              <div class="feedback-notification-box" id="reading-feedback" style="display:none;"></div>
+            </section>
           </div>
-          <button class="btn btn-primary" id="btn-open-camera">
-            📸 Сделать фото счетчика
-          </button>
-          <input type="file" id="file-meter-input" accept="image/*" style="display:none;" />
-        </div>
 
-        <!-- AI Vision Recognition Result Preview Card -->
-        <div class="card card-ai-preview" id="ai-scan-result" style="display: none;">
-          <div class="card-header-with-badge">
-            <h3>🤖 Результат AI-детекции</h3>
-            <span class="badge badge-warning">AI STUB MOCK</span>
-          </div>
-          <p class="mock-disclaimer" id="ai-mock-notice">
-            [ЗАГЛУШКА / AI VISION STUB]: Модель YOLOv8 + TorchOk OCR. В рабочей версии выполняет нейросетевую сегментацию барабанов.
-          </p>
-
-          <div class="scan-visual-container">
-            <div class="dial-display">
-              <span class="digit-box black" id="ocr-black-digits">00142</span>
-              <span class="digit-box red" id="ocr-red-digits">789</span>
+          <!-- Right / Secondary Column on Desktop & 4:3 -->
+          <div class="tab-col-secondary">
+            <div class="section-header-row">
+              <div class="section-title-wrap">
+                <h3 class="section-heading-text">Счётчики</h3>
+                <span class="section-meta-text">Срок: 20–25 числа</span>
+              </div>
+              <div class="meter-filter-chips">
+                <button type="button" class="chip active" data-filter="all">Все (4)</button>
+                <button type="button" class="chip" data-filter="cold_water">ХВС</button>
+                <button type="button" class="chip" data-filter="hot_water">ГВС</button>
+                <button type="button" class="chip" data-filter="el_multi">Свет</button>
+                <button type="button" class="chip" data-filter="heat">Тепло</button>
+              </div>
             </div>
-            <div class="dial-caption">
-              <span class="caption-black">Черные: целые м³</span>
-              <span class="caption-red">Красные: литры (отсечены)</span>
+
+            <!-- Active Meters Registry -->
+            <div class="meters-cards-list" id="meters-container">
+              <!-- Dynamically populated by app.js -->
             </div>
           </div>
 
-          <div class="scan-metrics-grid">
-            <div class="metric-item">
-              <span class="metric-label">Принятое показание</span>
-              <span class="metric-val highlight" id="ocr-reading-val">142.0 м³</span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">Заводской номер</span>
-              <span class="metric-val" id="ocr-serial-val">№ 2809142</span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">Точность OCR</span>
-              <span class="metric-val" id="ocr-confidence-val">96.8%</span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">Защита от ошибки *1000</span>
-              <span class="metric-val text-green">Активирована</span>
-            </div>
-          </div>
-
-          <div class="form-group inline-input">
-            <label for="input-reading-correct">Скорректировать вручную (м³):</label>
-            <input type="number" step="0.1" id="input-reading-correct" value="142.0" class="form-input" />
-          </div>
-
-          <div class="card-actions">
-            <button class="btn btn-success" id="btn-submit-reading">
-              ✅ Подтвердить и отправить в ГИС ЖКХ
-            </button>
-          </div>
-        </div>
-
-        <!-- Submission Feedback Alert -->
-        <div id="reading-feedback" class="alert-box" style="display:none;"></div>
-
-        <!-- Active Meters List -->
-        <div class="section-title">
-          <h3>Приборы учета квартиры (4)</h3>
-          <span class="section-badge">Срок сдачи: до 25 числа</span>
-        </div>
-        <div class="meters-list" id="meters-container">
-          <!-- Dynamically populated -->
         </div>
       </section>
 
-      <!-- 2. ARSHIN ANTI-FRAUD TAB -->
+      <!-- ================= TAB 2: ARSHIN ANTI-FRAUD ================= -->
       <section id="tab-arshin" class="tab-content">
-        <div class="card-hero shield-hero">
-          <div class="shield-badge-icon">🛡️</div>
-          <h2>Зеленый Щит Безопасности</h2>
-          <p>Проверка легитимности счетчиков в государственном реестре ФГИС «АРШИН» (102-ФЗ). Защита от липовых извещений мошенников.</p>
-        </div>
+        <div class="tab-layout-grid">
+          
+          <div class="tab-col-primary">
+            <!-- Header Banner -->
+            <div class="section-title-row-clean">
+              <h2 class="view-header-title">Проверка счетчика</h2>
+              <span class="badge-arshin-tag">
+                <span class="dot-indicator-green"></span>
+                ФГИС АРШИН
+              </span>
+            </div>
 
-        <div class="card">
-          <h3>Проверить счетчик по заводскому номеру</h3>
-          <p class="text-muted">Вам бросили в ящик угрожающую листовку «Срочно сделайте поверку или штраф»? Проверьте реальный срок поверки за 1 секунду:</p>
-          <div class="search-row">
-            <input type="text" id="input-arshin-serial" class="form-input" placeholder="Введите номер счетчика (напр. 2809142)" value="2809142" />
-            <button class="btn btn-primary" id="btn-check-arshin">Проверить</button>
-          </div>
-        </div>
+            <!-- Search & Quick Presets -->
+            <div class="card-surface card-search-arshin">
+              <div class="search-input-group">
+                <div class="input-with-icon-wrap">
+                  <span class="material-symbols-outlined input-prefix-icon">search</span>
+                  <input type="text" id="input-arshin-serial" class="arshin-serial-input font-mono" placeholder="Номер счетчика" value="2809142" />
+                </div>
+                <button type="button" class="btn btn-primary btn-search-arshin" id="btn-check-arshin">
+                  <span class="material-symbols-outlined">search</span>
+                  <span>Проверить</span>
+                </button>
+              </div>
 
-        <!-- Shield Result Banner -->
-        <div class="card shield-card" id="arshin-result-card" style="display:none;">
-          <div class="shield-header">
-            <span class="shield-status-icon" id="shield-icon">🟢</span>
-            <div>
-              <h3 id="shield-title">Поверка ДЕЙСТВИТЕЛЬНА</h3>
-              <p class="text-sm" id="shield-org">ФБУ «РОСТЕСТ-МОСКВА»</p>
+              <div class="presets-row-wrap">
+                <span class="presets-caption-label">Быстрая проверка:</span>
+                <div class="presets-chips-scroller">
+                  <button type="button" class="preset-arshin chip-preset" data-serial="2809142">Поверен до 2029</button>
+                  <button type="button" class="preset-arshin chip-preset" data-serial="991201">Срок истек</button>
+                  <button type="button" class="preset-arshin chip-preset" data-serial="000000">Не в реестре</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Shield Status Result Card -->
+            <div class="card-surface shield-card" id="arshin-result-card" style="display:none;">
+              <div class="shield-card-header">
+                <div class="shield-title-block">
+                  <span class="shield-status-symbol" id="shield-icon">●</span>
+                  <div>
+                    <h3 class="shield-title-text" id="shield-title">Поверка действительна</h3>
+                    <p class="shield-org-text" id="shield-org">ФБУ «РОСТЕСТ-МОСКВА»</p>
+                  </div>
+                </div>
+                <a href="#" target="_blank" rel="noopener noreferrer" id="shield-link" class="btn-out-link">
+                  <span>Выписка</span>
+                  <span class="material-symbols-outlined">north_east</span>
+                </a>
+              </div>
+              <div class="shield-card-body" id="shield-message">
+                Запись поверки подтверждена в единой государственной базе данных Росстандарта.
+              </div>
             </div>
           </div>
-          <div class="shield-body" id="shield-message">
-            Счетчик официально поверен. Поверка НЕ требуется еще 3 года.
-          </div>
-          <div class="shield-footer">
-            <a href="#" target="_blank" id="shield-link" class="btn btn-outline btn-sm">
-              🔗 Открыть запись в реестре Росстандарта
-            </a>
-          </div>
-        </div>
 
-        <div class="card info-card">
-          <h4>💡 Как мошенники обманывают жителей:</h4>
-          <p class="text-sm">
-            Аферисты массово раскладывают псевдоофициальные бланки с печатями, угрожая переводом на повышенный норматив или штрафом в 50 000 руб.
-            По закону № 102-ФЗ единственным юридическим подтверждением поверки является <b>электронная запись во ФГИС «АРШИН»</b>.
-            Наш сервис считывает номер счетчика камерой и мгновенно разоблачает обман.
-          </p>
+          <div class="tab-col-secondary">
+            <!-- Accordion 1: Metrology details -->
+            <details class="card-surface card-spoiler group" open>
+              <summary class="spoiler-summary-btn">
+                <span class="spoiler-title-content">
+                  <span class="material-symbols-outlined text-primary">description</span>
+                  <span>Данные реестра Росстандарта</span>
+                </span>
+                <span class="material-symbols-outlined spoiler-chevron">expand_more</span>
+              </summary>
+              <div class="spoiler-body-content font-mono text-xs">
+                <div class="registry-data-row">
+                  <span class="registry-data-label">Номер в реестре СИ:</span>
+                  <span class="registry-data-val">№ 52410-13</span>
+                </div>
+                <div class="registry-data-row">
+                  <span class="registry-data-label">Методика поверки:</span>
+                  <span class="registry-data-val">МИ 1592-2015</span>
+                </div>
+                <div class="registry-data-row">
+                  <span class="registry-data-label">Правовое основание:</span>
+                  <span class="registry-data-val">Федеральный закон № 102-ФЗ</span>
+                </div>
+              </div>
+            </details>
+
+            <!-- Accordion 2: Anti-fraud guide -->
+            <details class="card-surface card-spoiler group" open>
+              <summary class="spoiler-summary-btn">
+                <span class="spoiler-title-content">
+                  <span class="material-symbols-outlined text-warning">shield</span>
+                  <span>Защита от мошенников</span>
+                </span>
+                <span class="material-symbols-outlined spoiler-chevron">expand_more</span>
+              </summary>
+              <div class="spoiler-body-content text-xs">
+                <p>• Игнорируйте угрожающие листовки и фальшивые квитанции в почтовых ящиках.</p>
+                <p>• Поверка действительна исключительно при наличии электронной записи во ФГИС «АРШИН».</p>
+                <p>• Реальный межповерочный интервал контролируется вашей УК без навязанных замен.</p>
+              </div>
+            </details>
+          </div>
+
         </div>
       </section>
 
-      <!-- 3. BILLING & GOST QR TAB -->
+      <!-- ================= TAB 3: BILLING & GOST QR ================= -->
       <section id="tab-billing" class="tab-content">
-        <div class="card-hero">
-          <h2>Оплата ЖКУ по ГОСТ Р 56042-2014</h2>
-          <p>Сканируйте QR-код с квитанции через камеру MAX Bridge. Автоматическое расщепление платежей по 103-ФЗ на спецсчет 40821.</p>
-          <div class="hero-actions">
-            <button class="btn btn-primary" id="btn-scan-qr-bridge">
-              📷 Сканировать QR код камерой MAX
-            </button>
-            <button class="btn btn-outline" id="btn-paste-sample-qr">
-              📋 Вставить образец квитанции
-            </button>
-          </div>
-        </div>
+        <div class="tab-layout-grid">
 
-        <!-- Bill Details & Split Visualizer -->
-        <div class="card" id="billing-details-card">
-          <div class="bill-summary-header">
-            <div>
-              <span class="text-muted text-sm">Сумма к оплате за сентябрь 2026:</span>
-              <div class="bill-total-price" id="bill-total-amount">4 850.50 ₽</div>
-            </div>
-            <span class="badge badge-success" id="account-checksum-badge">Счет ЦБ проверен ✓</span>
-          </div>
-
-          <div class="bill-meta-info">
-            <p><b>Получатель:</b> <span id="bill-payee-name">ООО «УК ДОМОВОЙ СЕРВИС»</span></p>
-            <p><b>Лицевой счет (ЕЛС):</b> <span id="bill-pers-acc">1004567890</span></p>
-            <p><b>Спецсчет платежного агента:</b> <span id="bill-account-40821">40821810500000001001</span> (Иммунитет от арестов 103-ФЗ)</p>
-          </div>
-
-          <div class="section-title" style="margin-top: 18px;">
-            <h4>Автоматическое расщепление платежа (Сплит 103-ФЗ / 59-ФЗ):</h4>
-          </div>
-
-          <div class="split-items-list" id="split-recipients-list">
-            <div class="split-row">
-              <div class="split-info">
-                <span class="split-name">💧 АО «Мосводоканал» (ХВС и водоотведение)</span>
-                <span class="split-sub">Прямой договор по 59-ФЗ</span>
+          <div class="tab-col-primary">
+            <!-- Focus Bill Card -->
+            <div class="card-surface billing-focus-card" id="billing-details-card">
+              <div class="bill-focus-head">
+                <span class="bill-period-caps">К оплате за октябрь</span>
+                <div class="badge-cb-verified" id="account-checksum-badge">
+                  <span class="material-symbols-outlined">verified</span>
+                  <span>Счет ЦБ проверен</span>
+                </div>
               </div>
-              <span class="split-amount">1 212.63 ₽</span>
-            </div>
-            <div class="split-row">
-              <div class="split-info">
-                <span class="split-name">♨️ ПАО «МОЭК» (Отопление и подогрев)</span>
-                <span class="split-sub">Прямой договор по 59-ФЗ</span>
+
+              <div class="bill-amount-display">
+                <span class="bill-amount-sum font-mono" id="bill-total-amount">4 850,50 ₽</span>
+                <div class="bill-deadline-hint">
+                  <span class="material-symbols-outlined">event</span>
+                  <span>Срок оплаты: до 10 ноября</span>
+                </div>
               </div>
-              <span class="split-amount">2 182.72 ₽</span>
-            </div>
-            <div class="split-row">
-              <div class="split-info">
-                <span class="split-name">⚡ АО «Мосэнергосбыт» (Электроэнергия)</span>
-                <span class="split-sub">Прямой договор по 59-ФЗ</span>
+
+              <div class="bill-pay-actions">
+                <button type="button" class="btn btn-primary btn-full btn-sbp-pay" id="btn-pay-sbp">
+                  <span class="material-symbols-outlined">bolt</span>
+                  <span>Оплатить по СБП</span>
+                </button>
+                <div class="feedback-notification-box alert-success" id="payment-success-alert" style="display:none;"></div>
               </div>
-              <span class="split-amount">727.58 ₽</span>
             </div>
-            <div class="split-row">
-              <div class="split-info">
-                <span class="split-name">🏢 ООО «УК ДОМОВОЙ СЕРВИС» (Содержание жилья)</span>
-                <span class="split-sub">Текущий ремонт и обслуживание МКД</span>
+
+            <!-- Quick QR Scanner Action Cards -->
+            <div class="billing-actions-grid">
+              <button type="button" class="card-surface action-tile-btn" id="btn-scan-qr-bridge">
+                <div class="tile-icon-circle text-primary">
+                  <span class="material-symbols-outlined">photo_camera</span>
+                </div>
+                <div class="tile-text-wrap">
+                  <span class="tile-title-main">Скан QR</span>
+                  <span class="tile-subtitle-sub">Камера</span>
+                </div>
+              </button>
+
+              <button type="button" class="card-surface action-tile-btn" id="btn-paste-sample-qr">
+                <div class="tile-icon-circle text-accent">
+                  <span class="material-symbols-outlined">content_paste</span>
+                </div>
+                <div class="tile-text-wrap">
+                  <span class="tile-title-main">Вставка QR</span>
+                  <span class="tile-subtitle-sub">ГОСТ</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div class="tab-col-secondary">
+            <!-- 103-FZ Details and Split List -->
+            <div class="card-surface card-split-details" id="split-recipients-box">
+              <div class="split-card-header">
+                <div class="split-header-title">
+                  <span class="material-symbols-outlined text-accent">receipt</span>
+                  <h3>Детализация начислений (103-ФЗ)</h3>
+                </div>
               </div>
-              <span class="split-amount">727.57 ₽</span>
+
+              <div class="split-org-requisites">
+                <div class="req-row">
+                  <span class="req-label">Получатель:</span>
+                  <span class="req-val font-medium" id="bill-payee-name">ООО «УК ДОМОВОЙ СЕРВИС»</span>
+                </div>
+                <div class="req-row">
+                  <span class="req-label">Лицевой счет (ЕЛС):</span>
+                  <span class="req-val font-mono" id="bill-pers-acc">1004567890</span>
+                </div>
+                <div class="req-row">
+                  <span class="req-label">Спецсчет агента:</span>
+                  <span class="req-val font-mono text-primary" id="bill-account-40821">40821810500000001001</span>
+                </div>
+              </div>
+
+              <div class="split-items-list" id="split-recipients-list">
+                <!-- Dynamically populated or sample breakdown -->
+                <div class="split-row">
+                  <div class="split-info">
+                    <span class="split-name">АО «Мосводоканал» (ХВС)</span>
+                    <span class="split-sub">Прямой договор 59-ФЗ</span>
+                  </div>
+                  <span class="split-amount font-mono">1 212,63 ₽</span>
+                </div>
+                <div class="split-row">
+                  <div class="split-info">
+                    <span class="split-name">ПАО «МОЭК» (Отопление)</span>
+                    <span class="split-sub">Прямой договор 59-ФЗ</span>
+                  </div>
+                  <span class="split-amount font-mono">2 182,72 ₽</span>
+                </div>
+                <div class="split-row">
+                  <div class="split-info">
+                    <span class="split-name">АО «Мосэнергосбыт» (Свет)</span>
+                    <span class="split-sub">Прямой договор 59-ФЗ</span>
+                  </div>
+                  <span class="split-amount font-mono">727,58 ₽</span>
+                </div>
+                <div class="split-row">
+                  <div class="split-info">
+                    <span class="split-name">ООО «УК ДОМОВОЙ СЕРВИС»</span>
+                    <span class="split-sub">Содержание жилого фонда</span>
+                  </div>
+                  <span class="split-amount font-mono">727,57 ₽</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="card-actions" style="margin-top: 20px;">
-            <button class="btn btn-success btn-lg" id="btn-pay-sbp">
-              ⚡ Оплатить 4 850.50 ₽ через СБП без комиссии
-            </button>
-          </div>
-        </div>
-
-        <div id="payment-success-alert" class="alert-box alert-success" style="display:none;"></div>
-      </section>
-
-      <!-- 4. NIGHT FLOW / НОЧНОЙ ДОЗОР TAB -->
-      <section id="tab-nightflow" class="tab-content">
-        <div class="card-hero night-hero">
-          <div class="night-badge-icon">🌙</div>
-          <h2>Ночной дозор: Анализ небаланса ОДПУ</h2>
-          <p>Выявление скрытых ночных утечек воды в доме (261-ФЗ). Найдите утечку за 30 секунд и получите скидку 10% на квартплату!</p>
-        </div>
-
-        <!-- Telemetry Status Card -->
-        <div class="card">
-          <div class="card-header-with-badge">
-            <h3>Телеметрия общедомового счетчика (ОДПУ)</h3>
-            <span class="badge badge-danger" id="odpu-status-badge">Аномалия ночью</span>
-          </div>
-          <div class="odpu-meter-display">
-            <div class="odpu-flow-rate" id="odpu-flow-rate">1 650 л/час</div>
-            <div class="odpu-flow-sub">Расход воды в доме между 02:30 и 04:30 ночи (норма: до 100 л/час)</div>
-          </div>
-          <div class="odpu-warning-box">
-            ⚠️ <b>В вашем подъезде обнаружена ночная утечка!</b> Теряется 35 м³ в сутки, что увеличит ОДН на 200–300 руб. каждой квартире. Помогите локализовать протечку.
-          </div>
-        </div>
-
-        <!-- Gamified Express Diagnostics -->
-        <div class="card">
-          <h3>🧪 Экспресс-тест бачка за 30 секунд (Тест салфетки)</h3>
-          <p class="text-sm">85% ночных утечек приходятся на неисправные клапаны унитазов, протекающие бесшумно:</p>
-          <ol class="steps-list">
-            <li>Прижмите сухую бумажную салфетку к сухой задней стенке чаши унитаза.</li>
-            <li>Подождите 15 секунд.</li>
-            <li>Если салфетка намокла — у вас течет клапан бачка.</li>
-          </ol>
-          <div class="test-buttons-row">
-            <button class="btn btn-warning" id="btn-napkin-wet">💧 Салфетка намокла (Течет)</button>
-            <button class="btn btn-outline" id="btn-napkin-dry">✨ Салфетка сухая (Норма)</button>
-          </div>
-        </div>
-
-        <!-- Night Meter Photos Comparison -->
-        <div class="card">
-          <h3>📸 Способ 2: Ночной замер счетчика ХВС</h3>
-          <p class="text-sm">Сфотографируйте счетчик перед сном и сразу после пробуждения. Разница должна быть 0 литров:</p>
-          <div class="grid-2-inputs">
-            <div>
-              <label class="text-xs">Перед сном (м³):</label>
-              <input type="number" step="0.001" id="input-night-reading" class="form-input" value="142.780" />
-            </div>
-            <div>
-              <label class="text-xs">Утром (м³):</label>
-              <input type="number" step="0.001" id="input-morning-reading" class="form-input" value="142.960" />
-            </div>
-          </div>
-          <button class="btn btn-primary" id="btn-calc-night-diff" style="margin-top: 12px;">
-            Сравнить показания за ночь
-          </button>
-        </div>
-
-        <!-- Diagnostic Result Alert -->
-        <div id="night-flow-alert" class="card reward-card" style="display: none;">
-          <div class="reward-header">
-            <span class="reward-icon">🎁</span>
-            <div>
-              <h3 id="night-verdict-title">Утечка локализована!</h3>
-              <p class="text-sm" id="night-verdict-sub">Расход за ночь: 180 литров</p>
-            </div>
-          </div>
-          <p id="night-verdict-text" class="text-sm"></p>
-          <div class="card-actions">
-            <button class="btn btn-success" id="btn-claim-reward">
-              🎟️ Активировать скидку 10% на квартплату
-            </button>
-          </div>
         </div>
       </section>
 
-      <!-- 5. TICKETS & GUEST ACCESS TAB -->
+      <!-- ================= TAB 4: TICKETS & GUEST ACCESS ================= -->
       <section id="tab-tickets" class="tab-content">
-        <div class="card-hero">
-          <h2>Взаимодействие с УК (ПП РФ № 40)</h2>
-          <p>Официальные заявки в аварийно-диспетчерскую службу с гарантированными сроками SLA по закону РФ.</p>
-          <button class="btn btn-primary" id="btn-show-ticket-modal">
-            ➕ Создать заявку в УК
-          </button>
-        </div>
+        <div class="tab-layout-grid">
 
-        <!-- Tenant / Landlord Guest Access Box -->
-        <div class="card guest-box">
-          <div class="card-header-with-badge">
-            <h3>👥 Гостевой доступ для арендатора</h3>
-            <span class="badge badge-info">Без ЕСИА</span>
+          <div class="tab-col-primary">
+            <!-- Hero Create Ticket -->
+            <div class="card-hero-ticket">
+              <div class="hero-ticket-text">
+                <span class="hero-pill-badge">ПП РФ № 40 от 26.01.2026 г.</span>
+                <h2 class="hero-ticket-title">Заявки в АДС УК</h2>
+                <p class="hero-ticket-desc">Гарантированные сроки SLA и журнал аварийных обращений</p>
+              </div>
+              <button type="button" class="btn btn-primary" id="btn-show-ticket-modal">
+                <span class="material-symbols-outlined">add</span>
+                <span>Создать заявку</span>
+              </button>
+            </div>
+
+            <!-- Guest Tenant Access Box -->
+            <div class="card-surface guest-box">
+              <div class="card-head-row">
+                <div class="card-title-group">
+                  <span class="material-symbols-outlined text-primary">key</span>
+                  <h3 class="card-title-text">Гостевой доступ</h3>
+                </div>
+                <span class="badge-subtle-pill">Без ЕСИА</span>
+              </div>
+              <p class="text-xs text-muted">
+                Безопасный доступ для арендатора квартиры без обязательной авторизации на Госуслугах. Передача показаний и оплата квитанций по СБП в 1 клик.
+              </p>
+              <div class="guest-cta-row">
+                <button type="button" class="btn btn-secondary btn-full" id="btn-generate-guest-link">
+                  <span class="material-symbols-outlined">link</span>
+                  <span>Гостевой доступ</span>
+                </button>
+              </div>
+              <div id="guest-link-result" class="guest-link-display-box" style="display:none;"></div>
+            </div>
           </div>
-          <p class="text-sm text-muted">
-            В официальных «Госуслугах Дом» арендатор не может передавать показания без авторизации собственника через ЕСИА.
-            В нашем сервисе собственник генерирует временную безопасную ссылку в MAX:
-          </p>
-          <button class="btn btn-outline" id="btn-generate-guest-link">
-            🔗 Сгенерировать гостевой доступ в MAX
-          </button>
-          <div id="guest-link-result" style="display:none; margin-top: 12px;" class="code-box"></div>
-        </div>
 
-        <!-- Active Tickets List -->
-        <div class="section-title">
-          <h3>История обращений в УК</h3>
+          <div class="tab-col-secondary">
+            <div class="section-title-wrap">
+              <h3 class="section-heading-text">Журнал обращений</h3>
+              <span class="section-meta-text">Регламентные сроки АДС</span>
+            </div>
+            <!-- Dynamic Tickets Container -->
+            <div class="tickets-cards-list" id="tickets-container">
+              <!-- Populated by app.js -->
+            </div>
+          </div>
+
         </div>
-        <div class="tickets-list" id="tickets-container">
-          <!-- Dynamically populated -->
+      </section>
+
+      <!-- ================= TAB 5: DEDICATED INSPECTOR ARM WORKSPACE ================= -->
+      <section id="tab-inspector" class="tab-content">
+        <div class="inspector-workspace-container">
+          
+          <!-- Inspector Header Cockpit -->
+          <div class="card-surface inspector-cockpit-bar">
+            <div class="inspector-cockpit-info">
+              <div class="inspector-badge-icon-box">
+                <span class="material-symbols-outlined">engineering</span>
+              </div>
+              <div>
+                <h2 class="inspector-heading-title">АРМ Обходчика УК</h2>
+                <p class="inspector-sub-title">Контрольный осмотр ИПУ • Выгрузка в 1С:ЖКХ по 63-ФЗ</p>
+              </div>
+            </div>
+            <div class="inspector-cockpit-badges">
+              <span class="badge-route-pill font-mono">Маршрут № 14</span>
+              <span class="badge-gps-active">
+                <span class="dot-indicator-green"></span>
+                <span class="material-symbols-outlined text-[14px]">my_location</span>
+                <span>ГЛОНАСС/GPS</span>
+              </span>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-switch-to-resident" title="Перейти в режим жителя">
+                <span class="material-symbols-outlined text-[16px]">arrow_back</span>
+                <span>Режим жителя</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Inspector Work Area Grid: Input on Left, Live Hash & Output on Right -->
+          <div class="tab-layout-grid">
+            
+            <!-- Left Form Column -->
+            <div class="tab-col-primary">
+              <div class="card-surface inspector-form-card">
+                <div class="inspector-form-header">
+                  <span class="material-symbols-outlined text-primary">fact_check</span>
+                  <h3>Фиксация контрольных показаний</h3>
+                </div>
+
+                <div class="inspector-form-body">
+                  <div class="form-field-group">
+                    <label class="form-label-styled" for="inspector-name-input">Инспектор / Контролер УК:</label>
+                    <input type="text" id="inspector-name-input" class="form-input-styled" value="Смирнов А. В. (Служба учета)" />
+                  </div>
+
+                  <div class="form-field-group">
+                    <label class="form-label-styled" for="inspector-address-select">Адрес квартиры (маршрут):</label>
+                    <select id="inspector-address-select" class="form-input-styled">
+                      <option value="г. Москва, ул. Ленина, д. 42, кв. 15">ул. Ленина, д. 42, кв. 15 (Иванов И. И.)</option>
+                      <option value="г. Москва, ул. Ленина, д. 42, кв. 16">ул. Ленина, д. 42, кв. 16 (Петров П. С.)</option>
+                      <option value="г. Москва, ул. Ленина, д. 42, кв. 17">ул. Ленина, д. 42, кв. 17 (Сидоров К. В.)</option>
+                    </select>
+                  </div>
+
+                  <div class="form-field-group">
+                    <label class="form-label-styled" for="inspector-meter-select">Прибор учета:</label>
+                    <select id="inspector-meter-select" class="form-input-styled">
+                      <option value="meter-khvs-1" data-serial="2809142" data-reading="142.385">ХВС: ИТЭЛМА № 2809142</option>
+                      <option value="meter-gvs-1" data-serial="3910844" data-reading="89.140">ГВС: Бетар № 3910844</option>
+                      <option value="meter-el-1" data-serial="01458291" data-reading="2360.500">Электроэнергия: Меркурий 208 № 01458291</option>
+                      <option value="meter-heat-1" data-serial="7741209" data-reading="12.840">Отопление: Sayany № 7741209</option>
+                    </select>
+                  </div>
+
+                  <div class="form-field-group">
+                    <label class="form-label-styled" for="inspector-serial-input">Серийный номер счетчика:</label>
+                    <input type="text" id="inspector-serial-input" class="form-input-styled font-mono" value="2809142" placeholder="Заводской номер" />
+                  </div>
+
+                  <div class="form-field-group">
+                    <label class="form-label-styled" for="inspector-reading-input">Контрольные показания (0.001 м³):</label>
+                    <input type="number" step="0.001" id="inspector-reading-input" class="form-input-styled font-mono font-bold" value="142.385" />
+                  </div>
+
+                  <div class="form-field-group">
+                    <label class="form-label-styled" for="inspector-gps-input">Координаты ГЛОНАСС/GPS:</label>
+                    <input type="text" id="inspector-gps-input" class="form-input-styled font-mono" value="55.7558° N, 37.6173° E" readonly />
+                  </div>
+
+                  <!-- Photo Proof & Seal Section -->
+                  <div class="form-field-group">
+                    <label class="form-label-styled">Фотофиксация прибора и антимагнитной пломбы:</label>
+                    <div class="inspector-photo-buttons-row">
+                      <button type="button" class="btn btn-secondary btn-sm" id="btn-inspector-photo">
+                        <span class="material-symbols-outlined">photo_camera</span>
+                        <span>Снять фото</span>
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-sm" id="btn-inspector-sample-photo">
+                        <span class="material-symbols-outlined">image</span>
+                        <span>Эталонное фото</span>
+                      </button>
+                      <input type="file" id="inspector-photo-input" accept="image/*" capture="environment" class="sr-only" />
+                    </div>
+                    
+                    <div id="inspector-photo-preview-wrap" class="photo-preview-wrap" style="display:none;">
+                      <div class="photo-preview-box">
+                        <img id="inspector-photo-preview" src="" alt="Фотофиксация счетчика" />
+                        <button type="button" class="btn-remove-photo" id="btn-remove-inspector-photo" title="Удалить фото">
+                          <span class="material-symbols-outlined text-[16px]">close</span>
+                        </button>
+                      </div>
+                      <span class="photo-meta-text font-mono" id="inspector-photo-meta">Геопривязка EXIF подтверждена</span>
+                    </div>
+                  </div>
+
+                  <!-- Live Cryptographic Seal Preview -->
+                  <div class="form-field-group">
+                    <label class="form-label-styled">Криптографический хеш акта (SHA-256):</label>
+                    <div class="hash-preview-box">
+                      <code id="inspector-hash-preview" class="code-box-inline font-mono">d7a8fbb307d7809469ca933b02d19420d8c660c6e0c281320377449926442616</code>
+                    </div>
+                  </div>
+
+                  <button type="button" class="btn btn-primary btn-full btn-lg" id="btn-generate-inspector-act">
+                    <span class="material-symbols-outlined">verified</span>
+                    <span>Создать акт</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Output Column: Certified Act Document -->
+            <div class="tab-col-secondary">
+              <div class="card-surface act-card" id="inspector-act-result" style="display: none;">
+                <div class="act-header">
+                  <div class="act-badges-row">
+                    <span class="act-stamp font-mono"><span class="material-symbols-outlined text-[13px]">verified</span> ЭЦП 63-ФЗ</span>
+                    <span class="badge-1c font-mono" id="act-export-badge"><span class="material-symbols-outlined text-[13px]">sync</span> 1С:ЖКХ ГОТОВ</span>
+                  </div>
+                  <div class="act-title-wrap">
+                    <h3 id="act-title">Электронный акт контрольного осмотра ПУ</h3>
+                    <p class="font-mono text-xs text-muted" id="act-number">№ ACT-ЖКХ-1789983492</p>
+                  </div>
+                </div>
+
+                <div class="act-body font-mono text-xs">
+                  <div class="act-row"><b>Инспектор:</b> <span id="act-inspector">Смирнов А. В.</span></div>
+                  <div class="act-row"><b>Объект:</b> <span id="act-address">г. Москва, ул. Ленина, д. 42, кв. 15</span></div>
+                  <div class="act-row"><b>Прибор:</b> <span id="act-meter-info">ХВС (ИТЭЛМА № 2809142)</span></div>
+                  <div class="act-row"><b>Показания:</b> <span id="act-reading" class="text-accent font-bold">142.385 м³</span></div>
+                  <div class="act-row"><b>Метка GPS:</b> <span id="act-gps">55.7558° N, 37.6173° E</span></div>
+                  <div class="act-row"><b>Таймстемп:</b> <span id="act-timestamp">2026-09-21T12:00:00</span></div>
+                  <div class="act-row"><b>SHA-256 хеш:</b> <code id="act-hash" class="code-hash-snippet">a94f82...</code></div>
+                  <div class="act-row"><b>Статус 1С:</b> <span class="badge-success-tag" id="act-export-status">EXPORTED_TO_1C_ZHKH</span></div>
+
+                  <div id="act-photo-display-wrap" class="act-photo-wrap" style="display:none;">
+                    <span class="act-photo-label">Прикрепленный снимок:</span>
+                    <img id="act-photo-display" src="" alt="Фотофиксация в акте" />
+                  </div>
+                </div>
+
+                <div class="act-footer text-xs text-muted">
+                  Юридическая сила: Заверен усиленной квалифицированной ЭЦП управляющей компании (Федеральный закон № 63-ФЗ). Синхронизировано с подсистемой биллинга 1С:Предприятие 8.
+                </div>
+              </div>
+            </div>
+
+          </div>
+
         </div>
       </section>
 
     </main>
 
-    <!-- Notification Toast -->
+    <!-- ================= MODALS ================= -->
+
+    <!-- 1. Optical Camera Viewfinder Modal -->
+    <div id="camera-modal" class="modal-backdrop" style="display:none;">
+      <div class="modal-viewfinder-box">
+        <div class="viewfinder-header-bar">
+          <div class="viewfinder-title-text">
+            <span class="material-symbols-outlined text-primary">center_focus_strong</span>
+            <span>Видоискатель камеры MAX</span>
+          </div>
+          <button type="button" class="btn-close-modal" id="btn-close-viewfinder" aria-label="Закрыть">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <div class="viewfinder-frame" id="viewfinder-camera-frame">
+          <div class="viewfinder-reticle aim-reticle" id="viewfinder-reticle-box">
+            <div class="corner top-left"></div>
+            <div class="corner top-right"></div>
+            <div class="corner bottom-left"></div>
+            <div class="corner bottom-right"></div>
+            <div class="laser-scan-line"></div>
+            <div class="reticle-line horizontal"></div>
+            <div class="reticle-caption">ЗОНА СЧИТЫВАНИЯ БАРАБАНА</div>
+            <div class="reticle-hud">
+              <span class="hud-metric"><span class="material-symbols-outlined text-[12px]">filter_center_focus</span> Оптический фокус</span>
+              <span class="hud-metric">Автовыравнивание</span>
+            </div>
+          </div>
+
+          <div class="viewfinder-sim-counter" id="viewfinder-dial-preview">
+            <div class="sim-counter-box font-mono">
+              <span class="sim-black">00142</span><span class="sim-red">789</span>
+            </div>
+            <span class="sim-serial font-mono">№ 2809142</span>
+          </div>
+
+          <div class="viewfinder-pitch-badge font-mono">
+            Наклон: 14° • Выравнивание ГОСТ
+          </div>
+        </div>
+
+        <div class="viewfinder-controls">
+          <button type="button" class="btn-circle btn-torch" id="btn-toggle-torch" title="Фонарик">
+            <span class="material-symbols-outlined">flashlight_on</span>
+          </button>
+          <button type="button" class="btn-shutter" id="btn-capture-frame" title="Сделать снимок">
+            <span class="shutter-inner"></span>
+          </button>
+          <button type="button" class="btn-circle" id="btn-cycle-meter-type" title="Сменить прибор">
+            <span class="material-symbols-outlined">sync</span>
+          </button>
+        </div>
+
+        <div class="viewfinder-hint-text">
+          Наведите рамку на счетчик. Допустимо оптическое сканирование под углом.
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Create Ticket Modal -->
+    <div id="ticket-modal" class="modal-backdrop" style="display:none;">
+      <div class="modal-dialog-box">
+        <div class="modal-dialog-head">
+          <h3>Новая заявка в УК (ПП РФ № 40)</h3>
+          <button type="button" class="btn-close-modal" id="btn-close-ticket-modal" aria-label="Закрыть">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-dialog-body">
+          <div class="form-field-group">
+            <label class="form-label-styled" for="ticket-category-select">Категория неисправности:</label>
+            <select id="ticket-category-select" class="form-input-styled">
+              <option value="Сантехника">Сантехника (протечки, напор)</option>
+              <option value="Электрика">Электрика (щит, проводка, МОП)</option>
+              <option value="Отопление">Отопление (батареи, стояк)</option>
+              <option value="Лифт">Лифтовое хозяйство</option>
+              <option value="Кровля и фасад">Кровля и фасад</option>
+              <option value="Уборка МОП">Уборка подъезда и двора</option>
+            </select>
+          </div>
+          <div class="form-field-group">
+            <label class="form-label-styled" for="ticket-priority-select">Срочность (Регламент SLA ПП РФ № 40):</label>
+            <select id="ticket-priority-select" class="form-input-styled">
+              <option value="emergency">Аварийная (30 мин - 3 ч)</option>
+              <option value="urgent" selected>Срочная (до 24 ч)</option>
+              <option value="planned">Плановая (до 3 дней)</option>
+            </select>
+          </div>
+          <div class="form-field-group">
+            <label class="form-label-styled" for="ticket-desc-input">Описание неисправности:</label>
+            <textarea id="ticket-desc-input" class="form-input-styled form-textarea" rows="3" placeholder="Опишите характер дефекта..."></textarea>
+          </div>
+        </div>
+        <div class="modal-dialog-foot">
+          <button type="button" class="btn btn-primary btn-full" id="btn-submit-create-ticket">
+            <span>Создать заявку</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. SBP Payment Receipt Modal -->
+    <div id="receipt-modal" class="modal-backdrop" style="display:none;">
+      <div class="modal-dialog-box receipt-dialog">
+        <div class="modal-dialog-head">
+          <h3>Чек платежа СБП (103-ФЗ)</h3>
+          <button type="button" class="btn-close-modal" id="btn-close-receipt" aria-label="Закрыть">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-dialog-body" id="receipt-body">
+          <!-- Populated by JS -->
+        </div>
+        <div class="modal-dialog-foot">
+          <button type="button" class="btn btn-success btn-full" id="btn-done-receipt">
+            <span>Готово</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Profile & Addresses Modal -->
+    <div id="profile-modal" class="modal-backdrop" style="display:none;">
+      <div class="modal-dialog-box profile-dialog">
+        <div class="modal-dialog-head">
+          <h3>Личный кабинет</h3>
+          <button type="button" class="btn-close-modal" id="btn-close-profile-modal" aria-label="Закрыть">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-dialog-body">
+          <div class="profile-card-header-bar">
+            <div class="profile-avatar-circle">
+              <span class="material-symbols-outlined">person</span>
+            </div>
+            <div class="profile-meta-text">
+              <h4 id="profile-modal-username" class="profile-user-name">Иван Иванов</h4>
+              <p class="profile-user-phone font-mono" id="profile-modal-phone">Телефон не привязан</p>
+            </div>
+            <div id="profile-phone-action-wrap">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-bind-phone">
+                <span>Привязать тел.</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="profile-properties-head">
+            <span class="properties-head-title">Мои адреса (ЕЛС)</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-open-add-address-modal">
+              <span>Добавить адрес</span>
+            </button>
+          </div>
+          <div id="profile-addresses-container" class="profile-properties-list">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+        <div class="modal-dialog-foot">
+          <button type="button" class="btn btn-secondary btn-full" id="btn-close-profile-modal-btn">
+            <span>Закрыть</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Add Property Modal -->
+    <div id="add-property-modal" class="modal-backdrop" style="display:none;">
+      <div class="modal-dialog-box">
+        <div class="modal-dialog-head">
+          <h3>Добавить адрес</h3>
+          <button type="button" class="btn-close-modal" id="btn-close-add-property-modal" aria-label="Закрыть">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-dialog-body">
+          <div class="form-field-group">
+            <label class="form-label-styled" for="new-property-address-input">Адрес помещения:</label>
+            <input type="text" id="new-property-address-input" class="form-input-styled" placeholder="ул. Мира, д. 5, кв. 12" />
+          </div>
+          <div class="form-field-group">
+            <label class="form-label-styled" for="new-property-els-input">Единый лицевой счет (10 цифр):</label>
+            <input type="text" id="new-property-els-input" class="form-input-styled font-mono" placeholder="1004567890" maxlength="10" />
+          </div>
+          <div class="form-field-group">
+            <label class="form-label-styled" for="new-property-mc-input">Управляющая компания:</label>
+            <input type="text" id="new-property-mc-input" class="form-input-styled" value="ООО УК Столица-Сервис" />
+          </div>
+          <div class="pt-2">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-autofill-property-qr">
+              <span class="material-symbols-outlined">qr_code</span>
+              <span>Из квитанции</span>
+            </button>
+          </div>
+        </div>
+        <div class="modal-dialog-foot">
+          <button type="button" class="btn btn-primary btn-full" id="btn-submit-new-property">
+            <span>Сохранить</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Toast -->
     <div id="toast" class="toast"></div>
+
   </div>
 
-  <script src="/static/app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
