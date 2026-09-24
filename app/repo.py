@@ -555,6 +555,17 @@ class Repo:
 
     # === S1 (registration/profile) ===
 
+    async def claim_address(self, user_id: int, address_id: int) -> bool:
+        """Модель прав: у адреса не осталось собственника → пользователь становится им (granted)."""
+        async with self.tx():
+            if await self.address_owner(address_id):
+                return False
+            await self._exec(
+                "UPDATE user_addresses SET role='owner', access='granted' WHERE user_id=? AND address_id=?",
+                (user_id, address_id),
+            )
+            return True
+
     # === S2 (submission) ===
 
     # === S4 (dashboard/notify) ===

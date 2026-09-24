@@ -117,14 +117,17 @@ async def test_first_message_welcome_and_registration(chat, api, repo):
     assert s.state == S.REG_NAME
 
 
-async def test_registration_stub_to_menu_with_contact(chat, api, repo):
+async def test_registration_with_contact_to_menu(chat, api, repo):
     await chat.text("привет")
     await chat.text("иванова анна")
     assert "Анна" in api.last_text()
     await chat.feed(fakes.message_created(UID, None, [fakes.contact(UID)]))
+    await chat.text("Москва, Арбат 47к1, кв. 32")
+    await chat.press(RT.BTN_YES)
+    await chat.press(RT.BTN_ALL_OK)
     user = await repo.get_user(UID)
     assert user["registered_at"] and user["phone"] == "+79123456789" and user["phone_verified"] == 1
-    assert api.last_text().endswith(MT.FOOTER)
+    assert api.last_text().startswith(RT.DONE) and api.last_text().endswith(MT.FOOTER)
 
 
 async def test_foreign_contact_rejected(chat, api):
@@ -156,7 +159,7 @@ async def test_scenario_button_replaces_message(chat, api):
     api.clear()
     await chat.press(C.BTN_BACK)
     (ans,) = api.named("answer")
-    assert ans["message"]["text"] == RT.ASK_NAME and not api.named("send")
+    assert ans["message"]["text"] == RT.ASK_NAME_AGAIN.format(name="Иванова Анна") and not api.named("send")
 
 
 async def test_start_in_registration_continues(chat, api, repo):
@@ -176,6 +179,9 @@ async def register(chat: Chat) -> None:
     await chat.text("привет")
     await chat.text("Иванова Анна")
     await chat.text("+7 912 345-67-89")
+    await chat.text("Москва, Арбат 47к1, кв. 32")
+    await chat.press(RT.BTN_YES)
+    await chat.press(RT.BTN_ALL_OK)
 
 
 async def test_start_in_idle_and_in_submission(chat, api, repo):
@@ -273,15 +279,18 @@ async def test_duplicate_update_ignored(chat, api):
 async def test_restart_keeps_state(settings, api):
     """Две инстанции репозитория на одном файле БД: состояние переживает «рестарт»."""
     repo1 = await Repo.open(settings.db_path)
-    c1 = Chat(Router(Deps(api, repo1, settings, StubRecognizer(), "test_bot")), api)
+    c1 = Chat(Router(Deps(api, repo1, settings, StubRecognizer(), bot_username="test_bot")), api)
     await c1.text("привет")
     await c1.text("Иванова Анна")
     await repo1.close()
 
     repo2 = await Repo.open(settings.db_path)
-    c2 = Chat(Router(Deps(api, repo2, settings, StubRecognizer(), "test_bot")), api)
+    c2 = Chat(Router(Deps(api, repo2, settings, StubRecognizer(), bot_username="test_bot")), api)
     api.clear()
     await c2.text("89123456789")
+    await c2.text("Москва, Арбат 47к1, кв. 32")
+    await c2.press(RT.BTN_YES)
+    await c2.press(RT.BTN_ALL_OK)
     user = await repo2.get_user(UID)
     assert user["registered_at"] and user["full_name"] == "Иванова Анна"
     await repo2.close()
