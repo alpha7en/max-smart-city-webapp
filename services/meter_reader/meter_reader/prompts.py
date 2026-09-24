@@ -133,6 +133,26 @@ _READING_HEAT = (
     "issue \"other\" with a note which parameter is shown."
 )
 
+# One line per type: what the serial number looks like and what it is NOT (added to the reading block).
+_SERIAL_BY_TYPE = {
+    "water": (
+        "   - \"serial_number\": usually 8 digits, often with a 2-digit year prefix (\"18-123456\"), sometimes "
+        "manufacturer letters; it is NOT the year of manufacture, GOST, Qn/Q3, DN, class or a seal number."
+    ),
+    "electricity": (
+        "   - \"serial_number\": a long digit string near the barcode (Меркурий 8 digits, Энергомера 12-15, "
+        "Нева 8+); it is NOT the GOST, accuracy class, imp/kWh constant, V/A rating, year or a seal number."
+    ),
+    "gas": (
+        "   - \"serial_number\": usually 7-8 digits, sometimes with letters, on the nameplate; it is NOT the model "
+        "(BK-G4), Qmax/Qmin, year, GOST or a seal number."
+    ),
+    "heat": (
+        "   - \"serial_number\": usually 6-10 digits on the case or LCD; it is NOT the year, DN, flow rating, "
+        "GOST or a seal number."
+    ),
+}
+
 _READING_BY_TYPE = {
     "cold_water": _READING_WATER,
     "hot_water": _READING_WATER,
@@ -186,6 +206,8 @@ def build_prompt(meter_type: Optional[str] = None, tariffs: Optional[int] = None
     else:
         extra = _WATER_TYPE_EXTRA if meter_type in ("cold_water", "hot_water") else ""
         reading = _READING_BY_TYPE[meter_type]
+        serial = _SERIAL_BY_TYPE["water" if meter_type in ("cold_water", "hot_water") else meter_type]
+        reading = reading + "\n" + serial
         if meter_type == "electricity":
             n = _clamp_tariffs(tariffs)
             reading = reading.replace("{tariffs}", _TARIFFS_MULTI.format(n=n) if n > 1 else "")

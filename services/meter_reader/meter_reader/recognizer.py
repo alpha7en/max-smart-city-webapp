@@ -59,6 +59,18 @@ def _str_or_none(value: Any) -> Optional[str]:
     return text if text and text.lower() not in {"null", "none", "unknown"} else None
 
 
+_SERIAL_PREFIX = re.compile(r"^(?:№|#|N[°º]|No\.|S/?N:?)\s*", re.IGNORECASE)
+
+
+def _serial(value: Any) -> Optional[str]:
+    """Serial as printed, without a leading "№"/"No."/"S/N" and edge spaces/punctuation."""
+    text = _str_or_none(value)
+    if not text:
+        return None
+    text = _SERIAL_PREFIX.sub("", " ".join(text.split())).strip(" .,:;")
+    return text or None
+
+
 def _split_drums(raw: dict[str, Any]) -> tuple[str, str]:
     """Build integer and fractional parts from per-drum answer: black drums, then red ones."""
     drums = raw.get("drums")
@@ -181,7 +193,7 @@ def _to_reading(raw: dict[str, Any], expected_type: Optional[str] = None) -> Met
         tariff=_normalize_tariff(raw.get("tariff")),
         brand=_str_or_none(raw.get("brand")),
         model=_str_or_none(raw.get("model")),
-        serial_number=_str_or_none(raw.get("serial_number")),
+        serial_number=_serial(raw.get("serial_number")),
         confidence=confidence,
         type_evidence=_str_or_none(raw.get("type_evidence")),
         readable=readable,

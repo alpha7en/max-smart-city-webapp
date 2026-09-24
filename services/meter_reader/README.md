@@ -34,6 +34,8 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 `meter_type` (`cold_water` | `hot_water` | `electricity` | `gas` | `heat`) и `tariffs` (`1`..`3`).
 С подсказкой промпт собирается под тип (`build_prompt` в `meter_reader/prompts.py`: блок «Known meter type» и
 правила чтения этого типа); без неё или с неизвестным значением используется прежний универсальный промпт.
+В блоке типа есть строка о том, как выглядит заводской номер этого типа и чем он не является (год, ГОСТ, Qn,
+номер пломбы). `serial_number` приходит без «№»/«No.»/«S/N» и пробелов по краям.
 
 ```bash
 curl -F image=@meter.jpg -F meter_type=hot_water http://localhost:8000/recognize
