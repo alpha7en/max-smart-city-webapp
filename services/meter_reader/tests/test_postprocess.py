@@ -82,3 +82,12 @@ def test_heat_units():
 def test_tariff_normalized():
     r = _to_reading({"meter_type": "electricity", "drums": drums("12345", "6"), "tariff": "Т2"}, "electricity")
     assert (r.tariff, r.unit) == ("T2", "kWh")
+
+
+@pytest.mark.parametrize("raw, serial", [
+    ("№ 18-123456", "18-123456"), ("  №0412345 ", "0412345"), ("No. 12345678", "12345678"),
+    ("S/N: 011234567890", "011234567890"), ("18 123456.", "18 123456"), ("№", None), ("null", None), (None, None),
+])
+def test_serial_number_cleaned(raw, serial):
+    r = _to_reading({"meter_type": "cold_water", "drums": drums("00001", "234"), "serial_number": raw}, "cold_water")
+    assert r.serial_number == serial

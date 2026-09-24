@@ -36,6 +36,7 @@ from app.bot.texts import submission as TS
 from app.bot.texts.api import BTN_MORE, CHAT_FLAGGED, CHAT_MOCK, CHAT_SAVED, MSG
 from app.domain import meters as M
 from app.domain.dashboard import Dashboard, load_dashboard
+from app.domain.serials import usable_serial
 from app.integrations.recognizer import Recognition
 from app.readings import submit_reading
 from app.repo import Repo, Row, values_of
@@ -106,7 +107,7 @@ def meter_json(m: Row, today: date) -> dict:
     return {
         "id": m["id"], "type": m["type"], "type_label": M.TYPE_LABELS[m["type"]], "unit": M.UNITS[m["type"]],
         "tariffs": m["tariffs"], "address_id": m["address_id"], "address_label": m["address_label"],
-        "serial": m["serial"],
+        "serial": M.format_serial(m["serial"], m["type"]),
         "verification_due": m["verification_due"], "last": last,
         "submitted_this_period": m.get("last_period") == M.current_period(today),
     }
@@ -245,26 +246,36 @@ async def _recognize_upload(deps: Deps, user: Row, meter: Row, upload: UploadFil
     finally:
         await photos.delete_photo(deps.repo, photo_id)
         path.unlink(missing_ok=True)
-    return {"values": units(rec.values), "serial": rec.serial, "confidence": rec.confidence, "stub": rec.stub,
-            **recognition_notes(meter, rec)}
+    rec.serial = usable_serial(rec.serial, meter["type"])  # год, ГОСТ, Qn — не номер
+    return {"values": units(rec.values), "serial": M.format_serial(rec.serial, meter["type"]),
+            "confidence": rec.confidence, "stub": rec.stub, **recognition_notes(meter, rec)}
 
 
 def recognition_notes(meter: Row, rec: Recognition) -> dict:
     """Почему не распознали / о чём предупредить: readable, issues (коды), note (пояснение модели),
+    missing (поля, которых нет на фото: многотарифный показывает тарифы по очереди — их вводят вручную),
     message (что не так и что делать, обычный текст), serial_mismatch + serial_note (номер на фото не тот)."""
-    readable = rec.readable(M.fields_for(M.tariffs_of(meter["type"], meter["tariffs"])))
-    message = None
+    mtype = meter["type"]
+    fields = M.fields_for(M.tariffs_of(mtype, meter["tariffs"]))
+    readable = rec.readable(fields)
+    missing = [f for f in fields if rec.values.get(f) is None] if readable else list(fields)
+    parts: list[str] = []
     if not readable:
-        lines = TS.issue_lines(rec.issues, rec.note, meter["type"], markup=False)
+        lines = TS.issue_lines(rec.issues, rec.note, mtype, markup=False)
         tail = TS.FAILED_TAIL_SERVICE if "service" in rec.issues else TS.FAILED_TAIL
-        message = " ".join([*lines, tail]) if lines else TS.API_UNREADABLE
-    elif "wrong_type" in rec.issues:
-        message = TS.WRONG_TYPE_WARN
+        parts.append(" ".join([*lines, tail]) if lines else TS.API_UNREADABLE)
+    else:
+        if missing:
+            names = dict(zip(M.FIELDS, ("Т1", "Т2", "Т3"), strict=True))
+            parts.append(TS.API_PARTIAL.format(fields=", ".join(names[f] for f in missing)))
+        if "wrong_type" in rec.issues:
+            parts.append(TS.WRONG_TYPE_WARN)
     photo, saved = M.normalize_serial(rec.serial), M.normalize_serial(meter["serial"])
     mismatch = bool(readable and photo and saved and photo != saved)
-    return {"readable": readable, "issues": rec.issues, "note": rec.note, "message": message,
-            "serial_mismatch": mismatch,
-            "serial_note": TS.API_SERIAL_MISMATCH.format(photo=rec.serial, saved=meter["serial"]) if mismatch else None}
+    note = TS.API_SERIAL_MISMATCH.format(photo=M.format_serial(rec.serial, mtype),
+                                         saved=M.format_serial(meter["serial"], mtype)) if mismatch else None
+    return {"readable": readable, "issues": rec.issues, "note": rec.note, "missing": missing,
+            "message": " ".join(parts) or None, "serial_mismatch": mismatch, "serial_note": note}
 
 
 async def _save(upload: UploadFile, path: Path) -> int:

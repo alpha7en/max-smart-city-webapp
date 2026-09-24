@@ -14,7 +14,7 @@ from app.bot import router as R
 from app.bot.ctx import Deps
 from app.bot.flows import submission as flow
 from app.bot.router import Router, call_hook
-from app.bot.session import load_session
+from app.bot.session import load_session, save_session
 from app.bot.states import S
 from app.bot.texts import common as C
 from app.bot.texts import submission as T
@@ -415,19 +415,69 @@ async def test_f10_recognizer_failures_like_f9(chat, api, repo, deps, settings, 
 
 
 async def test_multi_tariff_one_tariff_on_photo_rest_manual(chat, api, repo, deps, user):
-    """Сервис читает с табло один тариф (здесь Т2): его подставляем подсказкой, остальные — вручную."""
+    """Сервис читает с табло один тариф (здесь Т2): показываем его и спрашиваем только недостающий Т1."""
     mid = await meter(repo, user, "electricity", 2)
     deps.recognizer = FixedRecognizer({"t2": 505_500})
     await to_review(chat, "Свет · Арбат 47к1, кв 32")
     assert (await state(repo)).state == S.SUB_MANUAL
-    assert "Т1 день (1 из 2)" in api.last_text()
+    text = api.last_text()
+    assert "На фото разобрали: Т2 ночь — 505,50 кВт·ч" in text and "Т1 день: напишите показание" in text
+    assert "Показание:" not in text and "(1 из 2)" not in text
     await chat.text("1010")
-    assert "Т2 ночь (2 из 2)" in api.last_text() and "На фото разобрали: 505,50 кВт·ч" in api.last_text()
-    await chat.text("505,5")
-    assert "Т2 ночь: **505,50 кВт·ч**" in api.last_text()
+    review = api.last_text()
+    assert "Т1 день: **1010,00 кВт·ч**" in review and "Т2 ночь: **505,50 кВт·ч**" in review
     await chat.press(T.BTN_SEND)
     assert (await readings(repo, mid))[-1] == {"t1": 1_010_000, "t2": 505_500, "t3": None,
                                                "source": "photo_edited", "status": "accepted"}
+
+
+async def test_three_tariffs_one_recognized_asks_two_missing(chat, api, repo, deps, user):
+    await meter(repo, user, "electricity", 3)
+    deps.recognizer = FixedRecognizer({"t1": 100_000})
+    await to_review(chat, "Свет · Арбат 47к1, кв 32")
+    assert "Т1 пик — 100,00 кВт·ч" in api.last_text() and "Т2 ночь (1 из 2)" in api.last_text()
+    await chat.text("200")
+    assert "Т3 полупик (2 из 2)" in api.last_text()
+    await chat.text("300")
+    assert (await state(repo)).state == S.SUB_REVIEW and "—" not in api.last_text()
+
+
+async def test_partial_back_never_shows_empty_review(chat, api, repo, deps, settings, user):
+    """«Назад» с недостающего тарифа не ведёт на проверку с пустым Т1 — просим новое фото."""
+    await meter(repo, user, "electricity", 2)
+    deps.recognizer = FixedRecognizer({"t2": 505_500})
+    await to_review(chat, "Свет · Арбат 47к1, кв 32")
+    await chat.press(C.BTN_BACK)
+    assert (await state(repo)).state == S.SUB_AWAIT_PHOTO and api.last_text() == T.RETAKE
+    assert photo_files(settings) == []
+    for text in api.texts():
+        assert "**—" not in text and "Т1 день: **—" not in text
+
+
+async def test_review_repeat_with_missing_value_asks_field(chat, api, repo, deps, user):
+    """Проверка с пустым полем (например, старая сессия) — не показываем «Показание: —», спрашиваем поле."""
+    await meter(repo, user)
+    await to_review(chat)
+    s = await state(repo)
+    s.data["values"] = {"t1": None}
+    await save_session(repo, s, NOW)
+    api.clear()
+    await chat.text("что-то")
+    assert (await state(repo)).state == S.SUB_MANUAL
+    assert "Показание:" not in api.last_text() and "Напишите показание" in api.last_text()
+
+
+async def test_edit_after_partial_asks_all_fields(chat, api, repo, deps, user):
+    """«Исправить» на проверке — все поля заново, с подсказкой распознанного."""
+    await meter(repo, user, "electricity", 2)
+    deps.recognizer = FixedRecognizer({"t2": 505_500})
+    await to_review(chat, "Свет · Арбат 47к1, кв 32")
+    await chat.text("1010")
+    await chat.press(T.BTN_EDIT)
+    assert "Т1 день (1 из 2)" in api.last_text()
+    await chat.press(C.BTN_BACK)
+    assert (await state(repo)).state == S.SUB_REVIEW and "Т1 день: **1010,00 кВт·ч**" in api.last_text()
+
 
 # --- F11–F12: серийные номера ---
 
@@ -458,11 +508,11 @@ async def test_serial_match_and_saved_for_meter_without_serial(chat, api, repo, 
     assert "Серийный номер: 18 123456 — совпадает" in api.last_text()
     await chat.press(C.BTN_CANCEL)
     gas = await meter(repo, user, "gas")
-    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="GZ-1")
+    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="GZ-1234567")
     await to_review(chat, "Газ · Арбат 47к1, кв 32", "https://i/3")
-    assert "GZ-1 — сохраним" in api.last_text()
+    assert "GZ-1234567 — сохраним" in api.last_text()
     await chat.press(T.BTN_SEND)
-    assert (await repo.get_meter(gas))["serial"] == "GZ-1"
+    assert (await repo.get_meter(gas))["serial"] == "GZ-1234567"
 
 
 async def test_f12_new_meter_serial_exists_switches(chat, api, repo, deps, user):
@@ -480,14 +530,14 @@ async def test_f12_new_meter_serial_exists_switches(chat, api, repo, deps, user)
 
 
 async def test_new_meter_serial_saved_from_photo(chat, api, repo, deps, user):
-    deps.recognizer = FixedRecognizer({"t1": 7_000}, serial="HW-9")
+    deps.recognizer = FixedRecognizer({"t1": 7_000}, serial="HW-90123456")
     await chat.photo()
     await chat.press("Гор. вода")
     await chat.press("Арбат 47к1, кв 32")
-    assert "HW-9 — сохраним" in api.last_text()
+    assert "HW-90123456 — сохраним" in api.last_text()
     await chat.press(T.BTN_SEND)
     (m,) = await repo.address_meters(user[1])
-    assert (m["type"], m["serial"]) == ("hot_water", "HW-9")
+    assert (m["type"], m["serial"]) == ("hot_water", "HW-90123456")
 
 
 # --- Серийники: номер счётчика только из подтверждённого показания, несовпадение — без записи ---
@@ -549,7 +599,7 @@ async def test_serial_retake_after_mismatch_matches_after_normalization(chat, ap
     deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="№ 18 654 321")
     await chat.photo("https://i/2")
     assert (await state(repo)).state == S.SUB_REVIEW
-    assert "Серийный номер: № 18 654 321 — совпадает" in api.last_text()
+    assert "Серийный номер: 18 654 321 — совпадает" in api.last_text()
     await chat.press(T.BTN_SEND)
     assert (await repo.get_meter(mid))["serial"] == "18-654321"
 
@@ -584,10 +634,10 @@ async def test_serial_of_another_meter_for_meter_without_serial(chat, api, repo,
 
 
 async def test_serial_cyrillic_lookalike_matches(chat, api, repo, deps, user):
-    await meter(repo, user, serial="АВ-77")  # кириллица
-    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="AB77")
+    await meter(repo, user, serial="АВ-7712345")  # кириллица
+    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="AB7712345")
     await to_review(chat)
-    assert (await state(repo)).state == S.SUB_REVIEW and "AB77 — совпадает" in api.last_text()
+    assert (await state(repo)).state == S.SUB_REVIEW and "AB7712345 — совпадает" in api.last_text()
 
 
 # --- Почему не распознали: коды проблем от сервиса ---
@@ -989,3 +1039,40 @@ async def test_with_photo_hook_after_registration(chat, api, repo, settings, col
 def test_button_texts_fit():
     short = [v for k, v in vars(T).items() if k.startswith("BTN_")] + list(T.TARIFF_BUTTONS.values())
     assert all(len(b) <= 24 for b in short), [b for b in short if len(b) > 24]
+
+
+# --- Серийники: «не номер» отбрасываем, необычный формат — мягкое предупреждение ---
+
+async def test_serial_not_a_serial_is_dropped(chat, api, repo, deps, user):
+    mid = await meter(repo, user)
+    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="2018")  # год выпуска
+    await to_review(chat)
+    assert (await state(repo)).state == S.SUB_REVIEW and "Серийный номер" not in api.last_text()
+    await chat.press(T.BTN_SEND)
+    assert (await repo.get_meter(mid))["serial"] is None
+
+
+async def test_serial_unusual_length_warns_but_saves(chat, api, repo, deps, user):
+    mid = await meter(repo, user)
+    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="№ 12345")
+    await to_review(chat)
+    text = api.last_text()
+    assert "Серийный номер: 12345 — сохраним" in text and "обычно 8 цифр" in text and "№" not in text
+    await chat.press(T.BTN_SEND)
+    assert (await repo.get_meter(mid))["serial"] == "12345"
+
+
+async def test_serial_display_formatted_by_type(chat, api, repo, deps, user):
+    await meter(repo, user, "electricity", serial="0112 3456 7890")
+    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="№ 011234567890")
+    await to_review(chat, "Свет · Арбат 47к1, кв 32")
+    assert "Серийный номер: 011234567890 — совпадает" in api.last_text()
+
+
+async def test_tariff_question_has_where_to_look_hint(chat, api, repo, user):
+    await chat.payload("g|submit|")
+    await chat.press(T.BTN_MANUAL)
+    await chat.press("Свет")
+    text = api.last_text()
+    assert text.startswith("Сколько тарифов у счётчика?") and "Где посмотреть:" in text
+    assert "Т1, Т2" in text and "«день» и «ночь»" in text and len(text.splitlines()) <= 3

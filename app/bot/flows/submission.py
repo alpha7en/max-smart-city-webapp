@@ -59,6 +59,7 @@ from app.domain.meters import (
     spec,
     tariffs_of,
 )
+from app.domain.serials import format_serial, usable_serial, validate_serial
 from app.integrations.recognizer import CONF_MIN, SERVICE, Recognition
 from app.readings import SubmitResult, format_delta, format_months, format_values, submit_reading
 from app.repo import values_of
@@ -678,6 +679,8 @@ async def _recognize(ctx: Ctx) -> None:
     if not rec.readable(m.fields):
         await _recognition_failed(ctx, m, rec)
         return
+    # Год, ГОСТ, Qn и прочее «не номер» с шильдика отбрасываем: не показываем и не сохраняем.
+    rec.serial = usable_serial(rec.serial, m.type)
     if m.id is None and rec.serial:  # F12: новый счётчик, а по адресу уже есть счётчик с этим номером
         same = await ctx.repo.find_meter_by_serial(m.address_id, rec.serial)
         if same:
@@ -692,6 +695,7 @@ async def _recognize(ctx: Ctx) -> None:
                 if not rec.readable(m.fields):
                     await _recognition_failed(ctx, m, rec)
                     return
+                rec.serial = usable_serial(rec.serial, m.type)
     # Распознанный номер в черновик не пишем: номер нового счётчика сохранится при отправке
     # (readings.submit_reading), а до неё сравнивать новый счётчик не с чем.
     d["recognized"] = {**{f: rec.values.get(f) for f in m.fields}, "serial": rec.serial,
@@ -706,10 +710,18 @@ async def _recognize(ctx: Ctx) -> None:
     await _review_recognized(ctx)
 
 
+def _missing(m: Meter, values: dict | None) -> list[str]:
+    """Поля счётчика без значения (пустое показание не показываем и не отправляем)."""
+    return [f for f in m.fields if (values or {}).get(f) is None]
+
+
 async def _review_recognized(ctx: Ctx) -> None:
-    """На проверку; многотарифный, где на фото виден один тариф, — дописать остальные вручную."""
-    if any(v is None for v in (ctx.data.get("values") or {}).values()):
-        await _start_manual_input(ctx, back="review")
+    """На проверку; многотарифный, где на фото виден не каждый тариф, — спросить только недостающие."""
+    m = await _meter(ctx)
+    if m is None:
+        return
+    if missing := _missing(m, ctx.data.get("values")):
+        await _start_manual_input(ctx, back="photo", only=missing)
         return
     ctx.session.go(S.SUB_REVIEW)
     await ask_review(ctx)
@@ -734,14 +746,15 @@ async def ask_serial(ctx: Ctx) -> None:
     m = await _meter(ctx)
     if m is None:
         return
-    photo_serial = (ctx.data.get("recognized") or {}).get("serial") or "—"
+    photo_serial = format_serial((ctx.data.get("recognized") or {}).get("serial"), m.type) or "—"
     other_id = ctx.data.get("serial_other") if ctx.data.get("serial_status") == "other" else None
     if other_id:
         meters = await ctx.repo.user_meters(_uid(ctx))
         other = next((lb for x, lb in zip(meters, meter_labels(meters), strict=True) if x["id"] == other_id), "")
         text = T.SERIAL_OF_OTHER.format(photo=esc(photo_serial), other=esc(other), label=esc(m.label))
     else:
-        text = T.SERIAL_MISMATCH.format(photo=esc(photo_serial), label=esc(m.label), saved=esc(m.serial or "—"))
+        text = T.SERIAL_MISMATCH.format(photo=esc(photo_serial), label=esc(m.label),
+                                        saved=esc(format_serial(m.serial, m.type) or "—"))
     await ctx.reply(
         text,
         K.kb(_row(ctx, (T.BTN_OTHER_METER, "other")), _row(ctx, (T.BTN_SAME_METER, "same")),
@@ -788,6 +801,9 @@ async def ask_review(ctx: Ctx) -> None:
         return
     d = ctx.data
     values = d.get("values") or {}
+    if missing := _missing(m, values):  # пустое «Показание: —» не показываем — спрашиваем недостающее
+        await _start_manual_input(ctx, back="photo" if _is_photo_path(ctx) else "pick", only=missing)
+        return
     lines = [esc(m.label), ""]
     if len(m.fields) == 1:
         lines.append(T.VALUE_LINE.format(value=fmt.value(values.get("t1"), m.type)))
@@ -799,7 +815,9 @@ async def ask_review(ctx: Ctx) -> None:
     status_line = {"match": T.SERIAL_MATCH, "new": T.SERIAL_NEW, "ignored": ignored}.get(
         d.get("serial_status") or "")
     if status_line and serial:
-        lines.append(status_line.format(serial=esc(serial)))
+        lines.append(status_line.format(serial=esc(format_serial(serial, m.type))))
+        if d.get("serial_status") == "new" and validate_serial(serial, m.type).level == "warning":
+            lines.append(T.SERIAL_WARN.format(typical=T.SERIAL_TYPICAL[m.type]))
     prev = await _prev_values(ctx, m)
     if prev:
         if len(m.fields) == 1 and values.get("t1") is not None:
@@ -848,8 +866,11 @@ async def got_review(ctx: Ctx) -> None:
 
 # === Ручной ввод по полям ===
 
-async def _start_manual_input(ctx: Ctx, *, back: str, typed: str | None = None) -> None:
-    ctx.data["manual"] = {"idx": 0, "vals": {}, "back": back}
+async def _start_manual_input(ctx: Ctx, *, back: str, typed: str | None = None,
+                              only: list[str] | None = None) -> None:
+    """Ввод по полям. only — спросить только эти поля (остальные уже распознаны и лежат в values)."""
+    vals = {f: v for f, v in (ctx.data.get("values") or {}).items() if v is not None} if only else {}
+    ctx.data["manual"] = {"idx": 0, "vals": vals, "back": back, **({"only": only} if only else {})}
     ctx.session.go(S.SUB_MANUAL)
     if typed:
         await _manual_value(ctx, typed)
@@ -867,15 +888,23 @@ async def ask_manual(ctx: Ctx) -> None:
     if m is None:
         return
     man = ctx.data.setdefault("manual", {"idx": 0, "vals": {}, "back": "pick"})
-    idx = min(man["idx"], len(m.fields) - 1)
-    f = m.fields[idx]
+    asked = _asked(m, man)
+    idx = min(man["idx"], len(asked) - 1)
+    f = asked[idx]
     example = T.EXAMPLES[m.type]
+    labels = field_labels(m.type, m.tariffs)
     if len(m.fields) == 1:
         ask = T.ASK_VALUE.format(example=example)
+    elif len(asked) == 1:
+        ask = T.ASK_TARIFF_ONLY.format(label=labels[f], example=example)
     else:
-        ask = T.ASK_TARIFF_VALUE.format(label=field_labels(m.type, m.tariffs)[f], n=idx + 1,
-                                        total=len(m.fields), example=example)
-    lines = [esc(m.label), "", ask]
+        ask = T.ASK_TARIFF_VALUE.format(label=labels[f], n=idx + 1, total=len(asked), example=example)
+    lines = [esc(m.label), ""]
+    if man.get("only"):
+        got = [f"{labels[k]} — {fmt.value(v, m.type)}" for k, v in man["vals"].items() if k not in asked]
+        if got:
+            lines += [T.PARTIAL_GOT.format(got="; ".join(got)), ""]
+    lines.append(ask)
     rec = (ctx.data.get("recognized") or {}).get(f)
     if rec is not None:
         lines.append(T.RECOGNIZED_HINT.format(value=fmt.value(rec, m.type)))
@@ -897,17 +926,29 @@ async def got_manual(ctx: Ctx) -> None:
         await _manual_value(ctx, ctx.text)
 
 
+def _asked(m: Meter, man: dict) -> list[str]:
+    """Поля, которые спрашиваем вручную: все поля счётчика или только недостающие (only)."""
+    return [f for f in m.fields if f in man["only"]] if man.get("only") else list(m.fields)
+
+
 async def _manual_back(ctx: Ctx) -> None:
-    """C4: на первом поле — туда, откуда пришли; иначе — предыдущее поле."""
+    """C4: на первом поле — туда, откуда пришли; иначе — предыдущее поле.
+    На проверку возвращаемся, только если все поля заполнены; распознано не всё — к новому фото."""
     man = ctx.data.get("manual") or {"idx": 0, "back": "pick"}
     if man["idx"] > 0:
         man["idx"] -= 1
         await ask_manual(ctx)
         return
     ctx.data.pop("manual", None)
-    if man["back"] == "review" and ctx.data.get("values"):
+    m = await _meter(ctx)
+    if m is None:
+        return
+    complete = not _missing(m, ctx.data.get("values"))
+    if man["back"] == "review" and complete:
         ctx.session.go(S.SUB_REVIEW)
         await ask_review(ctx)
+    elif man["back"] in ("photo", "review") and _is_photo_path(ctx):
+        await _retake(ctx)
     elif man["back"] == "await":
         ctx.session.go(S.SUB_AWAIT_PHOTO)
         await ask_photo(ctx)
@@ -920,7 +961,8 @@ async def _manual_value(ctx: Ctx, text: str) -> None:
     if m is None:
         return
     man = ctx.data.setdefault("manual", {"idx": 0, "vals": {}, "back": "pick"})
-    f = m.fields[min(man["idx"], len(m.fields) - 1)]
+    asked = _asked(m, man)
+    f = asked[min(man["idx"], len(asked) - 1)]
     try:
         man["vals"][f] = parse_value(text, m.type)
     except ValueParseError as e:
@@ -929,7 +971,7 @@ async def _manual_value(ctx: Ctx, text: str) -> None:
                                                       decimals=sp.frac_digits), _manual_kb(ctx))
         return
     man["idx"] += 1
-    if man["idx"] < len(m.fields):
+    if man["idx"] < len(asked):
         await ask_manual(ctx)
         return
     ctx.data["values"] = {f: man["vals"].get(f) for f in m.fields}

@@ -25,6 +25,7 @@ from app.domain.meters import (
     meter_labels,
     submission_window,
 )
+from app.domain.serials import format_serial
 
 UrgentKind = Literal["verification", "bill", "submit"]
 MAX_LINES = 9                  # непустых строк в тексте дашборда
@@ -130,7 +131,7 @@ def _api_meter(m: Row, period: str) -> dict:
         }
     return {
         "id": m["id"], "type": m["type"], "type_label": TYPE_LABELS[m["type"]], "unit": UNITS[m["type"]],
-        "tariffs": m["tariffs"], "address_label": m.get("address_label") or "", "serial": m.get("serial"),
+        "tariffs": m["tariffs"], "address_label": m.get("address_label") or "", "serial": format_serial(m.get("serial"), m["type"]),
         "last": last, "submitted_this_period": submitted(m, period),
         "verification_due": m.get("verification_due"),
     }

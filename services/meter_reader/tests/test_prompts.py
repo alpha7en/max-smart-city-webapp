@@ -60,3 +60,14 @@ def test_electricity_tariffs_hint():
 def test_heat_prompt_units():
     prompt = build_prompt("heat")
     assert "Гкал" in prompt and "MWh" in prompt and "GJ" in prompt and '"Gcal"' in prompt
+
+
+@pytest.mark.parametrize("meter_type, marker", [
+    ("cold_water", '"18-123456"'), ("hot_water", '"18-123456"'), ("electricity", "Энергомера 12-15"),
+    ("gas", "usually 7-8 digits"), ("heat", "usually 6-10 digits"),
+])
+def test_serial_hint_per_type(meter_type, marker):
+    prompt = build_prompt(meter_type, 1)
+    assert marker in prompt and "seal number" in prompt
+    assert prompt.count('"serial_number": usually') + prompt.count('"serial_number": a long') == 1
+    assert "seal number" not in RECOGNIZE_PROMPT  # универсальный промпт не меняется
