@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <!-- Адрес бэкенда. Пусто = тот же origin. На GitHub Pages подставляется из vars.MINIAPP_API_BASE. -->
+  <meta name="api-base" content="">
+  <title>ЖКХ</title>
+  <link rel="stylesheet" href="styles.css?v=dev">
+  <script src="https://st.max.ru/js/max-web-app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <button class="back" id="back" type="button" aria-label="Назад">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <h1 id="title">ЖКХ</h1>
+  </header>
+  <main id="view" aria-live="polite"></main>
+  <noscript><p style="padding:16px">Для работы мини-приложения нужен JavaScript.</p></noscript>
+  <script src="app.js?v=dev"></script>
+</body>
+</html>
