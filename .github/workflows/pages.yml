@@ -1,0 +1,62 @@
+# Публикует мини-приложение (app/web/static) в GitHub Pages.
+# Адрес бэкенда берётся из repo variable MINIAPP_API_BASE (Settings → Secrets and variables → Actions → Variables).
+# Пустое значение = тот же origin (подходит, только если API отдаётся с того же домена).
+name: Mini app → GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/web/static/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/configure-pages@v5
+
+      - name: Build site (inject API base and cache-busting version)
+        env:
+          API_BASE: ${{ vars.MINIAPP_API_BASE }}
+          VERSION: ${{ github.sha }}
+        run: |
+          rm -rf _site && cp -r app/web/static _site
+          python3 - <<'PY'
+          import html, os, pathlib, re
+          p = pathlib.Path("_site/index.html")
+          s = p.read_text(encoding="utf-8")
+          base = html.escape(os.environ.get("API_BASE", "").strip(), quote=True)
+          s, n = re.subn(r'<meta name="api-base" content="[^"]*">',
+                         lambda _: f'<meta name="api-base" content="{base}">', s)
+          if n != 1:
+              raise SystemExit("meta api-base not found in index.html")
+          s = s.replace("?v=dev", "?v=" + os.environ["VERSION"][:8])
+          p.write_text(s, encoding="utf-8")
+          print("api-base:", base or "(same origin)")
+          PY
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

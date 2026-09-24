@@ -1,52 +1,64 @@
-"""
-Configuration module for MAX Smart City housing ecosystem.
-Loads BOT_TOKEN from token.env or .env safely without logging secrets.
-"""
+"""Настройки приложения из переменных окружения."""
+from __future__ import annotations
 
 import os
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from pydantic import BaseModel
 
-BASE_DIR = Path(__file__).resolve().parent.parent
 
-def load_token_from_files() -> str:
-    # First check process environment
-    token = os.environ.get("BOT_TOKEN", "").strip()
-    if token:
-        return token
-    
-    for filename in ["token.env", ".env"]:
-        filepath = BASE_DIR / filename
-        if filepath.is_file():
-            with open(filepath, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    if "=" in line:
-                        k, v = line.split("=", 1)
-                        if k.strip() in ["BOT_TOKEN", "TOKEN", "MAX_BOT_TOKEN"]:
-                            return v.strip().strip("\"'")
-                    elif len(line) > 10 and not line.startswith("{"):
-                        return line.strip().strip("\"'")
-    return ""
+def _bool(value: str | None, default: bool) -> bool:
+    if value is None or value.strip() == "":
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
+
+def _int(value: str | None, default: int) -> int:
+    try:
+        return int(value) if value not in (None, "") else default
+    except ValueError:
+        return default
+
+
+@dataclass(frozen=True)
 class Settings:
-    PROJECT_NAME: str = "MAX Smart City - Умный город ЖКХ"
-    VERSION: str = "1.0.0"
-    HOST: str = os.getenv("HOST", "0.0.0.0")
-    PORT: int = int(os.getenv("PORT", "8080"))
-    BOT_TOKEN: str = load_token_from_files()
-    MAX_API_BASE: str = os.getenv("MAX_API_BASE", "https://platform-api2.max.ru")
-    BOT_USERNAME: str = "t226_hakaton_max_bot"
-    BOT_ID: str = os.getenv("BOT_ID", "423938205")
-    MINIAPP_URL: str = os.getenv("MINIAPP_URL", "https://alpha7en.github.io/max-smart-city-webapp/")
+    bot_token: str = ""
+    bot_username: str = ""              # пусто → берём из GET /me
+    max_api_base: str = "https://platform-api2.max.ru"
+    dadata_api_key: str = ""
+    recognizer_url: str = ""            # пусто → демо-распознавание (StubRecognizer)
+    demo_mode: bool = True
+    dev_auth: bool = False              # только для локальной разработки мини-приложения
+    init_data_ttl: int = 24 * 3600      # секунды
+    data_dir: Path = Path("data")
+    tz: str = "Europe/Moscow"
+    submit_day_from: int = 15
+    submit_day_to: int = 25
+    miniapp_origins: tuple[str, ...] = ()  # CORS: мини-приложение на другом домене (GitHub Pages)
 
-    # Security & Webhook Settings
-    DEV_MODE: bool = os.getenv("DEV_MODE", "true").lower() in ("true", "1", "yes")
-    USE_WEBHOOK: bool = os.getenv("USE_WEBHOOK", "false").lower() in ("true", "1", "yes")
-    WEBHOOK_URL: str = os.getenv("WEBHOOK_URL", "")
-    WEBHOOK_SECRET: str = os.getenv("WEBHOOK_SECRET", "")
-    VALIDATE_INIT_DATA: bool = os.getenv("VALIDATE_INIT_DATA", "false").lower() in ("true", "1", "yes")
+    @property
+    def db_path(self) -> Path:
+        return self.data_dir / "bot.db"
 
-settings = Settings()
+    @property
+    def photos_dir(self) -> Path:
+        return self.data_dir / "photos"
+
+
+def load_settings(env: Mapping[str, str] | None = None) -> Settings:
+    e = os.environ if env is None else env
+    return Settings(
+        bot_token=e.get("BOT_TOKEN", "").strip(),
+        bot_username=e.get("BOT_USERNAME", "").strip().lstrip("@"),
+        max_api_base=e.get("MAX_API_BASE", "").strip().rstrip("/") or Settings.max_api_base,
+        dadata_api_key=e.get("DADATA_API_KEY", "").strip(),
+        recognizer_url=e.get("RECOGNIZER_URL", "").strip(),
+        demo_mode=_bool(e.get("DEMO_MODE"), True),
+        dev_auth=_bool(e.get("DEV_AUTH"), False),
+        init_data_ttl=_int(e.get("INIT_DATA_TTL"), Settings.init_data_ttl),
+        data_dir=Path(e.get("DATA_DIR", "").strip() or "data"),
+        tz=e.get("TZ", "").strip() or Settings.tz,
+        submit_day_from=_int(e.get("SUBMIT_DAY_FROM"), 15),
+        submit_day_to=_int(e.get("SUBMIT_DAY_TO"), 25),
+        miniapp_origins=tuple(o.strip().rstrip("/") for o in e.get("MINIAPP_ORIGINS", "").split(",") if o.strip()),
+    )
