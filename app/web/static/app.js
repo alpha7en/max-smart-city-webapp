@@ -286,49 +286,32 @@
   }
 
   // ---------- экран: главная ----------
-  const urgentKind = u => { const k = String(u.kind || ''); return /verif/.test(k) ? 'verification' : /bill|pay/.test(k) ? 'bill' : 'submit'; };
+  // Главная рисуется из структурированных полей dashboard (/api/me): window, bill, verification, pending,
+  // submitted/total. Строки dashboard.lines — текст для бота; здесь они только запасной вариант,
+  // если сервер старый и структуры нет.
   function openUrgent(u) {
-    const k = urgentKind(u);
-    if (k === 'submit') return go('submit');
-    if (k === 'verification') {
+    if (u.kind === 'submit') return go('submit');
+    if (u.kind === 'verification') {
       return ask({ icon: 'shield', tone: 'warn', title: 'Запись на поверку появится скоро', ok: 'Понятно',
         text: 'Пока позвоните в УК или аккредитованную организацию. Дату после поверки внесите в «Мои счётчики» в чате.' });
     }
     return ask({ icon: 'receipt', title: 'Оплата появится скоро', text: 'Сейчас оплатить можно по квитанции в банке. Счёт здесь — демо.', ok: 'Понятно' });
   }
-  // Строки дашборда из API разбираем в плитки; «простыню» не показываем.
-  function parseDash(lines, urgent) {
-    const out = { extra: [] };
-    for (const raw of lines) {
-      const l = String(raw || '').trim();
-      let r;
-      if (!l || /мини-приложени|счётчиков пока нет/i.test(l) || (urgent && l === urgent.text)) continue;
-      if ((r = /^Показания за (\S+) — до (\d+) ([^\s,]+)(?:, (?:осталось|остался) (\d+) дн)?/.exec(l))) {
-        out.due = { day: +r[2], mon: r[3], left: r[4] != null ? +r[4] : null };
-      } else if ((r = /^Следующая подача — с (.+)$/.exec(l))) out.next = r[1];
-      else if ((r = /^Сч[её]т: (.+?) до (.+?)( \(демо\))?$/.exec(l))) out.bill = { sum: r[1], date: r[2], demo: !!r[3] };
-      else if (!/^Поверка|^Счётчиков: \d| — (не )?подано/.test(l)) out.extra.push(fixDays(l));
-    }
-    return out;
-  }
-  function hero(meters, info, urg) {
-    const done = meters.filter(m => m.submitted_this_period).length;
-    const all = done === meters.length;
-    const due = info.due;
-    let left = due && due.left != null ? due.left : urg && urg.days_left != null ? +urg.days_left : null;
-    if (left == null && due) {
-      const mo = MONTHS_GEN.indexOf(due.mon);
-      if (mo >= 0) left = daysUntil(new Date().getFullYear() + '-' + String(mo + 1).padStart(2, '0') + '-' + String(due.day).padStart(2, '0'));
-    }
+  function hero(meters, dash) {
+    const total = dash.total != null ? dash.total : meters.length;
+    const done = dash.submitted != null ? dash.submitted : meters.filter(m => m.submitted_this_period).length;
+    const all = done === total;
+    const w = dash.window || null;
+    const left = w && w.open && w.days_left != null ? +w.days_left : null;
     let eb = 'Показания';
-    let big = [h('b', {}, done), h('span', {}, 'из ' + meters.length)];
+    let big = [h('b', {}, done), h('span', {}, 'из ' + total)];
     if (left != null) {
-      eb = due ? 'Подача до ' + due.day + ' ' + due.mon : 'Подача показаний';
+      eb = 'Подача до ' + fmtDate(w.to);
       big = left <= 0 ? [h('b', { class: 'w' }, 'Сегодня'), h('i', {}, 'последний день')]
         : [h('b', {}, left), h('span', {}, plural(left, DAYS)), h('i', {}, leftWord(left))];
-    } else if (info.next) {
+    } else if (w && w.next_from) {
       eb = 'Следующая подача';
-      big = [h('b', { class: 'w' }, 'с ' + shortDate(info.next))];
+      big = [h('b', { class: 'w' }, 'с ' + shortDate(fmtDate(w.next_from)))];
     }
     const hot = !all && left != null && left <= 3;
     return h('section', { class: 'hero' + (hot ? ' hot' : '') },
@@ -336,7 +319,7 @@
       h('div', { class: 'big' }, big),
       h('div', { class: 'prog' },
         h('div', { class: 'segs' }, meters.slice(0, 12).map(m => h('i', { class: m.submitted_this_period ? 'on' : '' }))),
-        h('span', {}, all ? [icon('check', 16), 'всё подано'] : 'подано ' + done + ' из ' + meters.length)),
+        h('span', {}, all ? [icon('check', 16), 'всё подано'] : 'подано ' + done + ' из ' + total)),
       btn([icon('camera', 20), 'Подать показания'], () => go('submit'), 'white'));
   }
   function tile(ic, tone, label, value, sub, onclick) {
@@ -344,24 +327,25 @@
       h('span', { class: 'th' }, ibox(ic, tone, 16), label, h('span', { class: 'chev' }, icon('chev', 16))),
       h('b', { class: 'v' }, value), sub && h('small', {}, sub));
   }
-  function tiles(meters, info, u) {
-    const uk = u && urgentKind(u);
-    const out = [];
-    let v = null;
-    meters.forEach(m => { const n = daysUntil(m.verification_due); if (n != null && (!v || n < v.n)) v = { n, m }; });
-    if (v || uk === 'verification') {
-      const n = v ? v.n : +u.days_left;
-      const p = v && parseDate(v.m.verification_due);
-      out.push(tile('shield', n < 0 ? 'bad' : n <= 30 ? 'warn' : 'ok', 'Поверка',
-        n < 0 ? 'просрочена' : n > 365 && p ? MONTHS[p.mo - 1] + ' ' + p.y : days(n),
-        v && (v.m.type_label + ' · ' + shortDate(fmtDate(v.m.verification_due))), () => openUrgent({ kind: 'verification' })));
+  function tiles(meters, dash) {
+    const out = [], v = dash.verification, b = dash.bill, u = dash.urgent;
+    if (v) {
+      const n = +v.days_left, m = meters.find(x => x.id === v.meter_id);
+      out.push(tile('shield', n < 0 ? 'bad' : n <= 30 ? 'warn' : 'ok', 'Поверка', n < 0 ? 'просрочена' : days(n),
+        (m ? m.type_label : v.meter_label) + ' · ' + shortDate(fmtDate(v.due)), () => openUrgent({ kind: 'verification' })));
     }
-    if (info.bill || uk === 'bill') {
-      const b = info.bill;
-      out.push(tile('receipt', uk === 'bill' ? 'warn' : 'accent', 'Счёт', b ? b.sum : days(+u.days_left),
-        b && ('до ' + shortDate(b.date) + (b.demo ? ' · демо' : '')), () => openUrgent({ kind: 'bill' })));
+    if (b) {
+      const late = +b.days_left < 0;
+      out.push(tile('receipt', late ? 'bad' : u && u.kind === 'bill' ? 'warn' : 'accent', 'Счёт', b.amount_text,
+        (late ? 'срок был ' : 'до ') + shortDate(fmtDate(b.due)) + (b.demo ? ' · демо' : ''), () => openUrgent({ kind: 'bill' })));
     }
     return out.length > 0 && h('div', { class: 'tiles' }, out);
+  }
+  // Старый сервер без структуры: показываем его строки как есть (кроме сноски, срочного и доступа — они есть отдельно).
+  function legacyLines(dash) {
+    if (dash.window !== undefined) return [];
+    return (dash.lines || []).map(l => String(l || '').trim())
+      .filter(l => l && !/мини-приложени|^Доступ /i.test(l) && !(dash.urgent && l === dash.urgent.text)).map(fixDays);
   }
   function meterItem(m, showAddr) {
     return h('div', { class: 'item' },
@@ -375,6 +359,12 @@
         : h('button', { class: 'mini', type: 'button', onclick: () => go('submit', { meterId: m.id }) }, 'Подать'));
   }
   const section = (title, count) => h('div', { class: 'sech' }, h('span', {}, title), count != null && h('small', {}, count));
+  const dayNum = s => { const p = parseDate(s); return p && p.d; };
+  function footnote(dash) {
+    const w = dash.window;
+    const win = w ? 'подача с ' + dayNum(w.from) + ' по ' + dayNum(w.to) + ' число' : 'подача с 15 по 25 число';
+    return 'Демо: ' + win + (!w || (dash.bill && dash.bill.demo) ? ', счёт смоделирован' : '');
+  }
   function screenHome() {
     load('ЖКХ', () => api('/api/me'), d => { me = d; drawHome(d); });
   }
@@ -383,24 +373,24 @@
       return setScreen('ЖКХ', stateCard('chat', 'accent', 'Продолжите регистрацию в чате с ботом',
         'Это займёт минуту: имя, телефон и адрес.', btn('Вернуться в чат', closeApp)));
     }
-    const meters = d.meters || [], dash = d.dashboard || {}, u = dash.urgent || null;
-    const info = parseDash(dash.lines || [], u);
-    const pending = (d.addresses || []).filter(a => a.access === 'pending');
+    const meters = d.meters || [], dash = d.dashboard || {};
+    const pending = dash.pending || (d.addresses || []).filter(a => a.access === 'pending');
+    const legacy = legacyLines(dash);
     const addrs = [...new Set((d.addresses || []).filter(a => a.access !== 'pending').map(a => a.label)
       .concat(meters.map(m => m.address_label)).filter(Boolean))];
     setScreen('ЖКХ',
       meters.length
-        ? hero(meters, info, u && urgentKind(u) === 'submit' && u)
+        ? hero(meters, dash)
         : stateCard('camera', 'accent', 'Счётчиков пока нет', 'Пришлите фото счётчика в чат — мы его добавим.',
           btn('Вернуться в чат', closeApp)),
-      tiles(meters, info, u),
+      tiles(meters, dash),
       pending.map(a => h('div', { class: 'row' }, ibox('clock', 'warn', 18),
         h('span', { class: 'grow' }, h('b', {}, a.label), h('small', {}, 'Доступ ждёт подтверждения собственника')))),
-      info.extra.length > 0 && h('div', { class: 'row' }, ibox('alert', 'accent', 18),
-        h('span', { class: 'grow' }, info.extra.map(l => h('small', {}, l)))),
+      legacy.length > 0 && h('div', { class: 'row' }, ibox('alert', 'accent', 18),
+        h('span', { class: 'grow' }, legacy.map(l => h('small', {}, l)))),
       meters.length > 0 && [section('Счётчики', meters.length),
         h('div', { class: 'list' }, meters.map(m => meterItem(m, !oneAddress(meters)))),
-        h('p', { class: 'foot' }, 'Демо: подача с 15 по 25 число, счёт смоделирован')]);
+        h('p', { class: 'foot' }, footnote(dash))]);
     if (addrs.length) {
       $sub.hidden = false;
       $sub.textContent = addrs.length === 1 ? addrs[0] : addrs.length + ' ' + plural(addrs.length, ['адрес', 'адреса', 'адресов']);

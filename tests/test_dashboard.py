@@ -154,3 +154,49 @@ def test_api_payload():
         "last": {"period": "2026-10", "values": {"t1": "123,456"}, "created_at": "2026-10-12T12:00:00+03:00"},
     }
     assert m2["last"] is None and m2["submitted_this_period"] is False and m2["tariffs"] == 2
+
+
+# --- Структура для мини-приложения (строки не разбираются) ---
+
+def test_structured_window_open_and_closed():
+    d = dash([meter(1, period="2026-10"), meter(2)])
+    assert d.window == {"period": "2026-10", "month_label": "октябрь", "from": "2026-10-15", "to": "2026-10-25",
+                        "open": True, "days_left": 6, "next_from": None}
+    assert (d.submitted, d.total) == (1, 2)
+    assert dash([meter(1)], today=date(2026, 10, 25)).window["days_left"] == 0  # последний день
+    before = dash([meter(1)], today=date(2026, 10, 5)).window
+    assert before == {"period": "2026-10", "month_label": "октябрь", "from": "2026-10-15", "to": "2026-10-25",
+                      "open": False, "days_left": None, "next_from": "2026-10-15"}
+    after = dash([meter(1)], today=date(2026, 12, 28)).window  # после окна — следующее, через Новый год
+    assert (after["period"], after["month_label"], after["open"], after["next_from"]) == (
+        "2027-01", "январь", False, "2027-01-15")
+    empty = dash()
+    assert empty.window["open"] and (empty.submitted, empty.total, empty.bill, empty.verification) == (0, 0, None, None)
+
+
+def test_structured_bill():
+    assert dash([meter(1)]).bill is None
+    d = dash([meter(1)], [bill(9, TODAY + timedelta(days=9), 100000), bill(7, TODAY + timedelta(days=3))])
+    assert d.bill == {"id": 7, "amount_kop": 431200, "amount_text": "4 312 ₽", "due": "2026-10-22",
+                      "days_left": 3, "demo": True, "count": 2}
+    late = dash([meter(1)], [{**bill(1, TODAY - timedelta(days=2)), "is_demo": 0}]).bill
+    assert (late["days_left"], late["demo"]) == (-2, False)
+
+
+def test_structured_verification_window_60_days():
+    d = dash([meter(1, verif=TODAY + timedelta(days=61)), meter(2, "hot_water", verif=TODAY + timedelta(days=60))])
+    assert d.verification == {"meter_id": 2, "meter_label": f"Гор. вода · {ARBAT}", "type": "hot_water",
+                              "due": "2026-12-18", "days_left": 60}
+    assert dash([meter(1, verif=TODAY + timedelta(days=61))]).verification is None
+    assert dash([meter(1, verif=TODAY - timedelta(days=3))]).verification["days_left"] == -3  # просрочена
+
+
+def test_structured_pending_and_api():
+    addresses = GRANTED + [{"label": "Ленина 5", "access": "pending", "role": "tenant"},
+                           {"label": "Мира 1", "access": "pending", "role": "tenant"}]
+    d = dash([meter(1)], addresses=addresses)
+    assert d.pending == [{"label": "Ленина 5"}, {"label": "Мира 1"}]
+    api = d.to_api()
+    assert set(api) == {"lines", "urgent", "window", "bill", "verification", "pending", "submitted", "total"}
+    assert api["pending"] == d.pending and api["window"] == d.window and api["total"] == 1
+    assert dash().pending == []

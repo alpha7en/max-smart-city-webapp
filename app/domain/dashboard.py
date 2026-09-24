@@ -1,7 +1,8 @@
 """Дашборд главного меню (SPEC §5.7) — один и тот же для бота и /api/me.
 
 build_dashboard() — чистая функция от строк репозитория и даты; load_dashboard() — загрузка + сборка.
-Строки дашборда — без markdown (их показывает и мини-приложение); блоки разделены пустой строкой "".
+Строки дашборда — текст для бота, без markdown; блоки разделены пустой строкой "".
+Мини-приложение строки не разбирает: ему отдаются структурированные поля (Dashboard.to_api()).
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ from app.bot.texts.fmt import day_month, days, money, month_name, short_date
 from app.domain.meters import (
     TYPE_LABELS,
     UNITS,
+    Window,
     current_period,
     days_left,
     fields_for,
@@ -63,6 +65,13 @@ class Dashboard:
     addresses: list[dict] = field(default_factory=list)   # [{label, access, role}]
     all_submitted: bool = False                           # счётчики есть и все поданы за текущий период
     period: str = ""
+    # Структура для мини-приложения (SPEC §6): даты — ISO 'YYYY-MM-DD'.
+    window: dict | None = None        # {period, month_label, from, to, open, days_left, next_from}
+    bill: dict | None = None          # ближайший неоплаченный: {id, amount_kop, amount_text, due, days_left, demo, count}
+    verification: dict | None = None  # ближайшая поверка ≤ 60 дн.: {meter_id, meter_label, type, due, days_left}
+    pending: list[dict] = field(default_factory=list)   # [{label}] — адреса, ждущие подтверждения
+    submitted: int = 0                # счётчиков подано за текущий период
+    total: int = 0                    # всего счётчиков
 
     @property
     def text(self) -> str:
@@ -70,7 +79,11 @@ class Dashboard:
 
     def to_api(self) -> dict:
         """Поле dashboard ответа /api/me."""
-        return {"lines": list(self.lines), "urgent": self.urgent.to_dict() if self.urgent else None}
+        return {
+            "lines": list(self.lines), "urgent": self.urgent.to_dict() if self.urgent else None,
+            "window": self.window, "bill": self.bill, "verification": self.verification,
+            "pending": [dict(p) for p in self.pending], "submitted": self.submitted, "total": self.total,
+        }
 
 
 # --- Помощники ---
@@ -136,6 +149,17 @@ def _urgent_text(kind: UrgentKind, n: int) -> str:
         "submit": (T.URGENT_SUBMIT, T.URGENT_SUBMIT_TODAY, T.URGENT_SUBMIT_TODAY),
     }[kind]
     return texts[0].format(n=n) if n > 0 else texts[1] if n == 0 else texts[2]
+
+
+def _window_json(window: Window, period: str) -> dict:
+    """Окно подачи: открытое — текущее; закрытое — ближайшее следующее (period — его месяц)."""
+    wperiod = period if window.is_open else current_period(window.start)
+    return {
+        "period": wperiod, "month_label": month_name(wperiod),
+        "from": window.start.isoformat(), "to": window.end.isoformat(), "open": window.is_open,
+        "days_left": window.days_left if window.is_open else None,
+        "next_from": None if window.is_open else window.start.isoformat(),
+    }
 
 
 # --- Сборка ---
@@ -217,6 +241,18 @@ def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to
         blocks.append(info)
     blocks.append([T.FOOTER])
 
+    bill_json = None
+    if bills:
+        d, b = bills[0]
+        bill_json = {"id": b["id"], "amount_kop": b["amount_kop"], "amount_text": money(b["amount_kop"]),
+                     "due": d.isoformat(), "days_left": days_left(today, d), "demo": bool(b.get("is_demo", 1)),
+                     "count": len(bills)}
+    verif_json = None
+    if verif_soon:
+        d, m = verif_soon[0]
+        verif_json = {"meter_id": m["id"], "meter_label": names[m["id"]], "type": m["type"],
+                      "due": d.isoformat(), "days_left": days_left(today, d)}
+
     lines: list[str] = []
     for block in blocks:
         if lines:
@@ -230,6 +266,12 @@ def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to
                    for a in data.addresses],
         all_submitted=bool(meters) and not not_done,
         period=period,
+        window=_window_json(window, period),
+        bill=bill_json,
+        verification=verif_json,
+        pending=[{"label": a.get("label") or ""} for a in pending],
+        submitted=len(meters) - len(not_done),
+        total=len(meters),
     )
 
 
