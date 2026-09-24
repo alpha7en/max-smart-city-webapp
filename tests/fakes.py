@@ -11,8 +11,16 @@ BOT_ID = 423938205
 _seq = itertools.count(1)
 
 
+_last_ms = 0
+
+
 def _ms() -> int:
-    return int(time.time() * 1000)
+    global _last_ms
+    now = int(time.time() * 1000)
+    if now <= _last_ms:
+        now = _last_ms + 1
+    _last_ms = now
+    return now
 
 
 # --- Фабрики апдейтов ---

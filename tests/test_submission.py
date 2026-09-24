@@ -309,7 +309,7 @@ PATHS = {
     S.SUB_PICK_METER: [],
     S.SUB_NEW_TYPE: [("press", T.BTN_NEW_METER)],
     S.SUB_NEW_TARIFF: [("press", T.BTN_NEW_METER), ("press", "Свет")],
-    S.SUB_NEW_ADDRESS: [("press", T.BTN_NEW_METER), ("press", "Свет"), ("press", "Однотарифный")],
+    S.SUB_NEW_ADDRESS: [("press", T.BTN_NEW_METER), ("press", "Свет"), ("press", T.TARIFF_BUTTONS[1])],
     S.SUB_ADDR_INPUT: [("press", T.BTN_NEW_METER), ("press", "Газ"), ("press", T.BTN_OTHER_ADDRESS)],
     S.SUB_ADDR_FLAT: [("press", T.BTN_NEW_METER), ("press", "Газ"), ("press", T.BTN_OTHER_ADDRESS),
                       ("text", "Москва, Тверская 1"), ("press", T.BTN_YES)],
