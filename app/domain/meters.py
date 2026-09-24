@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import calendar
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 
 class MeterType(StrEnum):
@@ -201,3 +202,104 @@ def demo_bill(address_id: int, today: date) -> tuple[str, int, date]:
         ny, nm = (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
         due = date(ny, nm, 10)
     return period, amount_rub * 100, due
+
+
+# --- Подача показаний (S2): подписи счётчиков, прирост, ввод ---
+
+def tariffs_of(meter_type: str, tariffs: int | None) -> int:
+    """Тарифность, которая реально действует: несколько тарифов бывает только у электричества."""
+    return max(1, min(3, tariffs or 1)) if meter_type == MeterType.ELECTRICITY else 1
+
+
+def _serial_tail(serial: str | None, n: int = 4) -> str | None:
+    s = normalize_serial(serial)
+    return s[-n:].upper() if s else None
+
+
+def meter_labels(meters: Sequence[Mapping[str, Any]], max_len: int = 40) -> list[str]:
+    """Подписи набора счётчиков: «Хол. вода · Арбат 47к1, кв 32».
+
+    Строки — dict с type, address_id, address_label, id, serial (как из repo.user_meters).
+    Счётчики одного типа по одному адресу различаются хвостом серийника («… 4521»),
+    а если серийники не у всех или совпадают хвосты — номером («№2», по порядку id).
+    """
+    labels = []
+    for m in meters:
+        base = TYPE_LABELS[m["type"]] + (f" · {m['address_label']}" if m.get("address_label") else "")
+        group = sorted(
+            (x for x in meters if x["type"] == m["type"] and x["address_id"] == m["address_id"]),
+            key=lambda x: x["id"],
+        )
+        if len(group) > 1:
+            tails = [_serial_tail(x.get("serial")) for x in group]
+            tail = _serial_tail(m.get("serial"))
+            by_serial = f"{base} …{tail}"
+            if all(tails) and len(set(tails)) == len(tails) and len(by_serial) <= max_len:
+                base = by_serial
+            else:
+                base = f"{base} №{[x['id'] for x in group].index(m['id']) + 1}"
+        labels.append(base)
+    return labels
+
+
+def meter_label(meter: Mapping[str, Any], meters: Sequence[Mapping[str, Any]] = ()) -> str:
+    """Подпись одного счётчика с учётом остальных счётчиков пользователя (см. meter_labels)."""
+    group = list(meters) if any(m["id"] == meter["id"] for m in meters) else [*meters, meter]
+    return meter_labels(group)[[m["id"] for m in group].index(meter["id"])]
+
+
+def growth_limit(meter_type: str, months: int = 1) -> int:
+    """Порог правдоподобного прироста (тысячные) за `months` месяцев (минимум 1)."""
+    return spec(meter_type).monthly_limit * 1000 * max(1, months)
+
+
+def value_delta(values: Mapping[str, int | None], prev: Mapping[str, int | None] | None) -> dict[str, int]:
+    """Прирост по полям, где есть оба значения: {'t1': 5256, ...}."""
+    if not prev:
+        return {}
+    return {f: values[f] - prev[f] for f in FIELDS
+            if values.get(f) is not None and prev.get(f) is not None}
+
+
+def total_delta(meter_type: str, delta: Mapping[str, int]) -> int:
+    """Прирост для сравнения с порогом: у электричества — сумма тарифов, иначе T1."""
+    if meter_type == MeterType.ELECTRICITY:
+        return sum(delta.values())
+    return delta.get("t1", 0)
+
+
+_VALUE_LIKE = re.compile(r"^[\d\s.,+\-]+$")
+
+
+def looks_like_value(text: str | None) -> bool:
+    """Похоже на введённое показание (цифры, разделители) — для ручного ввода вместо фото."""
+    s = (text or "").strip()
+    return bool(s) and bool(_VALUE_LIKE.match(s)) and any(ch.isdigit() for ch in s)
+
+
+class DateParseError(ValueError):
+    """code: 'format' | 'no_such_date' | 'past' | 'too_far'."""
+
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
+_DATE = re.compile(r"^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$")
+
+
+def parse_due_date(text: str | None, today: date, max_years: int = 30) -> date:
+    """Дата следующей поверки «15.03.2030» (не раньше сегодняшнего дня)."""
+    m = _DATE.match((text or "").strip())
+    if not m:
+        raise DateParseError("format")
+    d, mo, y = (int(g) for g in m.groups())
+    try:
+        result = date(y, mo, d)
+    except ValueError:
+        raise DateParseError("no_such_date") from None
+    if result < today:
+        raise DateParseError("past")
+    if result.year > today.year + max_years:
+        raise DateParseError("too_far")
+    return result
