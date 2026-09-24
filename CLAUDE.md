@@ -90,4 +90,6 @@ sqlite3 data/bot.db 'select user_id,state,data from sessions'  # состоян�
 - «пройди сценарий в MAX» → скилл `live-scenario` (бот + web.max.ru + чек-лист `docs/LIVE_CHECKLIST.md`).
 - «разбери логи» → скилл `fix-from-logs` (trace_id / MaxApiError → тест → фикс → pytest).
 - «задеплой на сервер» → скилл `deploy` (VPS, Caddy HTTPS, MINIAPP_API_BASE, /api/health).
+- «подними туннель», «мини-приложение пишет сервер не подключён» → скилл `miniapp-tunnel` (cloudflared к
+  localhost:8080 → MINIAPP_API_BASE → пересборка Pages; только для проверки, адрес временный).
 Отчёты живых прогонов пишутся в `data/` (`data/live_report.md`, `data/live_updates.jsonl`): data/ в .gitignore, не коммитить.

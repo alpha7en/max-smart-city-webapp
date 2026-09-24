@@ -31,6 +31,7 @@ from app.bot.router import (
     repeat_step,
     show_menu,
 )
+from app.bot.session import save_session
 from app.bot.states import S
 from app.bot.texts import common as C
 from app.bot.texts import fmt
@@ -63,6 +64,7 @@ from app.repo import values_of
 log = logging.getLogger(__name__)
 RECOGNIZE_TIMEOUT = 25.0          # с; сам HTTP-клиент ограничен 20 с
 LOW_CONFIDENCE, CHECK_CONFIDENCE = 0.5, 0.8
+PAGE_SIZE = 20                    # кнопок-вариантов на экране выбора счётчика/адреса
 DRAFT_STATES = {S.SUB_NEW_TYPE, S.SUB_NEW_TARIFF, S.SUB_NEW_ADDRESS, S.SUB_ADDR_INPUT, S.SUB_ADDR_PICK,
                 S.SUB_ADDR_FLAT}
 RESET_ON_NEW_PHOTO = ("recognized", "values", "source", "serial_status", "serial_ok", "manual", "confirm",
@@ -135,6 +137,24 @@ async def _handled_exit(ctx: Ctx) -> bool:
         await show_menu(ctx)
         return True
     return False
+
+
+def _page(ctx: Ctx, rows: list[list[K.Button]], key: str) -> tuple[list[list[K.Button]], str]:
+    """Длинный список кнопок — страницами по PAGE_SIZE (лимит MAX — 30 рядов) + [Показать ещё] (QA-3).
+    → (ряды страницы с кнопкой листания, строка «Показали 1–20 из 30» или "")."""
+    if len(rows) <= PAGE_SIZE:
+        return rows, ""
+    pages = (len(rows) + PAGE_SIZE - 1) // PAGE_SIZE
+    page = ctx.data.get(key, 0) % pages
+    start = page * PAGE_SIZE
+    shown = rows[start:start + PAGE_SIZE]
+    last = page == pages - 1
+    shown.append([ctx.btn(T.BTN_PAGE_FIRST if last else T.BTN_PAGE_NEXT, "page")])
+    return shown, "\n\n" + T.PAGE_NOTE.format(start=start + 1, end=start + len(shown) - 1, total=len(rows))
+
+
+def _next_page(ctx: Ctx, key: str) -> None:
+    ctx.data[key] = ctx.data.get(key, 0) + 1
 
 
 def _row(ctx: Ctx, *buttons: tuple[str, str] | tuple[str, str, str | int]) -> list[K.Button]:
@@ -247,6 +267,7 @@ async def on_photo(ctx: Ctx) -> None:
         await _begin(ctx, "photo")
         ctx.note(T.PHOTO_RECEIVED)
     else:
+        s.new_flow()  # кнопки экрана со старым фото («Отправить» под старым значением) — устаревшие (QA-5)
         old = ctx.data.get("photo_id")
         await photos.delete_photo(ctx.repo, old)
         for key in RESET_ON_NEW_PHOTO:
@@ -328,23 +349,26 @@ async def _go_pick(ctx: Ctx) -> None:
 @on_repeat(S.SUB_PICK_METER)
 async def ask_pick(ctx: Ctx) -> None:
     meters = await ctx.repo.user_meters(_uid(ctx))
-    rows = [[ctx.btn(label, "m", m["id"])] for m, label in zip(meters, meter_labels(meters), strict=True)]
+    rows, note = _page(ctx, [[ctx.btn(label, "m", m["id"])]
+                             for m, label in zip(meters, meter_labels(meters), strict=True)], "pick_page")
     rows.append(_row(ctx, (T.BTN_NEW_METER, "new"), (C.BTN_CANCEL, "cancel")))
-    await ctx.reply(T.PICK_PHOTO if ctx.data.get("photo_id") else T.PICK_MANUAL, K.kb(*rows))
+    await ctx.reply((T.PICK_PHOTO if ctx.data.get("photo_id") else T.PICK_MANUAL) + note, K.kb(*rows))
 
 
 @on_state(S.SUB_PICK_METER, buttons=True)
 async def pick_meter(ctx: Ctx) -> None:
     if await _handled_exit(ctx):
         return
-    if ctx.action == "m" and ctx.arg.isdigit():
+    if ctx.action == "m" and (mid := K.parse_id(ctx.arg)):
         ctx.data.pop("draft", None)
-        ctx.data["meter_id"] = int(ctx.arg)
+        ctx.data["meter_id"] = mid
         await _after_meter(ctx)
     elif ctx.action == "new":
         ctx.session.go(S.SUB_NEW_TYPE)
         await ask_type(ctx)
     else:
+        if ctx.action == "page":
+            _next_page(ctx, "pick_page")
         await ask_pick(ctx)
 
 
@@ -420,19 +444,20 @@ async def got_tariff(ctx: Ctx) -> None:
 @on_repeat(S.SUB_NEW_ADDRESS)
 async def ask_address(ctx: Ctx) -> None:
     """C1: всегда список адресов с доступом + [Другой адрес]."""
-    rows = [[ctx.btn(a["label"], "a", a["id"])]
-            for a in await ctx.repo.user_addresses(_uid(ctx)) if can_submit(a["access"])]
+    rows, note = _page(ctx, [[ctx.btn(a["label"], "a", a["id"])]
+                             for a in await ctx.repo.user_addresses(_uid(ctx)) if can_submit(a["access"])],
+                       "addr_page")
     rows.append(_row(ctx, (T.BTN_OTHER_ADDRESS, "other")))
     rows.append(_row(ctx, (C.BTN_BACK, "back"), (C.BTN_CANCEL, "cancel")))
-    await ctx.reply(T.ASK_ADDRESS, K.kb(*rows))
+    await ctx.reply(T.ASK_ADDRESS + note, K.kb(*rows))
 
 
 @on_state(S.SUB_NEW_ADDRESS, buttons=True)
 async def got_address(ctx: Ctx) -> None:
     if await _handled_exit(ctx):
         return
-    if ctx.action == "a" and ctx.arg.isdigit():
-        ctx.data.setdefault("draft", {})["address_id"] = int(ctx.arg)
+    if ctx.action == "a" and (aid := K.parse_id(ctx.arg)):
+        ctx.data.setdefault("draft", {})["address_id"] = aid
         await _after_meter(ctx)
     elif ctx.action == "other":
         ctx.session.go(S.SUB_ADDR_INPUT)
@@ -442,6 +467,8 @@ async def got_address(ctx: Ctx) -> None:
         ctx.session.go(S.SUB_NEW_TARIFF if electricity else S.SUB_NEW_TYPE)
         await repeat_step(ctx)
     else:
+        if ctx.action == "page":
+            _next_page(ctx, "addr_page")
         await ask_address(ctx)
 
 
@@ -474,6 +501,8 @@ async def got_new_address(ctx: Ctx) -> None:
 
 
 async def _search_address(ctx: Ctx, text: str) -> None:
+    if ctx.data.get("addr"):
+        ctx.session.new_flow()  # новый поиск: «Да» под прошлыми вариантами устарело (QA-5)
     svc = _address_service(ctx)
     cands = await svc.suggest(text)
     not_found = False
@@ -975,8 +1004,13 @@ async def _done(ctx: Ctx, m: Meter, res: SubmitResult) -> None:
         lines.append(T.FLAGGED_DONE)
     await drop_scenario(ctx)  # фото удалено, новый flow — кнопки проверки устарели
     meter = await ctx.repo.get_meter(res.meter_id)
-    if created and meter and not meter["verification_due"]:
+    ask_verif_date = created and meter and not meter["verification_due"]
+    if ask_verif_date:
         ctx.session.go(S.SUB_VERIF_DATE, meter_id=res.meter_id)
+    # Показание уже в БД: сохраняем сессию до ответа. Упадёт отправка — роутер не сохранит сессию,
+    # и старое «Отправить» не должно записать показание второй раз (QA-1).
+    await save_session(ctx.repo, ctx.session, ctx.now)
+    if ask_verif_date:
         await ctx.reply("\n".join(lines) + "\n\n" + T.ASK_VERIF, _verif_kb(ctx))
         return
     await ctx.reply("\n".join(lines), _after_kb())

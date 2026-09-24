@@ -208,7 +208,13 @@ async def test_global_button_in_scenario_cancels_and_sends_new(chat, api, repo):
     api.clear()
     await chat.press("Профиль")
     assert api.named("answer")[0]["message"] is None  # глобальная — не заменой
-    assert api.named("send")[0]["text"].startswith(C.SUB_CANCELLED)
+    # QA-6: была только инструкция к фото — терять нечего, строки «подачу отменили» нет
+    assert not api.named("send")[0]["text"].startswith(C.SUB_CANCELLED)
+    await chat.press("В меню")
+    await chat.photo()
+    api.clear()
+    await chat.press("Профиль")
+    assert api.named("send")[0]["text"].startswith(C.SUB_CANCELLED)  # фото уже было — сообщаем
 
 
 async def test_cancel_and_unknown_command(chat, api, repo):

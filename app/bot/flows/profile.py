@@ -21,6 +21,7 @@ from app.repo import Row
 
 log = logging.getLogger(__name__)
 ACCESS_KIND = "access"  # notifications.kind для запросов доступа; dedup_key = "{uid}:{aid}"
+DECISION_KIND = "access_decision"  # решение собственника доставлено арендатору; тот же dedup_key
 
 
 def _menu_kb(*rows) -> dict:
@@ -158,21 +159,37 @@ async def send_no_access(ctx: Ctx, address_id: int | None = None, **_) -> None:
     if ua["access"] == "denied":
         await ctx.reply(T.NO_ACCESS_DENIED.format(label=esc(ua["label"])), _menu_kb([K.gbtn(T.BTN_PROFILE, "profile")]))
         return
+    demo = K.gbtn(T.BTN_DEMO_GRANT, "acc_demo", ua["id"]) if ctx.settings.demo_mode else None
     await ctx.reply(T.NO_ACCESS.format(label=esc(ua["label"])), K.kb(
         [K.gbtn(T.BTN_REQUEST, "acc_req", ua["id"])],
+        demo,
         [K.gbtn(T.BTN_PROFILE, "profile"), K.gbtn(C.BTN_MENU, "menu")],
     ))
 
 
+@on_global("acc_demo")
+async def demo_grant(ctx: Ctx) -> None:
+    """DEMO_MODE: «Открыть доступ (демо)» — одобряем за собственника (роль остаётся tenant).
+    Иначе несколько проверяющих с адресом из примера застряли бы в «нет прав»."""
+    aid = K.parse_id(ctx.arg)
+    ua = await ctx.repo.user_address(ctx.user["id"], aid) if aid and ctx.settings.demo_mode else None
+    if ua is not None and ua["access"] == "granted":
+        await _granted(ctx, ua)
+        return
+    if ua is None or ua["access"] != "pending":
+        await send_no_access(ctx, aid)  # нет адреса или демо выключено — меню/«нет прав»; отказ — «не открыл»
+        return
+    await ctx.repo.set_access(ctx.user["id"], aid, "granted")
+    # Собственник позже нажмёт «Разрешить» — «уже решено», без второго сообщения арендатору.
+    await ctx.repo.try_mark_sent(ctx.user["id"], DECISION_KIND, f"{ctx.user['id']}:{aid}", ctx.now)
+    await ctx.reply(T.DEMO_GRANTED, K.kb([K.gbtn(T.BTN_SUBMIT, "submit"), K.gbtn(C.BTN_MENU, "menu")]))
+
+
 # === Запрос доступа у собственника (C10) ===
-
-def _int(value: str) -> int | None:
-    return int(value) if value.isdigit() else None
-
 
 @on_global("acc_req")
 async def request_access(ctx: Ctx) -> None:
-    u, aid = ctx.user, _int(ctx.arg)
+    u, aid = ctx.user, K.parse_id(ctx.arg)
     ua = await ctx.repo.user_address(u["id"], aid) if aid else None
     if ua is None:
         await ctx.reply(T.ACCESS_UNKNOWN, _menu_kb())
@@ -226,7 +243,7 @@ async def deny_access(ctx: Ctx) -> None:
 async def _decide(ctx: Ctx, *, grant: bool) -> None:
     """Ответ собственника: жать может только owner адреса; повторное нажатие — «уже решено»."""
     tid_s, _, aid_s = ctx.arg.partition(".")
-    tid, aid = _int(tid_s), _int(aid_s)
+    tid, aid = K.parse_id(tid_s), K.parse_id(aid_s)
     owner = await ctx.repo.address_owner(aid) if aid else None
     if owner is None or owner["id"] != ctx.user["id"]:
         await ctx.reply(T.OWNER_ONLY, _menu_kb())
@@ -237,18 +254,30 @@ async def _decide(ctx: Ctx, *, grant: bool) -> None:
     if tenant_ua is None:
         await ctx.reply(T.REQUEST_GONE, _menu_kb())
         return
-    if tenant_ua["access"] != "pending":
+    if tenant_ua["access"] != "pending":  # уже решено; арендатор мог не получить ответ — дошлём
+        await _notify_tenant(ctx, tenant, tenant_ua)
         await ctx.reply(T.DECIDED[tenant_ua["access"]], _menu_kb())
         return
     await ctx.repo.set_access(tid, aid, "granted" if grant else "denied")
+    await _notify_tenant(ctx, tenant, await ctx.repo.user_address(tid, aid))  # до ответа собственнику
     owner_label = esc((await ctx.repo.user_address(owner["id"], aid))["label"])
     name = esc(tenant.get("full_name"))
     await ctx.reply((T.OWNER_GRANTED if grant else T.OWNER_DENIED).format(name=name, label=owner_label), _menu_kb())
-    if grant:
+
+
+async def _notify_tenant(ctx: Ctx, tenant: Row, ua: Row) -> None:
+    """Решение собственника — арендатору, один раз (отметка в notifications; сбой MAX — отметку снимаем)."""
+    if ua["access"] not in ("granted", "denied"):
+        return
+    key = f"{tenant['id']}:{ua['id']}"
+    if not await ctx.repo.try_mark_sent(tenant["id"], DECISION_KIND, key, ctx.now):
+        return
+    if ua["access"] == "granted":
         text, kb = T.TENANT_GRANTED, _menu_kb([K.gbtn(T.BTN_SUBMIT, "submit")])
     else:
         text, kb = T.TENANT_DENIED, _menu_kb([K.gbtn(T.BTN_PROFILE, "profile")])
     try:
-        await ctx.api.send(text.format(label=esc(tenant_ua["label"])), user_id=tenant["max_user_id"], keyboard=kb)
+        await ctx.api.send(text.format(label=esc(ua["label"])), user_id=tenant["max_user_id"], keyboard=kb)
     except MaxApiError as e:
         log.warning("access decision to tenant failed: %s", e)
+        await ctx.repo.unmark_sent(tenant["id"], DECISION_KIND, key)

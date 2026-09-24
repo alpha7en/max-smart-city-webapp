@@ -633,8 +633,10 @@
   // ---------- старт ----------
   if (!INIT && !DEV_USER) screenOutside();
   else if (!API && /\.github\.io$/.test(location.hostname)) {
-    // Статика на GitHub Pages, а адрес бэкенда не задан — не ходим на github.io/api.
-    setScreen('ЖКХ', stateCard('alert', 'bad', 'Сервис временно недоступен', 'Уже чиним. Попробуйте чуть позже.',
-      btn('Повторить', () => location.reload())));
+    // Статика на GitHub Pages, а адрес бэкенда не задан (MINIAPP_API_BASE) — не ходим на github.io/api.
+    // Это не сбой: сервер мини-приложения просто не подключён, а бот в чате работает.
+    setScreen('ЖКХ', stateCard('chat', 'accent', 'Сервер мини-приложения не подключён',
+      'Бот работает — показания можно передать в чате.',
+      btn('Вернуться в чат', closeApp), btn('Повторить', () => location.reload(), 'sec')));
   } else toHome();
 })();

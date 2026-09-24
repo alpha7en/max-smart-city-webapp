@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.bot.ctx import Deps
+from app.bot.texts.api import MSG
 from app.config import Settings, load_settings
 from app.integrations.max_api import MaxApi
 from app.integrations.recognizer import get_recognizer
@@ -102,11 +103,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(StarletteHTTPException)
     async def http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:
         """Ошибки API — всегда {code, message}."""
+        status = exc.status_code
         if isinstance(exc.detail, dict) and "code" in exc.detail:
             body = exc.detail
+        elif status in (400, 422):  # тело не разобралось (битый JSON, не UTF-8) — как невалидный запрос
+            status, body = 422, {"code": "bad_request", "message": MSG["bad_request"]}
         else:
             body = {"code": f"http_{exc.status_code}", "message": str(exc.detail)}
-        return JSONResponse(body, status_code=exc.status_code, headers=getattr(exc, "headers", None))
+        return JSONResponse(body, status_code=status, headers=getattr(exc, "headers", None))
 
     @app.get("/api/health")
     async def health() -> dict:
