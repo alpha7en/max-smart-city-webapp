@@ -303,7 +303,6 @@ async def test_two_photos_in_a_row_keep_single_file(chat, api, repo, settings):
     assert len(list(settings.photos_dir.glob("*"))) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="QA-6: двойное нажатие «Подать показания» пишет «Предыдущую подачу отменили»")
 async def test_double_tap_global_submit_no_scary_note(chat, api, repo):
     await register_chat(chat)
     api.clear()
@@ -331,7 +330,6 @@ async def test_garbage_callbacks_in_idle(chat, api, repo, payload):
 
 
 @pytest.mark.parametrize("payload", ["g|pay|99999999999999999999999"])
-@pytest.mark.xfail(strict=True, reason="QA-7: огромный числовой arg в кнопке → OverflowError SQLite → «Что-то пошло не так»")
 async def test_huge_numeric_arg_in_global_button(chat, api, repo, payload):
     await register_chat(chat)
     api.clear()
@@ -392,8 +390,6 @@ async def test_old_buttons_from_every_finished_scenario(chat, api, repo):
     assert_sane_output(api)
 
 
-@pytest.mark.xfail(strict=True, reason="QA-5: кнопки заменённого экрана проверки остаются рабочими — "
-                                       "«Отправить» под старым значением отправляет новое")
 async def test_old_review_send_after_new_photo_is_stale(chat, api, repo):
     await register_chat(chat)
     await chat.photo("https://i.oneme.ru/i?r=v1", b"\xff\xd8one")
@@ -406,6 +402,23 @@ async def test_old_review_send_after_new_photo_is_stale(chat, api, repo):
     api.clear()
     await chat.payload(old_send)  # пользователь нажал «Отправить» под ПЕРВЫМ значением
     assert api.named("answer")[0]["notification"] == C.STALE_BUTTON
+
+
+async def test_old_address_yes_after_new_search_is_stale(chat, api, repo):
+    """QA-5: «Да» под прошлым вариантом адреса после нового ввода — устаревшая, адрес не выбирается."""
+    await register_chat(chat)
+    await chat.photo("https://i.oneme.ru/i?r=a1")
+    await chat.press(COLD)
+    await chat.press(T.BTN_OTHER_ADDRESS)
+    await chat.text("Москва, Тверская 1, кв. 5")
+    assert (await sess(repo)).state == S.SUB_ADDR_PICK
+    old_yes = api.button(T.BTN_YES)["payload"]
+    await chat.text("Москва, Тверская 3, кв. 7")      # другой адрес на том же шаге — новый поиск
+    api.clear()
+    await chat.payload(old_yes)
+    assert api.named("answer")[0]["notification"] == C.STALE_BUTTON
+    assert (await sess(repo)).state == S.SUB_ADDR_PICK
+    assert len(await repo.user_addresses((await repo.get_user(UID))["id"])) == 1
 
 
 # === 5. Мусорный ввод ===
@@ -660,8 +673,6 @@ async def test_answer_failure_on_button_shows_error_and_retry_works(fchat, flaky
     assert (await sess(repo)).state == S.SUB_REVIEW
 
 
-@pytest.mark.xfail(strict=True, reason="QA-1: сбой отправки после записи в БД → «Повторить» → «Отправить» "
-                                       "создаёт второй счётчик (дубль) с тем же показанием")
 async def test_send_failure_after_commit_does_not_duplicate_meter(fchat, flaky, repo):
     await register_chat(fchat)
     await fchat.photo("https://i.oneme.ru/i?r=dup")
@@ -677,8 +688,6 @@ async def test_send_failure_after_commit_does_not_duplicate_meter(fchat, flaky, 
     assert len(await readings(repo)) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="QA-4: сбой ответа собственнику после set_access — арендатор так и не "
-                                       "узнаёт, что доступ открыт")
 async def test_owner_reply_failure_still_notifies_tenant(repo, settings, flaky):
     router = new_router(repo, settings, flaky)
     owner, tenant = Chat(router, flaky, UID), Chat(router, flaky, UID2)
@@ -864,9 +873,8 @@ async def test_corrupted_session_data_recovers(chat, api, repo):
     assert (await sess(repo)).state == S.IDLE
 
 
-@pytest.mark.xfail(strict=True, reason="QA-3: при 30+ счётчиках клавиатура выбора превышает лимит рядов → "
-                                       "ValueError → «Что-то пошло не так» на каждом фото")
 async def test_many_meters_pick_keyboard(chat, api, repo):
+    """QA-3: 30+ счётчиков — выбор страницами по 20 с [Показать ещё] / [К началу списка]."""
     await register_chat(chat)
     user = await repo.get_user(UID)
     (addr,) = await repo.user_addresses(user["id"])
@@ -876,6 +884,15 @@ async def test_many_meters_pick_keyboard(chat, api, repo):
     await chat.photo("https://i.oneme.ru/i?r=many")
     assert C.ERROR not in api.texts()
     assert (await sess(repo)).state == S.SUB_PICK_METER
+    assert "Показали 1–20 из 30." in api.last_text()
+    assert T.BTN_PAGE_NEXT in kb_labels(api) and T.BTN_NEW_METER in kb_labels(api)
+    await chat.press(T.BTN_PAGE_NEXT)
+    assert "Показали 21–30 из 30." in api.last_text()
+    labels = kb_labels(api)
+    assert T.BTN_PAGE_FIRST in labels and sum(COLD in x for x in labels) == 10
+    await chat.press(labels[0])                 # счётчик со второй страницы
+    assert (await sess(repo)).state == S.SUB_REVIEW
+    assert_sane_output(api)
 
 
 async def test_duplicate_update_after_restart_is_not_double_processed(settings, api):
@@ -1000,7 +1017,6 @@ def test_api_broken_bodies(client, body):
     assert set(r.json()) == {"code", "message"}
 
 
-@pytest.mark.xfail(strict=True, reason="QA-8: тело не в UTF-8 → 400 {code:'http_400', message по-английски}")
 def test_api_non_utf8_body_is_russian_bad_request(client):
     api_register(client)
     r = client.post("/api/readings", headers={**auth(), "Content-Type": "application/json"},
@@ -1036,7 +1052,6 @@ def test_api_foreign_meter_everywhere_is_403(client):
     assert_error(r, 403, "no_access")
 
 
-@pytest.mark.xfail(strict=True, reason="QA-7: огромный meter_id → OverflowError SQLite → 500 internal вместо 404")
 @pytest.mark.parametrize("how", ["detail", "post", "recognize"])
 def test_api_huge_meter_id_is_404(client, how):
     api_register(client)

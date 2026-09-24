@@ -137,6 +137,17 @@ TEXT_ALIASES = {
 }
 
 
+ID_MAX_DIGITS = 18  # SQLite INTEGER — до 2^63-1; длиннее → OverflowError при запросе
+
+
+def parse_id(value: object) -> int | None:
+    """id из payload/URL: только ASCII-цифры, не длиннее 18, больше 0; иначе None."""
+    s = str(value if value is not None else "")
+    if not (s.isascii() and s.isdigit() and len(s) <= ID_MAX_DIGITS):
+        return None
+    return int(s) or None
+
+
 def text_alias(text: str | None) -> str | None:
     """«да»/«нет»/«назад» → 'yes'/'no'/'back'."""
     return TEXT_ALIASES.get((text or "").strip().strip(".!").lower())

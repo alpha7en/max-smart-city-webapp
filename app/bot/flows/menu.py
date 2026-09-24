@@ -104,8 +104,9 @@ async def add_meter(ctx: Ctx) -> None:
 @on_global(VERIFY)
 async def verify(ctx: Ctx) -> None:
     """Запись на поверку — честная заглушка. arg — meter_id: кнопка могла устареть."""
-    if ctx.arg.isdigit():
-        m = await ctx.repo.user_meter(ctx.user["id"], int(ctx.arg))
+    if ctx.arg:
+        mid = K.parse_id(ctx.arg)
+        m = await ctx.repo.user_meter(ctx.user["id"], mid) if mid else None
         if m is None:
             await send_menu(ctx, header=N.METER_GONE)
             return
@@ -119,8 +120,9 @@ async def verify(ctx: Ctx) -> None:
 @on_global(PAY)
 async def pay(ctx: Ctx) -> None:
     """Оплата — честная заглушка. arg — bill_id: счёт могли уже оплатить."""
-    if ctx.arg.isdigit():
-        bill = await ctx.repo.get_bill(int(ctx.arg))
+    if ctx.arg:
+        bid = K.parse_id(ctx.arg)
+        bill = await ctx.repo.get_bill(bid) if bid else None
         if bill is None or bill["status"] == "paid":
             await send_menu(ctx, header=N.ALREADY_PAID)
             return

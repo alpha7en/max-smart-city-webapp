@@ -240,3 +240,44 @@ async def test_access_request_edge_cases(router, api, repo):
     assert (await load_session(repo, tenant_id)).state == S.IDLE
     await owner.payload("g|acc_ok|junk")
     assert api.last_text() == PT.OWNER_ONLY
+
+
+# --- Демо: «Открыть доступ (демо)» — жюри на адресе из примера не застревает в «нет прав» ---
+
+def _no_access_kb(api) -> list[str]:
+    """Подписи кнопок последнего сообщения «нет прав» (после регистрации за ним идёт меню)."""
+    return labels(next(k for t, k in reversed(api.outgoing()) if "уже зарегистрирован собственник" in t))
+
+
+async def test_demo_grant_opens_access_and_submission_works(router, api, repo):
+    owner, tenant = await _pair(router, api)
+    _, tenant_id, aid = await _ids(repo)
+    assert _no_access_kb(api) == [PT.BTN_REQUEST, PT.BTN_DEMO_GRANT, PT.BTN_PROFILE, C.BTN_MENU]
+    await tenant.press(PT.BTN_REQUEST)                      # запрос собственнику тоже ушёл
+    await tenant.payload(f"g|acc_demo|{aid}")
+    assert api.last_text() == PT.DEMO_GRANTED
+    assert labels(last_kb(api)) == [PT.BTN_SUBMIT, C.BTN_MENU]
+    ua = await repo.user_address(tenant_id, aid)
+    assert (ua["role"], ua["access"]) == ("tenant", "granted")
+    await tenant.payload(f"g|acc_demo|{aid}")               # повторное нажатие
+    assert api.last_text().startswith("Доступ по адресу Арбат 47к1, кв 32 уже открыт")
+    api.clear()
+    await owner.press(PT.BTN_ALLOW)                          # собственник ответил позже — без дубля арендатору
+    assert api.last_text() == PT.DECIDED["granted"]
+    assert not [s for s in api.named("send") if s["user_id"] == UID2]
+    await tenant.press(PT.BTN_SUBMIT)                        # основной сценарий дальше идёт как обычно
+    assert (await session(repo, UID2)).state == S.SUB_AWAIT_PHOTO
+
+
+async def test_demo_grant_hidden_and_ignored_without_demo_mode(api, repo, deps):
+    from dataclasses import replace
+
+    from app.bot.router import Router
+
+    router = Router(replace(deps, settings=replace(deps.settings, demo_mode=False)))
+    _, tenant = await _pair(router, api)
+    _, tenant_id, aid = await _ids(repo)
+    assert _no_access_kb(api) == [PT.BTN_REQUEST, PT.BTN_PROFILE, C.BTN_MENU]
+    await tenant.payload(f"g|acc_demo|{aid}")               # кнопка из старого сообщения / подделка
+    assert (await repo.user_address(tenant_id, aid))["access"] == "pending"
+    assert api.last_text().startswith("По адресу Арбат 47к1, кв 32 уже зарегистрирован собственник")
