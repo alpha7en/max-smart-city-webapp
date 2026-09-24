@@ -103,7 +103,7 @@ def enable_github_pages(username: str, token: str):
     url = f"https://api.github.com/repos/{username}/{REPO_NAME}/pages"
     payload = {
         "source": {
-            "branch": "main",
+            "branch": "gh-pages",
             "path": "/"
         }
     }
@@ -116,16 +116,15 @@ def enable_github_pages(username: str, token: str):
             "Content-Type": "application/json",
             "User-Agent": "MAX-SmartCity-Deployer"
         },
-        method="POST"
+        method="PUT"
     )
     try:
         with urllib.request.urlopen(req, context=ctx, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            print(f"GitHub Pages enabled: {data.get('html_url')}")
-            return data.get("html_url")
+            print("GitHub Pages configured to gh-pages branch.")
+            return f"https://{username}.github.io/{REPO_NAME}/"
     except urllib.error.HTTPError as e:
         err_body = e.read().decode("utf-8")
-        if e.code == 409 or "already exists" in err_body:
+        if e.code in (409, 204) or "already exists" in err_body:
             pages_url = f"https://{username}.github.io/{REPO_NAME}/"
             print(f"GitHub Pages already configured: {pages_url}")
             return pages_url
@@ -160,7 +159,8 @@ def deploy():
 > Развернут на GitHub Pages: https://{username}.github.io/{REPO_NAME}/
 
 ## Описание
-Данный репозиторий содержит скомпилированный в один автономный `index.html` файл Mini App для чат-бота MAX (`@t226_hakaton_max_bot`).
+Данная ветка `gh-pages` содержит скомпилированный в один автономный `index.html` файл Mini App для чат-бота MAX (`@t226_hakaton_max_bot`).
+Основной исходный код платформы расположен в ветке `main`.
 
 ## Возможности
 1. **Счетчики (ИПУ)**: Вода (ХВС/ГВС), Свет (Меркурий Т1/Т2), Отопление (Тепло в Гкал), Газ.
@@ -177,26 +177,29 @@ def deploy():
     with open(BUILD_DIR / "README.md", "w", encoding="utf-8") as f:
         f.write(readme_content)
 
-    # 3. Create repo on GitHub
+    # 3. Create repo on GitHub if not existing
     repo_info = create_github_repo(username, token)
 
-    # 4. Git init, commit, push
+    # 4. Git init, commit, push to gh-pages branch
     subprocess.run(["git", "init"], cwd=BUILD_DIR, check=True)
     subprocess.run(["git", "config", "user.name", username], cwd=BUILD_DIR, check=True)
     subprocess.run(["git", "config", "user.email", "chuklanov.pavel@gmail.com"], cwd=BUILD_DIR, check=True)
-    subprocess.run(["git", "checkout", "-b", "main"], cwd=BUILD_DIR, check=True)
+    subprocess.run(["git", "checkout", "-b", "gh-pages"], cwd=BUILD_DIR, check=True)
     subprocess.run(["git", "add", "."], cwd=BUILD_DIR, check=True)
-    subprocess.run(["git", "commit", "-m", "Deploy MAX Smart City monofile Mini-App for GitHub Pages"], cwd=BUILD_DIR, check=True)
+    subprocess.run(["git", "commit", "-m", "Deploy MAX Smart City monofile Mini-App to gh-pages"], cwd=BUILD_DIR, check=True)
 
-    remote_url = f"https://{username}:{token}@github.com/{username}/{REPO_NAME}.git"
-    subprocess.run(["git", "remote", "add", "origin", remote_url], cwd=BUILD_DIR, check=False)
+    remote_auth_url = f"https://{username}:{token}@github.com/{username}/{REPO_NAME}.git"
+    clean_url = f"https://github.com/{username}/{REPO_NAME}.git"
+    subprocess.run(["git", "remote", "add", "origin", clean_url], cwd=BUILD_DIR, check=False)
     try:
-        subprocess.run(["git", "push", "-u", "origin", "main", "--force"], cwd=BUILD_DIR, check=True, timeout=8)
-        print("Pushed code to GitHub main branch successfully!")
+        subprocess.run(["git", "push", remote_auth_url, "gh-pages", "--force"], cwd=BUILD_DIR, check=True, timeout=15)
+        print("Pushed monofile WebApp to GitHub gh-pages branch successfully!")
     except Exception as e:
         print(f"Notice: git push to remote network timed out ({e}). Local git repository and monofile build are ready.")
+    finally:
+        subprocess.run(["git", "remote", "set-url", "origin", clean_url], cwd=BUILD_DIR, check=False)
 
-    # 5. Enable GitHub Pages
+    # 5. Enable/Verify GitHub Pages
     pages_url = enable_github_pages(username, token)
     print("=" * 60)
     print("DEPLOYMENT COMPLETED!")
