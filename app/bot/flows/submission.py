@@ -4,10 +4,10 @@
   from: 'photo' | 'manual' | 'add'      — откуда начали (кнопки «Назад», подсказки)
   photo_id, caption                      — временное фото и подпись к нему (демо-ошибка «ошибка»)
   meter_id | draft{type,tariffs,address_id,serial?} — выбранный или новый счётчик (в БД — при отправке)
-  addr{raw, cands, not_found, chosen}    — ввод нового адреса
-  recognized{t1,t2,t3,serial,confidence,stub,issues}, serial_status, serial_ok
+  recognized{t1,t2,t3,serial,confidence,stub,issues,brand,model}, serial_status, serial_ok
     serial_status: 'match' | 'new' | 'mismatch' | 'other' (номер другого счётчика) | 'ignored' (номер на фото неверный)
     Серийник черновика берём только при отправке (из recognized) — до неё у нового счётчика номера нет.
+    (brand/model — только в БД, в тексты не попадают)
   values{t1,t2,t3} (тысячные), source    — что отправим
   manual{idx, vals, back}                — ручной ввод по полям; back: 'review' | 'pick' | 'await'
   confirm, replace, check{kind,prev,delta,months} — повторная отправка после вопросов
@@ -699,7 +699,8 @@ async def _recognize(ctx: Ctx) -> None:
     # Распознанный номер в черновик не пишем: номер нового счётчика сохранится при отправке
     # (readings.submit_reading), а до неё сравнивать новый счётчик не с чем.
     d["recognized"] = {**{f: rec.values.get(f) for f in m.fields}, "serial": rec.serial,
-                       "confidence": rec.confidence, "stub": rec.stub, "issues": rec.issues}
+                       "confidence": rec.confidence, "stub": rec.stub, "issues": rec.issues,
+                       "brand": rec.brand, "model": rec.model}
     d["values"] = {f: rec.values.get(f) for f in m.fields}
     d["source"] = "photo"
     d["serial_status"] = await _serial_status(ctx, m, rec.serial)

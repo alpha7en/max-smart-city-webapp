@@ -74,10 +74,11 @@ class FixedRecognizer:
     """Распознаватель с заданным ответом (или исключением / задержкой)."""
 
     def __init__(self, values=None, serial=None, confidence=0.95, stub=False, exc=None, delay=0.0,
-                 issues=(), note=None):
+                 issues=(), note=None, brand=None, model=None):
         self.values, self.serial, self.confidence, self.stub = values or {}, serial, confidence, stub
         self.exc, self.delay, self.calls = exc, delay, []
         self.issues, self.note = list(issues), note
+        self.brand, self.model = brand, model
 
     async def recognize(self, image_path, meter_type, tariffs, *, hint=None):
         self.calls.append((meter_type, tariffs, hint))
@@ -86,7 +87,8 @@ class FixedRecognizer:
         if self.exc:
             raise self.exc
         vals = {f: self.values.get(f) for f in ("t1", "t2", "t3")}
-        return Recognition(vals, self.serial, self.confidence, self.stub, issues=self.issues, note=self.note)
+        return Recognition(vals, self.serial, self.confidence, self.stub, issues=self.issues, note=self.note,
+                           brand=self.brand, model=self.model)
 
 
 def cand(text: str) -> AddressCandidate:
@@ -514,6 +516,18 @@ async def test_serial_match_and_saved_for_meter_without_serial(chat, api, repo, 
     await chat.press(T.BTN_SEND)
     assert (await repo.get_meter(gas))["serial"] == "GZ-1234567"
 
+
+async def test_meter_model_saved_internally_never_shown(chat, api, repo, deps, user, cold):
+    """Модель и производитель с шильдика — в recognized_json; в сообщения не попадают, серийник отдельно."""
+    deps.recognizer = FixedRecognizer({"t1": 120_000}, serial="18-4521", brand="Бетар", model="СХВ-15")
+    await to_review(chat)
+    assert "Серийный номер: 18-4521" in api.last_text()
+    await chat.press(T.BTN_SEND)
+    assert not [t for t in api.texts() if "СХВ" in t or "Бетар" in t]
+    row = (await repo.history(cold))[0]
+    rec = json.loads(row["recognized_json"])
+    assert (rec["serial"], rec["brand"], rec["model"]) == ("18-4521", "Бетар", "СХВ-15")
+    assert (await repo.get_meter(cold))["serial"] == "18-4521"
 
 async def test_f12_new_meter_serial_exists_switches(chat, api, repo, deps, user):
     mid = await meter(repo, user, serial="18-4521", readings=[("2026-09", 100_000)])

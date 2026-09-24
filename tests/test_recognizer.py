@@ -47,6 +47,7 @@ async def test_request_and_sample_answer(photo):
     assert b'name="meter_type"' in body and b"hot_water" in body
     assert rec.values == {"t1": 595_825, "t2": None, "t3": None}
     assert (rec.serial, rec.confidence, rec.stub, rec.error) == ("123456", CONF_OK, False, None)
+    assert (rec.brand, rec.model) == ("Бетар", "СГВ-15")
 
 
 def parse(selected="hot_water", tariffs=1, **answer):
@@ -63,6 +64,12 @@ def test_reading_text_preferred_over_float():
 def test_nothing_read_is_zero_confidence(kw):
     rec = parse(**kw)
     assert rec.values["t1"] is None and rec.confidence == 0.0 and rec.serial == "123456"
+    assert rec.model == "СГВ-15"
+
+
+def test_model_is_not_serial():
+    rec = parse(serial_number=None, model="ВСХ-15", brand=" ")
+    assert (rec.serial, rec.model, rec.brand) == (None, "ВСХ-15", None)
 
 
 @pytest.mark.parametrize("kw, selected", [

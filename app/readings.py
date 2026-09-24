@@ -147,7 +147,8 @@ async def submit_reading(
     meter_id — существующий счётчик; иначе draft={address_id, type, tariffs, serial?} — новый счётчик,
     он создаётся вместе с первым показанием (если по адресу уже есть счётчик с этим серийником — пишем в него).
     source: 'photo' | 'photo_edited' | 'manual' | 'miniapp'. recognized — что вернул распознаватель
-    ({t1,t2,t3,serial,confidence,stub}); его serial сохраняется у счётчика без серийника.
+    ({t1,t2,t3,serial,confidence,stub,brand,model}) пишется в readings.recognized_json; его serial сохраняется
+    у счётчика без серийника, brand/model остаются только там (служебные, пользователю не показываются).
     Порядок проверок (SPEC_REVIEW C5): права → формат → уже подано (если не replace) →
     меньше прошлого (последнее показание ДО текущего периода) → прирост выше порога × месяцев (если не confirm).
     Первое показание счётчика проверяется только на формат. confirm=True с большим приростом → 'flagged'.

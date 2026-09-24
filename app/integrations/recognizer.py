@@ -33,6 +33,10 @@ class Recognition:
     error: str | None = None
     issues: list[str] = field(default_factory=list)  # коды ISSUES (+ 'service' — сервис не ответил)
     note: str | None = None                          # пояснение модели (issue_note), как есть
+    # Производитель и модель с шильдика: только для БД (readings.recognized_json), пользователю не показываем
+    # и с серийным номером не смешиваем.
+    brand: str | None = None
+    model: str | None = None
 
     def readable(self, fields: tuple[str, ...]) -> bool:
         """Есть что показать пользователю: без ошибки, уверенность не ниже CONF_MIN, хотя бы одно поле."""
@@ -92,12 +96,14 @@ class HttpRecognizer:
     def _parse(data: dict, meter_type: str, tariffs: int) -> Recognition:
         values: dict[str, int | None] = dict.fromkeys(FIELDS)
         serial = str(data.get("serial_number") or "").strip() or None
+        brand = str(data.get("brand") or "").strip()[:64] or None
+        model = str(data.get("model") or "").strip()[:64] or None
         issues, note = HttpRecognizer._issues(data)
         value = _thousandths(data.get("reading_text") or data.get("reading"))
         if data.get("readable") is False or value is None:
             if not any(i != "serial_not_visible" for i in issues):
                 issues.insert(0, "digits_not_visible")
-            return Recognition(values, serial, 0.0, issues=issues, note=note)
+            return Recognition(values, serial, 0.0, issues=issues, note=note, brand=brand, model=model)
         # Многотарифный счётчик показывает один тариф за раз: кладём значение в его поле.
         fields = fields_for(tariffs if meter_type == MeterType.ELECTRICITY else 1)
         field_ = _TARIFF_FIELD.get(_digits(data.get("tariff"))[:1], "t1")
@@ -114,7 +120,7 @@ class HttpRecognizer:
             conf = min(conf, float(data.get("confidence")))
         except (TypeError, ValueError):
             pass
-        return Recognition(values, serial, conf, stub=False, issues=issues, note=note)
+        return Recognition(values, serial, conf, stub=False, issues=issues, note=note, brand=brand, model=model)
 
     async def recognize(self, image_path: str, meter_type: str, tariffs: int,
                         *, hint: dict | None = None) -> Recognition:
