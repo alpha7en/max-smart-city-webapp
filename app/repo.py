@@ -560,3 +560,6 @@ class Repo:
     # === S4 (dashboard/notify) ===
 
     # === S5b (api) ===
+
+    async def get_reading(self, reading_id: int) -> Row | None:
+        return await self._one("SELECT * FROM readings WHERE id=?", (reading_id,))
