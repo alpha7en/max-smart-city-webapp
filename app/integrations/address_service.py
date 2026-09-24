@@ -236,5 +236,5 @@ class AddressService:
 
 
 def get_address_service(settings: Any = None) -> AddressService:
-    key = getattr(settings, 'DADATA_API_KEY', None) or os.getenv('DADATA_API_KEY') or None
+    key = getattr(settings, 'dadata_api_key', None) or getattr(settings, 'DADATA_API_KEY', None) or os.getenv('DADATA_API_KEY') or None
     return AddressService(key.strip() if key else None)
