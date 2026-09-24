@@ -45,3 +45,17 @@ async def on_photo(ctx: Ctx) -> None:
         return
     ctx.session.go(S.SUB_AWAIT_PHOTO, photo_id=pid)
     await ctx.reply(T.PHOTO_RECEIVED, K.kb([ctx.btn(C.BTN_CANCEL, "cancel")]))
+
+
+# Заглушки точек входа — поток S2 заменит этот файл целиком.
+@on_hook("submission.start")
+@on_hook("submission.manual")
+@on_hook("submission.add_meter")
+async def _stub_entry(ctx: Ctx, **_) -> None:
+    await show_menu(ctx)
+
+
+@on_hook("submission.with_photo")
+async def _stub_with_photo(ctx: Ctx, photo_id: str | None = None, **_) -> None:
+    await photos.delete_photo(ctx.repo, photo_id)
+    await show_menu(ctx)
