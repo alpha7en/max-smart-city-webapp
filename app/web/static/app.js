@@ -18,7 +18,8 @@
 
   const $view = document.getElementById('view');
   const $title = document.getElementById('title');
-  const $sub = document.getElementById('sub');
+  const $eb = document.getElementById('eb');
+  const $ava = document.getElementById('ava');
   const $back = document.getElementById('back');
   const $bar = document.getElementById('bar');
   const nativeBack = !!(W && W.BackButton && typeof W.BackButton.show === 'function');
@@ -57,6 +58,11 @@
     flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.4-.5-2-1-3-1.1-2.1-.2-4.1 2-6 .5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
     therm: '<path d="M14 4v10.5a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0z"/><path d="M12 18v-6"/>',
     gauge: '<path d="m12 14 4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0z"/>',
+    home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    down: '<path d="m6 9 6 6 6-6"/>',
+    image: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+    phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>',
   };
   function icon(name, s) {
     const span = h('span', { class: 'ic', 'aria-hidden': 'true' });
@@ -96,6 +102,15 @@
     try { if (W && W.close) return W.close(); } catch (e) { /* ниже подсказка */ }
     toast('Закройте это окно, чтобы вернуться в чат');
   }
+  // Действие в чате: диплинк max.ru/<бот>?start=<payload> — бот откроет нужный экран или сценарий.
+  // Нет моста или имени бота — просто возвращаемся в чат.
+  function openChat(payload) {
+    const u = String((me && me.bot_username) || '').replace(/^@/, '');
+    if (u && /^[\w-]+$/.test(payload) && W && typeof W.openMaxLink === 'function') {
+      try { return W.openMaxLink('https://max.ru/' + encodeURIComponent(u) + '?start=' + payload); } catch (e) { /* ниже — закрываем */ }
+    }
+    closeApp();
+  }
 
   // ---------- диалог (нижний лист) ----------
   let dlg = null, dlgDone = null;
@@ -113,6 +128,15 @@
           h('div', { class: 'acts' }, btn(o.ok, () => done(true)), o.cancel && btn(o.cancel, () => done(false), 'ghost'))));
       document.body.append(dlg);
     });
+  }
+
+  // Нижний лист со списком вариантов (выбор адреса).
+  function listSheet(title, rows) {
+    closeDialog();
+    dlgDone = closeDialog;
+    dlg = h('div', { class: 'dlg', role: 'dialog', 'aria-modal': 'true', 'aria-label': title, onclick: e => { if (e.target === dlg) closeDialog(); } },
+      h('div', { class: 'sheet ls' }, h('h2', {}, title), h('div', { class: 'opts' }, rows)));
+    document.body.append(dlg);
   }
 
   // ---------- API ----------
@@ -218,6 +242,26 @@
   const fmtDay = s => { const p = parseDate(s); return p && p.d ? String(p.d).padStart(2, '0') + '.' + String(p.mo).padStart(2, '0') : ''; };
   const meterTitle = m => [m.type_label, m.address_label].filter(Boolean).join(' · ');
   const oneAddress = ms => new Set(ms.map(m => m.address_label)).size === 1;
+  const initials = n => String(n || '').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
+  const fmtPhone = p => { const r = /^\+7(\d{3})(\d{3})(\d{2})(\d{2})$/.exec(p || ''); return r ? '+7 ' + r[1] + ' ' + r[2] + '-' + r[3] + '-' + r[4] : p || '—'; };
+  const ADDR_WORDS = ['адрес', 'адреса', 'адресов'];
+  const METER_WORDS = ['счётчик', 'счётчика', 'счётчиков'];
+
+  // ---------- адреса ----------
+  // Ключ адреса — id из /api/me (старый сервер без id — подпись). Выбор запоминаем в браузере.
+  const mKey = m => String(m.address_id != null ? m.address_id : m.address_label);
+  const aKey = a => String(a.id != null ? a.id : a.label);
+  let addrSel = '';
+  try { addrSel = localStorage.getItem('gkh.addr') || ''; } catch (e) { /* хранилище недоступно */ }
+  function setAddr(k) { addrSel = k; try { localStorage.setItem('gkh.addr', k); } catch (e) { /* ignore */ } }
+  const addrList = d => (d && d.addresses) || [];
+  const grantedAddrs = d => addrList(d).filter(a => a.access === 'granted');
+  // Выбранный адрес: только если доступных адресов больше одного и он среди них; '' — все адреса.
+  function curAddr(d) {
+    const g = grantedAddrs(d);
+    return g.length > 1 && g.some(a => aKey(a) === addrSel) ? addrSel : '';
+  }
+  const visMeters = d => { const k = curAddr(d), ms = (d && d.meters) || []; return k ? ms.filter(m => mKey(m) === k) : ms; };
   const normSerial = s => String(s || '').replace(/[\s-]/g, '').toLowerCase();
 
   // ---------- навигация ----------
@@ -242,9 +286,10 @@
   }
   function setScreen(title, ...nodes) {
     $title.textContent = title;
-    $sub.hidden = true;
+    $eb.hidden = true;
+    $ava.hidden = true;
     setBar();
-    $view.replaceChildren(...nodes.flat().filter(Boolean));
+    $view.replaceChildren(...nodes.flat(Infinity).filter(Boolean));
   }
   function setBar(...buttons) {
     const b = buttons.filter(Boolean);
@@ -298,8 +343,8 @@
     return ask({ icon: 'receipt', title: 'Оплата появится скоро', text: 'Сейчас оплатить можно по квитанции в банке. Счёт здесь — демо.', ok: 'Понятно' });
   }
   function hero(meters, dash) {
-    const total = dash.total != null ? dash.total : meters.length;
-    const done = dash.submitted != null ? dash.submitted : meters.filter(m => m.submitted_this_period).length;
+    const total = meters.length;
+    const done = meters.filter(m => m.submitted_this_period).length;
     const all = done === total;
     const w = dash.window || null;
     const left = w && w.open && w.days_left != null ? +w.days_left : null;
@@ -327,8 +372,18 @@
       h('span', { class: 'th' }, ibox(ic, tone, 16), label, h('span', { class: 'chev' }, icon('chev', 16))),
       h('b', { class: 'v' }, value), sub && h('small', {}, sub));
   }
-  function tiles(meters, dash) {
-    const out = [], v = dash.verification, b = dash.bill, u = dash.urgent;
+  // Выбран адрес → поверка и счёт только этого адреса (счета — из dashboard.bills, поверки — из счётчиков).
+  function tiles(meters, dash, key) {
+    const out = [], u = dash.urgent;
+    let v = dash.verification, b = dash.bill;
+    if (key) {
+      if (v && !meters.some(m => m.id === v.meter_id)) v = null;
+      if (!v) {
+        const near = meters.map(m => ({ m, n: daysUntil(m.verification_due) })).filter(x => x.n != null && x.n <= 60).sort((x, y) => x.n - y.n)[0];
+        v = near && { meter_id: near.m.id, due: near.m.verification_due, days_left: near.n };
+      }
+      b = (dash.bills || []).filter(x => String(x.address_id) === key)[0] || null;
+    }
     if (v) {
       const n = +v.days_left, m = meters.find(x => x.id === v.meter_id);
       out.push(tile('shield', n < 0 ? 'bad' : n <= 30 ? 'warn' : 'ok', 'Поверка', n < 0 ? 'просрочена' : days(n),
@@ -336,7 +391,7 @@
     }
     if (b) {
       const late = +b.days_left < 0;
-      out.push(tile('receipt', late ? 'bad' : u && u.kind === 'bill' ? 'warn' : 'accent', 'Счёт', b.amount_text,
+      out.push(tile('receipt', late ? 'bad' : u && u.kind === 'bill' && dash.bill && b.id === dash.bill.id ? 'warn' : 'accent', 'Счёт', b.amount_text,
         (late ? 'срок был ' : 'до ') + shortDate(fmtDate(b.due)) + (b.demo ? ' · демо' : ''), () => openUrgent({ kind: 'bill' })));
     }
     return out.length > 0 && h('div', { class: 'tiles' }, out);
@@ -358,6 +413,9 @@
         ? h('span', { class: 'st' }, icon('check', 15), 'подано')
         : h('button', { class: 'mini', type: 'button', onclick: () => go('submit', { meterId: m.id }) }, 'Подать'));
   }
+  const addMeterItem = () => h('div', { class: 'item' },
+    h('button', { class: 'item-main add', type: 'button', onclick: () => openChat('add_meter') },
+      ibox('plus', 'accent', 20, 'mi'), h('span', { class: 'grow' }, h('b', {}, 'Добавить счётчик'), h('small', {}, 'в чате с ботом'))));
   const section = (title, count) => h('div', { class: 'sech' }, h('span', {}, title), count != null && h('small', {}, count));
   const dayNum = s => { const p = parseDate(s); return p && p.d; };
   function footnote(dash) {
@@ -368,33 +426,104 @@
   function screenHome() {
     load('ЖКХ', () => api('/api/me'), d => { me = d; drawHome(d); });
   }
+  const emptyMeters = () => stateCard('camera', 'accent', 'Счётчиков пока нет',
+    'Добавьте счётчик в чате или просто пришлите туда его фото.', btn([icon('plus', 20), 'Добавить счётчик'], () => openChat('add_meter')));
   function drawHome(d) {
     if (!d.registered) {
       return setScreen('ЖКХ', stateCard('chat', 'accent', 'Продолжите регистрацию в чате с ботом',
         'Это займёт минуту: имя, телефон и адрес.', btn('Вернуться в чат', closeApp)));
     }
-    const meters = d.meters || [], dash = d.dashboard || {};
-    const pending = dash.pending || (d.addresses || []).filter(a => a.access === 'pending');
+    const all = d.meters || [], dash = d.dashboard || {}, key = curAddr(d), meters = visMeters(d);
+    let pending = key ? [] : dash.pending || addrList(d).filter(a => a.access === 'pending');
     const legacy = legacyLines(dash);
-    const addrs = [...new Set((d.addresses || []).filter(a => a.access !== 'pending').map(a => a.label)
-      .concat(meters.map(m => m.address_label)).filter(Boolean))];
+    const waitOnly = !grantedAddrs(d).length && pending.length > 0;  // жилец ждёт доступа — добавлять счётчик рано
+    const top = meters.length ? hero(meters, dash) : waitOnly
+      ? stateCard('clock', 'warn', 'Ждём одобрения собственника', 'Когда собственник откроет доступ к адресу ' + pending[0].label + ', здесь появятся счётчики.',
+        btn('Напомнить в чате', () => openChat('profile')))
+      : emptyMeters();
+    if (waitOnly) pending = pending.slice(1);
+    // Все адреса сразу — счётчики группами по адресу, без повтора адреса в каждой строке.
+    const groups = [];
+    if (!key && !oneAddress(all)) meters.forEach(m => { const g = groups.find(x => x.k === mKey(m)); if (g) g.ms.push(m); else groups.push({ k: mKey(m), label: m.address_label, ms: [m] }); });
+    else groups.push({ ms: meters });
     setScreen('ЖКХ',
-      meters.length
-        ? hero(meters, dash)
-        : stateCard('camera', 'accent', 'Счётчиков пока нет', 'Пришлите фото счётчика в чат — мы его добавим.',
-          btn('Вернуться в чат', closeApp)),
-      tiles(meters, dash),
+      top,
+      tiles(meters, dash, key),
       pending.map(a => h('div', { class: 'row' }, ibox('clock', 'warn', 18),
         h('span', { class: 'grow' }, h('b', {}, a.label), h('small', {}, 'Доступ ждёт подтверждения собственника')))),
       legacy.length > 0 && h('div', { class: 'row' }, ibox('alert', 'accent', 18),
         h('span', { class: 'grow' }, legacy.map(l => h('small', {}, l)))),
       meters.length > 0 && [section('Счётчики', meters.length),
-        h('div', { class: 'list' }, meters.map(m => meterItem(m, !oneAddress(meters)))),
+        groups.map((g, i) => [g.label && h('p', { class: 'grp' }, g.label),
+          h('div', { class: 'list' }, g.ms.map(m => meterItem(m)), i === groups.length - 1 && addMeterItem())]),
         h('p', { class: 'foot' }, footnote(dash))]);
-    if (addrs.length) {
-      $sub.hidden = false;
-      $sub.textContent = addrs.length === 1 ? addrs[0] : addrs.length + ' ' + plural(addrs.length, ['адрес', 'адреса', 'адресов']);
-    }
+    homeHeader(d, key);
+  }
+  // Шапка главной: над заголовком «ЖКХ», заголовок — адрес. Адресов больше одного — заголовок открывает выбор.
+  function homeHeader(d, key) {
+    const list = addrList(d), g = grantedAddrs(d);
+    $ava.hidden = false;
+    $ava.textContent = initials(d.user && d.user.full_name);
+    if (!list.length) return;
+    $eb.hidden = false;
+    $eb.textContent = list.length > 1 ? 'ЖКХ · ' + list.length + ' ' + plural(list.length, ADDR_WORDS) : 'ЖКХ';
+    const cur = g.find(a => aKey(a) === key);
+    const label = cur ? cur.label : g.length > 1 ? 'Все адреса' : (g[0] || list[0]).label;
+    if (list.length < 2) return void ($title.textContent = label);
+    $title.replaceChildren(h('button', { class: 'addr', type: 'button', 'aria-haspopup': 'dialog', onclick: () => addrSheet(d) },
+      h('span', {}, label), icon('down', 22)));
+  }
+  function addrSheet(d) {
+    const g = grantedAddrs(d), key = curAddr(d), ms = d.meters || [];
+    const stat = list => {
+      if (!list.length) return 'счётчиков пока нет';
+      const left = list.filter(m => !m.submitted_this_period).length;
+      return list.length + ' ' + plural(list.length, METER_WORDS) + (left ? ', не подано ' + left : ', всё подано');
+    };
+    const pick = k => () => { closeDialog(); setAddr(k); drawHome(d); };
+    const opt = (ic, tone, title, sub, on, onclick) => h('button', { class: 'opt' + (on ? ' on' : ''), type: 'button', 'aria-pressed': String(!!on), onclick },
+      ibox(ic, tone, 18), h('span', { class: 'grow' }, h('b', {}, title), sub && h('small', {}, sub)), on && icon('check', 20));
+    listSheet('Адрес', [
+      g.length > 1 && opt('home', 'accent', 'Все адреса', stat(ms), !key, pick('')),
+      g.map(a => opt('home', 'accent', a.label, stat(ms.filter(m => mKey(m) === aKey(a))), g.length < 2 || aKey(a) === key, g.length > 1 ? pick(aKey(a)) : closeDialog)),
+      addrList(d).filter(a => a.access !== 'granted').map(a => opt('clock', a.access === 'pending' ? 'warn' : 'bad', a.label,
+        a.access === 'pending' ? 'ждёт одобрения собственника' : 'собственник не открыл доступ', false, () => go('profile'))),
+      h('button', { class: 'opt add', type: 'button', onclick: () => { closeDialog(); openChat('add_address'); } },
+        ibox('plus', 'accent', 18), h('span', { class: 'grow' }, h('b', {}, 'Добавить адрес'), h('small', {}, 'в чате с ботом'))),
+    ]);
+  }
+
+  // ---------- экран: профиль ----------
+  const ROLE = { owner: ['собственник', 'ok'], granted: ['есть доступ', 'ok'], pending: ['ждёт одобрения', 'warn'], denied: ['нет доступа', 'bad'] };
+  function screenProfile() {
+    load('Профиль', () => api('/api/me'), d => { me = d; drawProfile(d); });
+  }
+  function drawProfile(d) {
+    if (!d.registered) return drawHome(d);
+    const u = d.user || {}, list = addrList(d);
+    const waiting = list.some(a => a.access !== 'granted');
+    const action = (ic, title, payload) => h('div', { class: 'item' },
+      h('button', { class: 'item-main', type: 'button', onclick: () => openChat(payload) },
+        ibox(ic, 'accent', 18), h('span', { class: 'grow' }, h('b', {}, title)), h('span', { class: 'chev' }, icon('chev', 18))));
+    setScreen('Профиль',
+      h('div', { class: 'card who-card' }, h('span', { class: 'ava big', 'aria-hidden': 'true' }, initials(u.full_name)),
+        h('span', { class: 'grow' }, h('h2', {}, u.full_name || '—'),
+          h('span', { class: 'ph-line' }, h('span', { class: 'tel' }, fmtPhone(u.phone)),
+            u.phone_verified ? h('span', { class: 'pill t-ok' }, icon('check', 13), 'из MAX') : h('small', {}, 'указан вручную')))),
+      section('Адреса', list.length || null),
+      h('div', { class: 'list' }, list.map(a => {
+        const r = ROLE[a.access !== 'granted' ? a.access : a.role === 'owner' ? 'owner' : 'granted'] || ROLE.pending;
+        return h('div', { class: 'arow' }, ibox('home', r[1] === 'ok' ? 'accent' : r[1], 18),
+          h('span', { class: 'grow' }, h('b', {}, a.label),
+            (a.full_text || a.verified === false) && h('small', {}, [a.full_text, a.verified === false && 'не сверен с ФИАС'].filter(Boolean).join(' · '))),
+          h('span', { class: 'pill t-' + r[1] }, r[0]));
+      })),
+      waiting && h('div', { class: 'note t-warn' }, icon('clock', 18),
+        h('span', { class: 'grow' }, 'Пока собственник не откроет доступ, показания по этому адресу не передать.'),
+        h('button', { class: 'link', type: 'button', onclick: () => openChat('profile') }, 'Запросить')),
+      h('div', { class: 'list acts-list' }, action('plus', 'Добавить адрес', 'add_address'), action('phone', 'Изменить телефон', 'phone')),
+      h('p', { class: 'foot' }, 'Изменения вносим в чате с ботом: там проверим адрес и номер. Права по адресам в демо смоделированы.'),
+      h('button', { class: 'btn ghost danger', type: 'button', onclick: () => openChat('delete_data') }, 'Удалить мои данные'));
   }
 
   // ---------- экран: подать показания ----------
@@ -403,11 +532,11 @@
     load('Подать показания', () => api('/api/me'), d => { me = d; drawSubmit(p); });
   }
   function drawSubmit(p) {
-    const meters = (me && me.meters) || [];
-    if (!meters.length) {
-      return setScreen('Подать показания', stateCard('camera', 'accent', 'Счётчиков пока нет',
-        'Пришлите фото счётчика в чат — мы его добавим.', btn('Вернуться в чат', closeApp)));
-    }
+    const all = (me && me.meters) || [];
+    if (!all.length) return setScreen('Подать показания', emptyMeters());
+    // Выбран адрес на главной — подаём по нему; счётчик другого адреса (из «Счётчика») тоже покажем.
+    const vis = visMeters(me);
+    const meters = vis.some(m => String(m.id) === String(p.meterId)) || p.meterId == null ? vis : all;
     let sel = meters.find(m => String(m.id) === String(p.meterId)) ||
       meters.find(m => !m.submitted_this_period) || meters[0];
     let usedStub = false;
@@ -415,9 +544,11 @@
     const formBox = h('div');
     const recBox = h('div', { hidden: true }), errBox = h('div', { hidden: true });
     const file = h('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+    const gallery = h('input', { type: 'file', accept: 'image/*', hidden: true });
     const photoBtn = btn([icon('camera', 20), 'Сфотографировать'], () => file.click(), 'sec');
+    const galBtn = h('button', { class: 'btn sec sq', type: 'button', 'aria-label': 'Выбрать фото из галереи', title: 'Из галереи', onclick: () => gallery.click() }, icon('image', 22));
     const sendBtn = btn('Отправить', () => send({}));
-    file.addEventListener('change', () => { if (file.files && file.files[0]) recognize(file.files[0]); });
+    [file, gallery].forEach(f => f.addEventListener('change', () => { if (f.files && f.files[0]) recognize(f.files[0]); }));
     const markErr = (inp, on) => inp.closest('.tablo').classList.toggle('err', on !== false);
 
     const one = oneAddress(meters);
@@ -473,7 +604,7 @@
         last && last.created_at && 'прошлое ' + fmtDay(last.created_at)].filter(Boolean).join(' · ');
       formBox.replaceChildren(h('div', { class: 'card panel' },
         h('div', { class: 'ph' }, meterIcon(sel, 22), h('span', { class: 'grow' }, h('b', {}, sel.type_label), sub && h('small', {}, sub))),
-        photoBtn, fields));
+        h('div', { class: 'shoot' }, photoBtn, galBtn), fields));
     }
 
     async function recognize(f) {
@@ -508,7 +639,7 @@
           e.status === 0 || e.status >= 500 ? () => recognize(f) : null);
       } finally {
         unBusy(photoBtn);
-        file.value = '';
+        file.value = ''; gallery.value = '';
       }
     }
 
@@ -563,14 +694,14 @@
     }
 
     drawForm();
-    setScreen('Подать показания', picker, formBox, recBox, errBox, file);
+    setScreen('Подать показания', picker, formBox, recBox, errBox, file, gallery);
     setBar(sendBtn);
   }
 
   // ---------- экран: результат ----------
   function screenResult(p) {
     const m = p.meter;
-    const next = ((me && me.meters) || []).find(x => !x.submitted_this_period && x !== m);
+    const next = visMeters(me).find(x => !x.submitted_this_period && x !== m);
     setScreen('Готово',
       h('div', { class: 'state done' }, ibox('check', 'ok', 34, 'si'),
         h('h2', {}, 'Записали'),
@@ -611,7 +742,7 @@
       h('div', { class: 'tiles' },
         h('div', { class: 'tile t-' + vt }, h('span', { class: 'th' }, ibox('shield', vt, 16), 'Поверка'),
           h('b', { class: 'v' }, m.verification_due ? fmtDate(m.verification_due) : 'не указана'),
-          h('small', {}, vd == null ? 'укажите в чате' : vd < 0 ? 'просрочена' : vd <= 60 ? leftWord(vd) + ' ' + days(vd) : 'в порядке')),
+          h('small', {}, vd == null ? 'есть в паспорте' : vd < 0 ? 'просрочена' : vd <= 60 ? leftWord(vd) + ' ' + days(vd) : 'в порядке')),
         h('div', { class: 'tile t-accent' },
           h('span', { class: 'th' }, ibox('hash', 'accent', 16), 'Номер'),
           h('b', { class: 'v mono' }, m.serial || '—'),
@@ -628,7 +759,8 @@
     setBar(btn([icon('camera', 20), 'Подать показания'], () => go('submit', { meterId: m.id })));
   }
 
-  const SCREENS = { home: screenHome, submit: screenSubmit, result: screenResult, meter: screenMeter };
+  const SCREENS = { home: screenHome, submit: screenSubmit, result: screenResult, meter: screenMeter, profile: screenProfile };
+  $ava.addEventListener('click', () => go('profile'));
 
   // ---------- старт ----------
   if (!INIT && !DEV_USER) screenOutside();

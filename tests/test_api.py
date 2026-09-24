@@ -7,6 +7,7 @@ import json
 import time
 from datetime import timedelta
 from pathlib import Path
+from unittest.mock import ANY
 
 import pytest
 from fastapi.testclient import TestClient
@@ -133,7 +134,7 @@ def test_a1_dev_user_only_with_dev_auth(make_client):
 
 def test_a2_me_unregistered(client):
     expected = {"registered": False, "user": None, "dashboard": {
-                    "lines": [], "urgent": None, "window": None, "bill": None, "verification": None,
+                    "lines": [], "urgent": None, "window": None, "bill": None, "bills": [], "verification": None,
                     "pending": [], "submitted": 0, "total": 0},
                 "meters": [], "addresses": [], "bot_username": "test_bot"}
     assert client.get("/api/me", headers=auth()).json() == expected
@@ -150,13 +151,16 @@ def test_a3_me_contract_and_dashboard(client):
     d = client.get("/api/me", headers=auth()).json()
     assert d["registered"] is True and d["bot_username"] == "test_bot"
     assert d["user"] == {"full_name": "Иванова Анна Сергеевна", "phone": "+79123456789", "phone_verified": True}
-    assert d["addresses"] == [{"label": u["label"], "access": "granted", "role": "owner"}]
+    assert d["addresses"] == [{"id": u["address_id"], "label": u["label"], "full_text": ANY, "access": "granted",
+                               "role": "owner", "verified": False}]
+    assert "Арбат" in d["addresses"][0]["full_text"]  # полный адрес для профиля; без DaData — не сверен с ФИАС
 
     by_id = {m["id"]: m for m in d["meters"]}
     water, power = by_id[m1], by_id[m2]
-    assert set(water) == {"id", "type", "type_label", "unit", "tariffs", "address_label", "serial", "last",
+    assert set(water) == {"id", "type", "type_label", "unit", "tariffs", "address_id", "address_label", "serial", "last",
                           "submitted_this_period", "verification_due"}
     assert water["type_label"] == "Хол. вода" and water["unit"] == "м³" and water["address_label"] == u["label"]
+    assert water["address_id"] == u["address_id"]
     assert water["serial"] == "18-123456" and water["submitted_this_period"] is True
     assert water["last"]["period"] == "2026-10"
     assert water["last"]["values"] == {"t1": 123.456, "t2": None, "t3": None}  # числа в единицах, не тысячные
@@ -172,7 +176,9 @@ def test_a3_me_contract_and_dashboard(client):
     assert dash["window"] == {"period": "2026-10", "month_label": "октябрь", "from": "2026-10-15",
                               "to": "2026-10-25", "open": True, "days_left": 6, "next_from": None}
     bill = dash["bill"]
-    assert set(bill) == {"id", "amount_kop", "amount_text", "due", "days_left", "demo", "count"}
+    assert set(bill) == {"id", "address_id", "amount_kop", "amount_text", "due", "days_left", "demo", "count"}
+    assert bill["address_id"] == u["address_id"]
+    assert dash["bills"] == [{k: v for k, v in bill.items() if k != "count"}]  # по ним фильтр по адресу
     assert bill["due"] == "2026-11-10" and bill["days_left"] == 22 and bill["demo"] is True
     assert bill["amount_text"].endswith("₽") and isinstance(bill["amount_kop"], int)
     assert (dash["verification"], dash["pending"], dash["submitted"], dash["total"]) == (None, [], 1, 2)
@@ -184,7 +190,8 @@ def test_a3_pending_address_marked_and_hidden_meters(client):
     register(client, TENANT)  # тот же адрес → tenant/pending
     d = client.get("/api/me", headers=auth(TENANT)).json()
     assert d["registered"] is True and d["meters"] == []
-    assert d["addresses"] == [{"label": owner["label"], "access": "pending", "role": "tenant"}]
+    assert [(a["id"], a["label"], a["access"], a["role"]) for a in d["addresses"]] == [
+        (owner["address_id"], owner["label"], "pending", "tenant")]
     dash = d["dashboard"]
     assert dash["pending"] == [{"label": owner["label"]}] and dash["bill"] is None and dash["total"] == 0
     assert sum("одобрения собственника" in line for line in dash["lines"]) == 1  # строка для бота — одна

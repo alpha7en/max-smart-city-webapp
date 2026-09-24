@@ -178,7 +178,8 @@ def test_structured_window_open_and_closed():
 def test_structured_bill():
     assert dash([meter(1)]).bill is None
     d = dash([meter(1)], [bill(9, TODAY + timedelta(days=9), 100000), bill(7, TODAY + timedelta(days=3))])
-    assert d.bill == {"id": 7, "amount_kop": 431200, "amount_text": "4 312 ₽", "due": "2026-10-22",
+    assert [b["id"] for b in d.bills] == [7, 9] and "count" not in d.bills[0]
+    assert d.bill == {"id": 7, "address_id": 1, "amount_kop": 431200, "amount_text": "4 312 ₽", "due": "2026-10-22",
                       "days_left": 3, "demo": True, "count": 2}
     late = dash([meter(1)], [{**bill(1, TODAY - timedelta(days=2)), "is_demo": 0}]).bill
     assert (late["days_left"], late["demo"]) == (-2, False)
@@ -198,6 +199,7 @@ def test_structured_pending_and_api():
     d = dash([meter(1)], addresses=addresses)
     assert d.pending == [{"label": "Ленина 5"}, {"label": "Мира 1"}]
     api = d.to_api()
-    assert set(api) == {"lines", "urgent", "window", "bill", "verification", "pending", "submitted", "total"}
+    assert set(api) == {"lines", "urgent", "window", "bill", "bills", "verification", "pending", "submitted",
+                        "total"}
     assert api["pending"] == d.pending and api["window"] == d.window and api["total"] == 1
     assert dash().pending == []

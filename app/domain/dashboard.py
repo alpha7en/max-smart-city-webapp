@@ -67,7 +67,8 @@ class Dashboard:
     period: str = ""
     # Структура для мини-приложения (SPEC §6): даты — ISO 'YYYY-MM-DD'.
     window: dict | None = None        # {period, month_label, from, to, open, days_left, next_from}
-    bill: dict | None = None          # ближайший неоплаченный: {id, amount_kop, amount_text, due, days_left, demo, count}
+    bill: dict | None = None          # ближайший неоплаченный: {id, address_id, amount_kop, amount_text, due, days_left, demo, count}
+    bills: list[dict] = field(default_factory=list)     # все неоплаченные (как bill, без count) — фильтр по адресу
     verification: dict | None = None  # ближайшая поверка ≤ 60 дн.: {meter_id, meter_label, type, due, days_left}
     pending: list[dict] = field(default_factory=list)   # [{label}] — адреса, ждущие подтверждения
     submitted: int = 0                # счётчиков подано за текущий период
@@ -81,7 +82,8 @@ class Dashboard:
         """Поле dashboard ответа /api/me."""
         return {
             "lines": list(self.lines), "urgent": self.urgent.to_dict() if self.urgent else None,
-            "window": self.window, "bill": self.bill, "verification": self.verification,
+            "window": self.window, "bill": self.bill, "bills": [dict(b) for b in self.bills],
+            "verification": self.verification,
             "pending": [dict(p) for p in self.pending], "submitted": self.submitted, "total": self.total,
         }
 
@@ -233,12 +235,10 @@ def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to
         blocks.append(info)
     blocks.append([T.FOOTER])
 
-    bill_json = None
-    if bills:
-        d, b = bills[0]
-        bill_json = {"id": b["id"], "amount_kop": b["amount_kop"], "amount_text": money(b["amount_kop"]),
-                     "due": d.isoformat(), "days_left": days_left(today, d), "demo": bool(b.get("is_demo", 1)),
-                     "count": len(bills)}
+    bills_json = [{"id": b["id"], "address_id": b.get("address_id"), "amount_kop": b["amount_kop"],
+                   "amount_text": money(b["amount_kop"]), "due": d.isoformat(), "days_left": days_left(today, d),
+                   "demo": bool(b.get("is_demo", 1))} for d, b in bills]
+    bill_json = dict(bills_json[0], count=len(bills)) if bills else None
     verif_json = None
     if verif_soon:
         d, m = verif_soon[0]
@@ -260,6 +260,7 @@ def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to
         period=period,
         window=_window_json(window, period),
         bill=bill_json,
+        bills=bills_json,
         verification=verif_json,
         pending=[{"label": a.get("label") or ""} for a in pending],
         submitted=len(meters) - len(not_done),
