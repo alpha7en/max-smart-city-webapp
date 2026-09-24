@@ -91,3 +91,12 @@ def test_tariff_normalized():
 def test_serial_number_cleaned(raw, serial):
     r = _to_reading({"meter_type": "cold_water", "drums": drums("00001", "234"), "serial_number": raw}, "cold_water")
     assert r.serial_number == serial
+
+
+def test_log_summary_has_no_serial_value():
+    from meter_reader.recognizer import log_summary
+    raw = {"meter_type": "electricity", "drums": drums("2168", ""), "serial_number": "0123456789",
+           "brand": "Меркурий", "readable": True, "issues": ["blurry"], "confidence": 0.5}
+    s = log_summary(raw, _to_reading(raw, "electricity"))
+    assert s["reading"] == "2168" and s["issues"] == ["blurry"] and s["serial"] is True
+    assert "0123456789" not in str(s) and "Меркурий" not in str(s)

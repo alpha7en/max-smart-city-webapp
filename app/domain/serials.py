@@ -40,6 +40,7 @@ DIGITS: dict[str, tuple[int, int]] = {
 }
 MIN_DIGITS = 4          # меньше — точно не заводской номер
 MAX_LETTERS = 4         # буквы производителя: «ВК», «АВ», «SGN»
+MAX_LEN = 32            # длиннее — точно не номер (вставили текст)
 
 
 def clean_serial(raw: str | None) -> str | None:
@@ -83,7 +84,7 @@ Level = Literal["ok", "warning", "bad"]
 @dataclass(frozen=True)
 class SerialCheck:
     """level: ok; warning — необычно для типа, но сохраняем; bad — это не заводской номер, не сохраняем.
-    code: None | 'empty' | 'not_serial' | 'too_short' | 'unusual_length' | 'many_letters'."""
+    code: None | 'empty' | 'not_serial' | 'too_short' | 'too_long' | 'unusual_length' | 'many_letters'."""
     level: Level
     code: str | None = None
 
@@ -107,6 +108,8 @@ def validate_serial(raw: str | None, meter_type: str | None = None) -> SerialChe
         return SerialCheck("bad", "not_serial")
     if digits < MIN_DIGITS:
         return SerialCheck("bad", "too_short")
+    if len(s) > MAX_LEN:
+        return SerialCheck("bad", "too_long")
     lo, hi = DIGITS.get(meter_type or "", (MIN_DIGITS, 16))
     if not lo <= digits <= hi:
         return SerialCheck("warning", "unusual_length")

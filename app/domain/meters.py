@@ -108,6 +108,28 @@ def format_value(value: int, meter_type: str | None = None, *, unit: bool = Fals
     return f"{text} {spec(meter_type).unit}" if unit and meter_type else text
 
 
+def reading_text(whole: str, frac: str = "") -> str:
+    """Показание как прочитано/введено, без выдуманных знаков: ('002168', '') → '2168', ('595', '8') → '595,8'."""
+    return (whole.lstrip("0") or "0") + (f",{frac}" if frac else "")
+
+
+def typed_text(text: str) -> str:
+    """Ввод пользователя для показа (после parse_value): '2168.5' → '2168,5', '00595,825' → '595,825'."""
+    s = "".join(str(int(ch)) if ch.isdigit() else ch for ch in (text or "").strip())  # «١٢»/«１２» → «12»
+    whole, _, frac = s.replace(".", ",").partition(",")
+    return reading_text(whole.strip(), frac.strip())
+
+
+def text_matches(text: str | None, value: int | None, meter_type: str) -> bool:
+    """Текст показания соответствует значению (тогда показываем текст, а не format_value)."""
+    if not text or value is None:
+        return False
+    try:
+        return parse_value(text) == value
+    except ValueParseError:
+        return False
+
+
 # --- Правдоподобие ---
 
 Plausibility = Literal["ok", "less", "too_big"]

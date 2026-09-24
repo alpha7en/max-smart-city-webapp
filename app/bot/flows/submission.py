@@ -4,11 +4,14 @@
   from: 'photo' | 'manual' | 'add'      — откуда начали (кнопки «Назад», подсказки)
   photo_id, caption                      — временное фото и подпись к нему (демо-ошибка «ошибка»)
   meter_id | draft{type,tariffs,address_id,serial?} — выбранный или новый счётчик (в БД — при отправке)
-  recognized{t1,t2,t3,serial,confidence,stub,issues,brand,model}, serial_status, serial_ok
+  recognized{t1,t2,t3,texts,serial,confidence,stub,issues,brand,model}, serial_status, serial_ok
     serial_status: 'match' | 'new' | 'mismatch' | 'other' (номер другого счётчика) | 'ignored' (номер на фото неверный)
+                   | 'entered' (номер ввели вручную — serial_entered)
     Серийник черновика берём только при отправке (из recognized) — до неё у нового счётчика номера нет.
+    Номер обязателен: нет ни у счётчика, ни на фото → «Не разобрали серийный номер» / ввод номера.
     (brand/model — только в БД, в тексты не попадают)
   values{t1,t2,t3} (тысячные), source    — что отправим
+  texts{t1,t2,t3}                        — показание как прочитано/введено ('2168', без выдуманных ',00')
   manual{idx, vals, back}                — ручной ввод по полям; back: 'review' | 'pick' | 'await'
   confirm, replace, check{kind,prev,delta,months} — повторная отправка после вопросов
   await_mode: 'instruction' | 'retake' | 'add' — что просим в SUB_AWAIT_PHOTO
@@ -51,6 +54,8 @@ from app.domain.meters import (
     fields_for,
     format_value,
     growth_limit,
+    text_matches,
+    typed_text,
     looks_like_value,
     meter_labels,
     normalize_serial,
@@ -59,7 +64,7 @@ from app.domain.meters import (
     spec,
     tariffs_of,
 )
-from app.domain.serials import format_serial, usable_serial, validate_serial
+from app.domain.serials import clean_serial, format_serial, usable_serial, validate_serial
 from app.integrations.recognizer import CONF_MIN, SERVICE, Recognition
 from app.readings import SubmitResult, format_delta, format_months, format_values, submit_reading
 from app.repo import values_of
@@ -70,8 +75,8 @@ LOW_CONFIDENCE, CHECK_CONFIDENCE = CONF_MIN, 0.8
 PAGE_SIZE = 20                    # кнопок-вариантов на экране выбора счётчика/адреса
 DRAFT_STATES = {S.SUB_NEW_TYPE, S.SUB_NEW_TARIFF, S.SUB_NEW_ADDRESS, S.SUB_ADDR_INPUT, S.SUB_ADDR_PICK,
                 S.SUB_ADDR_FLAT}
-RESET_ON_NEW_PHOTO = ("recognized", "values", "source", "serial_status", "serial_ok", "manual", "confirm",
-                      "replace", "check", "serial_other")
+RESET_ON_NEW_PHOTO = ("recognized", "values", "texts", "source", "serial_status", "serial_ok", "manual",
+                      "confirm", "replace", "check", "serial_other")
 TYPE_ROWS = ((MeterType.COLD_WATER, MeterType.HOT_WATER), (MeterType.ELECTRICITY, MeterType.GAS, MeterType.HEAT))
 _FLAT_OK = re.compile(r"^\d{1,5}[а-яёa-z]?$", re.I)
 
@@ -183,6 +188,28 @@ async def _meter(ctx: Ctx) -> Meter | None:
         return None
     return Meter(None, draft["type"], tariffs_of(draft["type"], draft.get("tariffs")), link["id"],
                  f"{TYPE_LABELS[draft['type']]} · {link['label']}", draft.get("serial"))
+
+
+def _shown(ctx: Ctx, m: Meter, values: dict | None, f: str, unit: bool = True) -> str:
+    """Значение поля для текста: как прочитали/ввели ('2168 кВт·ч'), иначе по формату табло."""
+    v = (values or {}).get(f)
+    text = (ctx.data.get("texts") or {}).get(f)
+    if not text_matches(text, v, m.type):
+        return fmt.value(v, m.type, unit=unit)
+    return f"{text} {spec(m.type).unit}" if unit else text
+
+
+def _shown_all(ctx: Ctx, m: Meter, values: dict | None) -> str:
+    """'2168 кВт·ч' или для нескольких тарифов '1010 / 505,5 кВт·ч' (как format_values, но без выдуманных знаков)."""
+    return f"{' / '.join(_shown(ctx, m, values, f, unit=False) for f in m.fields)} {spec(m.type).unit}"
+
+
+def _needs_serial(ctx: Ctx, m: Meter) -> bool:
+    """Номера нет ни у счётчика, ни на фото (или номер с фото отвергли), и вручную его не ввели."""
+    d = ctx.data
+    if m.serial or d.get("serial_entered"):
+        return False
+    return not ((d.get("recognized") or {}).get("serial") and d.get("serial_status") == "new")
 
 
 async def _prev_values(ctx: Ctx, m: Meter) -> dict | None:
@@ -344,8 +371,8 @@ async def _manual_from_await(ctx: Ctx, typed: str | None = None) -> None:
 
 async def _go_pick(ctx: Ctx) -> None:
     """К выбору счётчика; счётчиков нет — сразу к выбору типа нового."""
-    ctx.data.pop("meter_id", None)
-    ctx.data.pop("draft", None)
+    for key in ("meter_id", "draft", "serial_entered"):
+        ctx.data.pop(key, None)
     if await ctx.repo.user_meters(_uid(ctx)):
         ctx.session.go(S.SUB_PICK_METER)
         await ask_pick(ctx)
@@ -659,7 +686,8 @@ async def _recognition_failed(ctx: Ctx, m: Meter, rec: Recognition) -> None:
     if other_type:
         rows.append(_row(ctx, (T.BTN_PICK_OTHER, "pick_other")))
     rows.append(_row(ctx, (C.BTN_CANCEL, "cancel")))
-    await ctx.reply(T.recognize_failed(rec.issues, rec.note, m.type), K.kb(*rows))
+    await ctx.reply(T.recognize_failed(rec.issues, rec.note, m.type, need_serial=_needs_serial(ctx, m)),
+                    K.kb(*rows))
 
 
 async def _recognize(ctx: Ctx) -> None:
@@ -676,6 +704,8 @@ async def _recognize(ctx: Ctx) -> None:
     await ctx.typing()
     await ctx.reply(T.LOOKING)
     rec = await _run_recognizer(ctx, path, m, await _prev_values(ctx, m))
+    log.info("recognition %s/%s: readable=%s confidence=%.2f issues=%s serial=%s stub=%s", m.type, m.tariffs,
+             rec.readable(m.fields), rec.confidence, rec.issues, bool(rec.serial), rec.stub)
     if not rec.readable(m.fields):
         await _recognition_failed(ctx, m, rec)
         return
@@ -698,10 +728,12 @@ async def _recognize(ctx: Ctx) -> None:
                 rec.serial = usable_serial(rec.serial, m.type)
     # Распознанный номер в черновик не пишем: номер нового счётчика сохранится при отправке
     # (readings.submit_reading), а до неё сравнивать новый счётчик не с чем.
-    d["recognized"] = {**{f: rec.values.get(f) for f in m.fields}, "serial": rec.serial,
+    texts = {f: t for f, t in rec.texts.items() if f in m.fields}
+    d["recognized"] = {**{f: rec.values.get(f) for f in m.fields}, "texts": texts, "serial": rec.serial,
                        "confidence": rec.confidence, "stub": rec.stub, "issues": rec.issues,
                        "brand": rec.brand, "model": rec.model}
     d["values"] = {f: rec.values.get(f) for f in m.fields}
+    d["texts"] = dict(texts)
     d["source"] = "photo"
     d["serial_status"] = await _serial_status(ctx, m, rec.serial)
     if d["serial_status"] in ("mismatch", "other") and not d.get("serial_ok"):
@@ -717,12 +749,21 @@ def _missing(m: Meter, values: dict | None) -> list[str]:
 
 
 async def _review_recognized(ctx: Ctx) -> None:
-    """На проверку; многотарифный, где на фото виден не каждый тариф, — спросить только недостающие."""
+    """На проверку; многотарифный, где на фото виден не каждый тариф, — спросить только недостающие;
+    номера нет ни у счётчика, ни на фото — сначала номер."""
     m = await _meter(ctx)
     if m is None:
         return
     if missing := _missing(m, ctx.data.get("values")):
-        await _start_manual_input(ctx, back="photo", only=missing)
+        await _start_manual_input(ctx, back="photo" if _is_photo_path(ctx) else "pick", only=missing)
+        return
+    await _to_review(ctx, m)
+
+
+async def _to_review(ctx: Ctx, m: Meter) -> None:
+    """Все значения есть: к проверке, а если номера нет — сначала к номеру."""
+    if _needs_serial(ctx, m):
+        await _serial_step(ctx)
         return
     ctx.session.go(S.SUB_REVIEW)
     await ask_review(ctx)
@@ -773,7 +814,7 @@ async def got_serial(ctx: Ctx) -> None:
         await _go_pick(ctx)
     elif ctx.action in ("same", "yes"):
         ctx.data.update(serial_ok=True, serial_status="ignored")
-        await _review_recognized(ctx)
+        await _review_recognized(ctx)  # у счётчика нет номера — спросит его
     elif ctx.action == "retake":
         await _retake(ctx)
     else:
@@ -787,6 +828,100 @@ async def _retake(ctx: Ctx) -> None:
         ctx.data.pop(key, None)
     ctx.session.go(S.SUB_AWAIT_PHOTO, await_mode="retake")
     await ask_photo(ctx)
+
+
+# === Серийный номер: обязателен (на фото не виден, у счётчика не сохранён) ===
+
+def _serial_from_photo(ctx: Ctx) -> bool:
+    """Номер ждали с фото (а не отвергли его) — показываем «Не разобрали номер» с [Переснять]."""
+    d = ctx.data
+    return _is_photo_path(ctx) and d.get("source") == "photo" and d.get("serial_status") != "ignored"
+
+
+async def _serial_step(ctx: Ctx) -> None:
+    """После фото — «Не разобрали номер» [Переснять] [Ввести номер]; без фото (или номер с фото
+    отвергли) — сразу ввод номера."""
+    if _serial_from_photo(ctx):
+        ctx.session.go(S.SUB_SERIAL_MISSING)
+        await ask_serial_missing(ctx)
+    else:
+        ctx.session.go(S.SUB_SERIAL_INPUT)
+        await ask_serial_input(ctx)
+
+
+@on_repeat(S.SUB_SERIAL_MISSING)
+async def ask_serial_missing(ctx: Ctx) -> None:
+    m = await _meter(ctx)
+    if m is None:
+        return
+    await ctx.reply(f"{esc(m.label)}\n\n{T.SERIAL_MISSING}", K.kb(
+        _row(ctx, (T.BTN_RETAKE, "retake"), (T.BTN_SERIAL, "serial")), _row(ctx, (C.BTN_CANCEL, "cancel"))))
+
+
+@on_state(S.SUB_SERIAL_MISSING)
+async def got_serial_missing(ctx: Ctx) -> None:
+    if await _handled_exit(ctx):
+        return
+    if ctx.action == "retake":
+        await _retake(ctx)
+    elif ctx.action == "serial":
+        ctx.session.go(S.SUB_SERIAL_INPUT)
+        await ask_serial_input(ctx)
+    elif not ctx.is_callback and ctx.text and K.text_alias(ctx.text) is None:  # сразу написали номер
+        ctx.session.go(S.SUB_SERIAL_INPUT)
+        await _serial_value(ctx, ctx.text)
+    else:
+        await ask_serial_missing(ctx)
+
+
+@on_repeat(S.SUB_SERIAL_INPUT)
+async def ask_serial_input(ctx: Ctx) -> None:
+    m = await _meter(ctx)
+    if m is None:
+        return
+    await ctx.reply(f"{esc(m.label)}\n\n{T.ASK_SERIAL.format(example=T.SERIAL_EXAMPLES[m.type])}",
+                    _manual_kb(ctx))
+
+
+@on_state(S.SUB_SERIAL_INPUT)
+async def got_serial_input(ctx: Ctx) -> None:
+    if await _handled_exit(ctx):
+        return
+    if ctx.action == "back" or (not ctx.is_callback and K.text_alias(ctx.text) == "back"):
+        if _serial_from_photo(ctx):
+            ctx.session.go(S.SUB_SERIAL_MISSING)
+            await ask_serial_missing(ctx)
+        elif _is_photo_path(ctx):
+            await _retake(ctx)
+        else:
+            await _start_manual_input(ctx, back="pick")
+    elif ctx.is_callback or not ctx.text:
+        await ask_serial_input(ctx)
+    else:
+        await _serial_value(ctx, ctx.text)
+
+
+async def _serial_value(ctx: Ctx, text: str) -> None:
+    """Номер, введённый вручную: проверка по типу (domain/serials), номер другого счётчика не берём."""
+    m = await _meter(ctx)
+    if m is None:
+        return
+    check = validate_serial(text, m.type)
+    if not check.usable:
+        tpl = T.SERIAL_ERRORS.get(check.code or "", T.SERIAL_ERRORS["not_serial"])
+        await ctx.reply(tpl.format(example=T.SERIAL_EXAMPLES[m.type], typical=T.SERIAL_TYPICAL[m.type]),
+                        _manual_kb(ctx))
+        return
+    serial = clean_serial(text) or ""
+    other = await ctx.repo.find_meter_by_serial(m.address_id, serial)
+    if other and other["id"] != m.id:
+        meters = await ctx.repo.user_meters(_uid(ctx))
+        label = next((lb for x, lb in zip(meters, meter_labels(meters), strict=True) if x["id"] == other["id"]), "")
+        await ctx.reply(T.SERIAL_TAKEN.format(serial=esc(format_serial(serial, m.type)), other=esc(label)),
+                        _manual_kb(ctx))
+        return
+    ctx.data.update(serial_entered=serial, serial_status="entered")
+    await _review_recognized(ctx)
 
 
 # === Проверка (эталон §8 п.6) ===
@@ -807,18 +942,21 @@ async def ask_review(ctx: Ctx) -> None:
         return
     lines = [esc(m.label), ""]
     if len(m.fields) == 1:
-        lines.append(T.VALUE_LINE.format(value=fmt.value(values.get("t1"), m.type)))
+        lines.append(T.VALUE_LINE.format(value=_shown(ctx, m, values, "t1")))
     else:
         labels = field_labels(m.type, m.tariffs)
-        lines += [T.TARIFF_LINE.format(label=labels[f], value=fmt.value(values.get(f), m.type)) for f in m.fields]
-    serial = (d.get("recognized") or {}).get("serial")
+        lines += [T.TARIFF_LINE.format(label=labels[f], value=_shown(ctx, m, values, f)) for f in m.fields]
+    status = d.get("serial_status") or ""
+    serial = d.get("serial_entered") if status == "entered" else (d.get("recognized") or {}).get("serial")
     ignored = T.SERIAL_IGNORED if m.serial else T.SERIAL_REJECTED
-    status_line = {"match": T.SERIAL_MATCH, "new": T.SERIAL_NEW, "ignored": ignored}.get(
-        d.get("serial_status") or "")
+    status_line = {"match": T.SERIAL_MATCH, "new": T.SERIAL_NEW, "entered": T.SERIAL_NEW,
+                   "ignored": ignored}.get(status)
     if status_line and serial:
         lines.append(status_line.format(serial=esc(format_serial(serial, m.type))))
-        if d.get("serial_status") == "new" and validate_serial(serial, m.type).level == "warning":
+        if status in ("new", "entered") and validate_serial(serial, m.type).level == "warning":
             lines.append(T.SERIAL_WARN.format(typical=T.SERIAL_TYPICAL[m.type]))
+    elif m.serial and d.get("source") == "photo" and d.get("recognized") and not serial:
+        lines.append(T.SERIAL_NOT_ON_PHOTO.format(serial=esc(format_serial(m.serial, m.type))))
     prev = await _prev_values(ctx, m)
     if prev:
         if len(m.fields) == 1 and values.get("t1") is not None:
@@ -828,7 +966,10 @@ async def ask_review(ctx: Ctx) -> None:
             lines.append(T.PREV_LINE_MULTI.format(value=format_values(prev, m.type, m.tariffs)))
     rec = d.get("recognized") or {}
     if d.get("source") == "photo":
-        if LOW_CONFIDENCE <= rec.get("confidence", 1) < CHECK_CONFIDENCE:
+        warnings = T.review_warnings(rec.get("issues") or [], m.type)
+        if warnings:  # что именно не так с фото — конкретно, а не общее «проверьте»
+            lines += warnings
+        elif LOW_CONFIDENCE <= rec.get("confidence", 1) < CHECK_CONFIDENCE:
             lines.append(T.CHECK_DIGITS)
         if rec.get("stub"):
             lines.append(T.STUB_NOTE)
@@ -871,7 +1012,8 @@ async def _start_manual_input(ctx: Ctx, *, back: str, typed: str | None = None,
                               only: list[str] | None = None) -> None:
     """Ввод по полям. only — спросить только эти поля (остальные уже распознаны и лежат в values)."""
     vals = {f: v for f, v in (ctx.data.get("values") or {}).items() if v is not None} if only else {}
-    ctx.data["manual"] = {"idx": 0, "vals": vals, "back": back, **({"only": only} if only else {})}
+    texts = {f: t for f, t in (ctx.data.get("texts") or {}).items() if f in vals}
+    ctx.data["manual"] = {"idx": 0, "vals": vals, "texts": texts, "back": back, **({"only": only} if only else {})}
     ctx.session.go(S.SUB_MANUAL)
     if typed:
         await _manual_value(ctx, typed)
@@ -902,13 +1044,15 @@ async def ask_manual(ctx: Ctx) -> None:
         ask = T.ASK_TARIFF_VALUE.format(label=labels[f], n=idx + 1, total=len(asked), example=example)
     lines = [esc(m.label), ""]
     if man.get("only"):
-        got = [f"{labels[k]} — {fmt.value(v, m.type)}" for k, v in man["vals"].items() if k not in asked]
+        got = [f"{labels[k]} — {_shown(ctx, m, man['vals'], k)}" for k in man["vals"] if k not in asked]
         if got:
             lines += [T.PARTIAL_GOT.format(got="; ".join(got)), ""]
     lines.append(ask)
-    rec = (ctx.data.get("recognized") or {}).get(f)
-    if rec is not None:
-        lines.append(T.RECOGNIZED_HINT.format(value=fmt.value(rec, m.type)))
+    rec = ctx.data.get("recognized") or {}
+    if rec.get(f) is not None:
+        text = (rec.get("texts") or {}).get(f)
+        shown = f"{text} {spec(m.type).unit}" if text_matches(text, rec[f], m.type) else fmt.value(rec[f], m.type)
+        lines.append(T.RECOGNIZED_HINT.format(value=shown))
     prev = await _prev_values(ctx, m)
     if prev and prev.get(f) is not None:
         lines.append(T.PREV_HINT.format(value=fmt.value(prev[f], m.type)))
@@ -966,6 +1110,7 @@ async def _manual_value(ctx: Ctx, text: str) -> None:
     f = asked[min(man["idx"], len(asked) - 1)]
     try:
         man["vals"][f] = parse_value(text, m.type)
+        man.setdefault("texts", {})[f] = typed_text(text)
     except ValueParseError as e:
         sp = spec(m.type)
         await ctx.reply(T.PARSE_ERRORS[e.code].format(example=T.EXAMPLES[m.type], digits=sp.int_digits,
@@ -976,11 +1121,11 @@ async def _manual_value(ctx: Ctx, text: str) -> None:
         await ask_manual(ctx)
         return
     ctx.data["values"] = {f: man["vals"].get(f) for f in m.fields}
+    ctx.data["texts"] = {f: t for f, t in (man.get("texts") or {}).items() if f in m.fields}
     ctx.data["source"] = "photo_edited" if ctx.data.get("recognized") else "manual"
     for key in ("manual", "confirm", "replace", "check"):
         ctx.data.pop(key, None)
-    ctx.session.go(S.SUB_REVIEW)
-    await ask_review(ctx)
+    await _to_review(ctx, m)
 
 
 # === Отправка и её вопросы ===
@@ -990,6 +1135,9 @@ async def _submit(ctx: Ctx) -> None:
     m = await _meter(ctx)
     if m is None:
         return
+    if _needs_serial(ctx, m):  # страховка: без номера не отправляем
+        await _serial_step(ctx)
+        return
     recognized = d.get("recognized")
     if recognized and d.get("serial_status") not in ("match", "new"):
         # Номер на фото пользователь отверг (или он чужой) — счётчику его не присваиваем.
@@ -998,6 +1146,7 @@ async def _submit(ctx: Ctx) -> None:
         ctx.repo, user_id=_uid(ctx), meter_id=m.id, draft=None if m.id else d.get("draft"),
         values=d.get("values") or {}, source=d.get("source") or "manual", recognized=recognized,
         confirm=bool(d.get("confirm")), replace=bool(d.get("replace")), today=ctx.now.date(),
+        serial=d.get("serial_entered"),
     )
     if res.ok:
         await _done(ctx, m, res)
@@ -1032,7 +1181,7 @@ async def ask_plausibility(ctx: Ctx) -> None:
         kb = K.kb(_row(ctx, (T.BTN_CONFIRM_BIG, "confirm")), _row(ctx, (T.BTN_EDIT, "edit"), cancel))
     else:
         text = T.LESS_THAN_PREV.format(prev=format_values(check.get("prev") or {}, m.type, m.tariffs),
-                                       new=format_values(values, m.type, m.tariffs))
+                                       new=_shown_all(ctx, m, values))
         retake = [(T.BTN_RETAKE, "retake")] if _is_photo_path(ctx) else []
         kb = K.kb(_row(ctx, (T.BTN_EDIT, "edit"), *retake), _row(ctx, cancel))
     await ctx.reply(text, kb)
@@ -1062,7 +1211,7 @@ async def ask_replace(ctx: Ctx) -> None:
     old = (ctx.data.get("check") or {}).get("old") or {}
     await ctx.reply(
         T.ALREADY_SUBMITTED.format(month=fmt.month_name(_period(ctx)), old=format_values(old, m.type, m.tariffs),
-                                   new=format_values(ctx.data.get("values") or {}, m.type, m.tariffs)),
+                                   new=_shown_all(ctx, m, ctx.data.get("values") or {})),
         K.kb(_row(ctx, (T.BTN_REPLACE, "replace"), (T.BTN_KEEP_OLD, "keep"))),
     )
 
@@ -1096,7 +1245,7 @@ async def _done(ctx: Ctx, m: Meter, res: SubmitResult) -> None:
     else:
         label = m.label
     lines = [T.DONE.format(meter=esc(fmt.meter_of(m.type, label)), month=fmt.month_name(res.period),
-                           value=format_values(res.values, m.type, m.tariffs)), T.UK_MOCK]
+                           value=_shown_all(ctx, m, res.values)), T.UK_MOCK]
     if res.status == "flagged":
         lines.append(T.FLAGGED_DONE)
     await drop_scenario(ctx)  # фото удалено, новый flow — кнопки проверки устарели

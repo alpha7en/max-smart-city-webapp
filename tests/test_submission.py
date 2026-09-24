@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import json
 from datetime import timedelta
 from pathlib import Path
@@ -105,8 +106,13 @@ async def register(repo, uid: int = UID, address: str = ARBAT) -> tuple[int, int
     return u["id"], r["address_id"]
 
 
-async def meter(repo, user, mtype="cold_water", tariffs=1, serial=None, readings=()) -> int:
+_SERIALS = itertools.count(10_000_001)
+AUTO = object()  # у счётчика есть номер (без номера бот спросит его перед отправкой)
+
+
+async def meter(repo, user, mtype="cold_water", tariffs=1, serial=AUTO, readings=()) -> int:
     uid, aid = user
+    serial = str(next(_SERIALS)) if serial is AUTO else serial
     mid = await repo.create_meter(aid, mtype, tariffs, serial, uid)
     for period, vals in readings:
         vals = vals if isinstance(vals, dict) else {"t1": vals}
@@ -146,6 +152,13 @@ async def user(repo):
 async def cold(repo, user):
     """Счётчик холодной воды с показанием за сентябрь 118,200."""
     return await meter(repo, user, readings=[("2026-09", 118_200)])
+
+
+async def give_serial(chat: Chat, serial: str = "18-765432") -> None:
+    """«Не разобрали серийный номер» → [Ввести номер] → номер."""
+    assert T.SERIAL_MISSING in chat.api.last_text()
+    await chat.press(T.BTN_SERIAL)
+    await chat.text(serial)
 
 
 async def to_review(chat: Chat, label: str = LABEL, url: str = "https://i.oneme.ru/i?r=photo1") -> None:
@@ -217,12 +230,24 @@ async def test_f4_new_electricity_two_tariffs(chat, api, repo, user):
     assert api.last_text() == T.ASK_ADDRESS
     assert buttons(api) == ["Арбат 47к1, кв 32", T.BTN_OTHER_ADDRESS, C.BTN_BACK, C.BTN_CANCEL]
     await chat.press("Арбат 47к1, кв 32")
+    # Демо-распознавание номер не читает: без номера к «Отправить» не пускаем.
+    assert api.last_text() == f"Свет · Арбат 47к1, кв 32\n\n{T.SERIAL_MISSING}"
+    assert buttons(api) == [T.BTN_RETAKE, T.BTN_SERIAL, C.BTN_CANCEL]
+    assert (await state(repo)).state == S.SUB_SERIAL_MISSING
+    await chat.press(T.BTN_SERIAL)
+    assert T.ASK_SERIAL.format(example="01234567") in api.last_text()
+    await chat.text("2021")  # год — не номер
+    assert api.last_text().startswith("Это не похоже на серийный номер")
+    assert (await state(repo)).state == S.SUB_SERIAL_INPUT
+    await chat.text("0112 3456 7890")
     review = api.last_text()
     assert "Т1 день: **" in review and "Т2 ночь: **" in review
+    assert "Серийный номер: 011234567890 — сохраним" in review
     assert await repo.address_meters(user[1]) == []  # черновик: в БД ещё нет
     await chat.press(T.BTN_SEND)
     (m,) = await repo.address_meters(user[1])
     assert (m["type"], m["tariffs"], m["created_by"]) == ("electricity", 2, user[0])
+    assert m["serial"] == "0112 3456 7890"
     (r,) = await readings(repo, m["id"])
     assert r["t1"] and r["t2"] and r["t3"] is None
     assert api.last_text().endswith(T.ASK_VERIF) and buttons(api) == [T.BTN_LATER]
@@ -261,7 +286,7 @@ async def test_new_address_without_flat_and_new_search(chat, api, repo, user):
     await chat.text("кв. сорок")
     assert api.last_text() == T.FLAT_ERROR
     await chat.text("кв. 5")
-    assert (await state(repo)).state == S.SUB_REVIEW
+    assert (await state(repo)).state == S.SUB_SERIAL_MISSING  # новый счётчик: номер обязателен
     rows = await repo.user_addresses(user[0])
     assert [r["flat"] for r in rows] == ["32", "5"] and all(r["access"] == "granted" for r in rows)
 
@@ -289,7 +314,7 @@ async def test_several_candidates_private_house_and_save_as_is(chat, api, repo, 
     assert buttons(api)[-2:] == [T.BTN_NOT_MINE, C.BTN_BACK] and len(buttons(api)) == 4
     await chat.press(buttons(api)[1])
     await chat.press(T.BTN_PRIVATE_HOUSE)
-    assert (await state(repo)).state == S.SUB_REVIEW
+    assert (await state(repo)).state == S.SUB_SERIAL_MISSING
     assert (await repo.user_addresses(user[0]))[1]["house"] == "3"
 
     deps.addresses = FakeAddresses([], local=[cand("Москва, Тверская 9, кв 1")])
@@ -300,7 +325,7 @@ async def test_several_candidates_private_house_and_save_as_is(chat, api, repo, 
     await chat.text("Москва, Тверская 9, кв 1")
     assert api.last_text().startswith("Не нашли такой адрес в справочнике")
     await chat.press(T.BTN_SAVE_AS_IS)
-    assert (await state(repo)).state == S.SUB_REVIEW and len(await repo.user_addresses(user[0])) == 3
+    assert (await state(repo)).state == S.SUB_SERIAL_MISSING and len(await repo.user_addresses(user[0])) == 3
 
 
 # --- F6: отмена везде ---
@@ -358,7 +383,7 @@ async def test_f7_edit_with_errors_then_photo_edited(chat, api, repo, cold):
     await chat.press(T.BTN_EDIT)
     await chat.text("125,5")
     review = api.last_text()
-    assert "Показание: **125,500 м³**" in review and T.STUB_NOTE not in review
+    assert "Показание: **125,5 м³**" in review and T.STUB_NOTE not in review
     await chat.press(T.BTN_SEND)
     assert (await readings(repo, cold))[-1] == {"t1": 125_500, "t2": None, "t3": None,
                                                 "source": "photo_edited", "status": "accepted"}
@@ -427,7 +452,7 @@ async def test_multi_tariff_one_tariff_on_photo_rest_manual(chat, api, repo, dep
     assert "Показание:" not in text and "(1 из 2)" not in text
     await chat.text("1010")
     review = api.last_text()
-    assert "Т1 день: **1010,00 кВт·ч**" in review and "Т2 ночь: **505,50 кВт·ч**" in review
+    assert "Т1 день: **1010 кВт·ч**" in review and "Т2 ночь: **505,50 кВт·ч**" in review
     await chat.press(T.BTN_SEND)
     assert (await readings(repo, mid))[-1] == {"t1": 1_010_000, "t2": 505_500, "t3": None,
                                                "source": "photo_edited", "status": "accepted"}
@@ -478,7 +503,7 @@ async def test_edit_after_partial_asks_all_fields(chat, api, repo, deps, user):
     await chat.press(T.BTN_EDIT)
     assert "Т1 день (1 из 2)" in api.last_text()
     await chat.press(C.BTN_BACK)
-    assert (await state(repo)).state == S.SUB_REVIEW and "Т1 день: **1010,00 кВт·ч**" in api.last_text()
+    assert (await state(repo)).state == S.SUB_REVIEW and "Т1 день: **1010 кВт·ч**" in api.last_text()
 
 
 # --- F11–F12: серийные номера ---
@@ -509,7 +534,7 @@ async def test_serial_match_and_saved_for_meter_without_serial(chat, api, repo, 
     await to_review(chat)
     assert "Серийный номер: 18 123456 — совпадает" in api.last_text()
     await chat.press(C.BTN_CANCEL)
-    gas = await meter(repo, user, "gas")
+    gas = await meter(repo, user, "gas", serial=None)
     deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="GZ-1234567")
     await to_review(chat, "Газ · Арбат 47к1, кв 32", "https://i/3")
     assert "GZ-1234567 — сохраним" in api.last_text()
@@ -517,8 +542,9 @@ async def test_serial_match_and_saved_for_meter_without_serial(chat, api, repo, 
     assert (await repo.get_meter(gas))["serial"] == "GZ-1234567"
 
 
-async def test_meter_model_saved_internally_never_shown(chat, api, repo, deps, user, cold):
+async def test_meter_model_saved_internally_never_shown(chat, api, repo, deps, user):
     """Модель и производитель с шильдика — в recognized_json; в сообщения не попадают, серийник отдельно."""
+    cold = await meter(repo, user, serial=None, readings=[("2026-09", 118_200)])
     deps.recognizer = FixedRecognizer({"t1": 120_000}, serial="18-4521", brand="Бетар", model="СХВ-15")
     await to_review(chat)
     assert "Серийный номер: 18-4521" in api.last_text()
@@ -633,17 +659,21 @@ async def test_serial_other_meter_then_pick_it(chat, api, repo, deps, user):
 
 
 async def test_serial_of_another_meter_for_meter_without_serial(chat, api, repo, deps, user):
-    cold_id = await meter(repo, user)
+    cold_id = await meter(repo, user, serial=None)
     hot = await meter(repo, user, "hot_water", serial="18-123456")
     deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="18 123456")
     await to_review(chat)
     assert (await state(repo)).state == S.SUB_SERIAL_MISMATCH
     assert api.last_text() == T.SERIAL_OF_OTHER.format(photo="18 123456", other="Гор. вода · Арбат 47к1, кв 32",
                                                        label=LABEL)
-    await chat.press(T.BTN_SAME_METER)
-    assert "18 123456 — не сохраняем" in api.last_text()
+    await chat.press(T.BTN_SAME_METER)  # номер с фото не берём, а своего у счётчика нет — спросим
+    assert (await state(repo)).state == S.SUB_SERIAL_INPUT and T.SERIAL_MISSING not in api.last_text()
+    await chat.text("18-123456")  # тот же чужой номер
+    assert api.last_text().startswith("Номер 18-123456 уже записан у другого вашего счётчика")
+    await chat.text("18-777777")
+    assert "Серийный номер: 18-777777 — сохраним" in api.last_text()
     await chat.press(T.BTN_SEND)
-    assert (await repo.get_meter(cold_id))["serial"] is None
+    assert (await repo.get_meter(cold_id))["serial"] == "18-777777"
     assert (await repo.get_meter(hot))["serial"] == "18-123456" and len(await readings(repo, cold_id)) == 1
 
 
@@ -888,7 +918,7 @@ async def test_f22_manual_three_tariffs_with_back(chat, api, repo, user):
     await chat.text("505,5")
     await chat.text("303")
     review = api.last_text()
-    assert "Т1 пик: **1010,00 кВт·ч**" in review and "Т3 полупик: **303,00 кВт·ч**" in review
+    assert "Т1 пик: **1010 кВт·ч**" in review and "Т3 полупик: **303 кВт·ч**" in review
     assert "В прошлый раз: 1000,00 / 500,00 / 300,00 кВт·ч" in review
     assert buttons(api) == [T.BTN_SEND, T.BTN_EDIT, C.BTN_CANCEL]
     await chat.press(T.BTN_SEND)
@@ -917,8 +947,16 @@ async def test_f23_add_meter_manual_and_photo(chat, api, repo, user, hook_button
     assert api.last_text() == T.ADD_PROMPT
     await chat.press(T.BTN_MANUAL)
     await chat.text("1234,5")
+    # Без фото номер тоже нужен: спрашиваем его тем же шагом ввода.
+    assert (await state(repo)).state == S.SUB_SERIAL_INPUT and T.ASK_SERIAL.format(example="1234567") in api.last_text()
+    await chat.press(C.BTN_BACK)
+    assert (await state(repo)).state == S.SUB_MANUAL
+    await chat.text("1234,5")
+    await chat.text("GZ-7654321")
+    assert "Показание: **1234,5 м³**" in api.last_text() and "GZ-7654321 — сохраним" in api.last_text()
     await chat.press(T.BTN_SEND)
     (gas,) = await repo.address_meters(user[1])
+    assert gas["serial"] == "GZ-7654321"
     assert gas["type"] == "gas" and (await readings(repo, gas["id"]))[0]["t1"] == 1_234_500
 
     await chat.press(T.BTN_LATER)
@@ -926,6 +964,7 @@ async def test_f23_add_meter_manual_and_photo(chat, api, repo, user, hook_button
     await chat.press("Тепло")
     await chat.press("Арбат 47к1, кв 32")
     await chat.photo()
+    await give_serial(chat, "12345678")
     assert (await state(repo)).state == S.SUB_REVIEW
     await chat.press(T.BTN_SEND)
     assert {m["type"] for m in await repo.address_meters(user[1])} == {"gas", "heat"}
@@ -935,6 +974,7 @@ async def test_f24_verification_date(chat, api, repo, user):
     await chat.photo()
     await chat.press("Газ")
     await chat.press("Арбат 47к1, кв 32")
+    await give_serial(chat, "1234567")
     await chat.press(T.BTN_SEND)
     assert (await state(repo)).state == S.SUB_VERIF_DATE
     for bad, err in [("31.02.2030", "no_such_date"), ("01.01.2020", "past"), ("скоро", "format")]:
@@ -948,12 +988,13 @@ async def test_f24_verification_date(chat, api, repo, user):
 
 
 async def test_f24_later_and_photo_starts_new_submission(chat, api, repo, user):
-    for _ in range(2):
+    for i in range(2):
         await chat.photo()
         if (await state(repo)).state == S.SUB_PICK_METER:
             await chat.press(T.BTN_NEW_METER)
         await chat.press("Тепло")
         await chat.press("Арбат 47к1, кв 32")
+        await give_serial(chat, f"1234567{i}")
         await chat.press(T.BTN_SEND)
         assert (await state(repo)).state == S.SUB_VERIF_DATE
     await chat.press(T.BTN_LATER)
@@ -968,6 +1009,7 @@ async def test_f24_leaving_verification_date_is_not_a_cancel(chat, api, repo, us
     await chat.photo()
     await chat.press("Газ")
     await chat.press("Арбат 47к1, кв 32")
+    await give_serial(chat, "1234567")
     await chat.press(T.BTN_SEND)
     assert (await state(repo)).state == S.SUB_VERIF_DATE
     if exit_ == "expired":
@@ -1028,9 +1070,9 @@ async def test_f28_number_instead_of_photo(chat, api, repo, cold):
     await chat.text("125,5")
     assert api.last_text() == T.PICK_MANUAL
     await chat.press(LABEL)
-    assert "Показание: **125,500 м³**" in api.last_text() and (await state(repo)).state == S.SUB_REVIEW
+    assert "Показание: **125,5 м³**" in api.last_text() and (await state(repo)).state == S.SUB_REVIEW
     await chat.text("126")  # число на проверке — исправление
-    assert "Показание: **126,000 м³**" in api.last_text()
+    assert "Показание: **126 м³**" in api.last_text()  # как ввели, без дописанных нулей
     await chat.text("да")
     assert (await readings(repo, cold))[-1] == {"t1": 126_000, "t2": None, "t3": None,
                                                 "source": "manual", "status": "accepted"}
@@ -1058,16 +1100,18 @@ def test_button_texts_fit():
 # --- Серийники: «не номер» отбрасываем, необычный формат — мягкое предупреждение ---
 
 async def test_serial_not_a_serial_is_dropped(chat, api, repo, deps, user):
-    mid = await meter(repo, user)
+    mid = await meter(repo, user, serial=None)
     deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="2018")  # год выпуска
     await to_review(chat)
-    assert (await state(repo)).state == S.SUB_REVIEW and "Серийный номер" not in api.last_text()
+    assert (await state(repo)).state == S.SUB_SERIAL_MISSING and "2018" not in api.last_text()
+    await give_serial(chat, "Серийный номер 18-246810")
+    assert (await state(repo)).state == S.SUB_REVIEW and "Серийный номер: 18-246810 — сохраним" in api.last_text()
     await chat.press(T.BTN_SEND)
-    assert (await repo.get_meter(mid))["serial"] is None
+    assert (await repo.get_meter(mid))["serial"] == "18-246810"
 
 
 async def test_serial_unusual_length_warns_but_saves(chat, api, repo, deps, user):
-    mid = await meter(repo, user)
+    mid = await meter(repo, user, serial=None)
     deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="№ 12345")
     await to_review(chat)
     text = api.last_text()

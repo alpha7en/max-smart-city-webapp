@@ -192,6 +192,10 @@ body.has-bar main { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px
 .win.sm input, .win.sm .mir { font-size: 26px; letter-spacing: .03em; }
 .tablo .f { color: var(--tablo-frac); opacity: 1; }
 .meta { display: flex; justify-content: space-between; gap: 8px; padding: 0 4px; font-size: 13px; color: var(--muted); }
+.field.serial label { font-size: 13px; color: var(--muted); padding: 0 4px; }
+.field.serial input { font: inherit; font-size: 17px; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--line, #d0d5dd); background: var(--card); color: inherit; }
+.field.serial small { font-size: 13px; color: var(--muted); padding: 0 4px; }
+.field.serial.err input { border-color: var(--bad); }
 .dl { font-family: var(--mono); font-weight: 650; color: var(--ok); }
 .dl.neg { color: var(--bad); }
 

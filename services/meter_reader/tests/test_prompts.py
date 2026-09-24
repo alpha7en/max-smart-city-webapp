@@ -71,3 +71,16 @@ def test_serial_hint_per_type(meter_type, marker):
     assert marker in prompt and "seal number" in prompt
     assert prompt.count('"serial_number": usually') + prompt.count('"serial_number": a long') == 1
     assert "seal number" not in RECOGNIZE_PROMPT  # универсальный промпт не меняется
+
+
+@pytest.mark.parametrize("meter_type", [None, *METER_TYPES])
+def test_problems_demand_honest_confidence_and_serial_issue(meter_type):
+    prompt = build_prompt(meter_type, 1)
+    assert '"confidence" 0.5 or lower' in prompt and "Never fill in digits or positions you did not see" in prompt
+    assert 'always add "serial_not_visible"' in prompt
+
+
+def test_electricity_counts_lcd_positions():
+    prompt = build_prompt("electricity", 1)
+    assert "count the digit positions" in prompt and "Видно 4 разряда из 6" in prompt
+    assert "count the digit positions" not in build_prompt("cold_water", 1)

@@ -109,6 +109,10 @@ _READING_ELECTRICITY = (
     "the decimals are separated by a point or shown in another color/frame; on drums they are red.\n"
     "   - List every displayed digit left to right in \"drums\": \"black\" for whole kWh, \"red\" for digits "
     "after the decimal point. Keep leading zeros.\n"
+    "   - LCD: count the digit positions and compare with the typical 5-6 whole kWh digits. If fewer positions "
+    "are visible (faint, unlit or noisy segments), list ONLY the digits you actually see (never add the missing "
+    "positions or decimal zeros), add \"digits_not_visible\" and write in \"issue_note\" how many positions are "
+    "visible, e.g. \"Видно 4 разряда из 6, сегменты бледные\".\n"
     "   - Put the tariff shown next to the value into \"tariff\" (\"T1\", \"T2\", \"T3\"; \"total\" for a sum/Σ "
     "value); null if no tariff indicator is shown.{tariffs}\n"
     "   - Do NOT read: date, time, voltage (V), current (A), power (kW), frequency, screen/parameter code "
@@ -170,6 +174,8 @@ _IDENTIFICATION = """3. Identification: manufacturer/brand (e.g. "Норма", "
 _PROBLEMS = """4. Problems (be honest, never guess):
    - "readable": true if you can read every digit of the main reading. A rolling drum, minor glare, blur or angle that still lets you tell the digits: readable true (you may still list the issue).
    - If some digits of the reading are truly not visible (hidden, cut off, unreadably blurry, display off): "readable": false, "drums": [] (do not invent digits), and list the causes.
+   - Faint, noisy or blurry display and you are unsure of even one digit: "confidence" 0.5 or lower and add "blurry" or "digits_not_visible". Never fill in digits or positions you did not see (no guessed leading digits, no trailing decimal zeros).
+   - Serial number or its barcode not legible or not in the photo: always add "serial_not_visible".
    - "issues": codes from this list only: "no_meter", "wrong_type", "digits_not_visible" (digits hidden or cut off), "blurry", "glare", "too_dark", "angle", "partially_covered", "multiple_meters", "serial_not_visible" (does not affect readable), "display_off" (LCD blank or not showing the reading), "other". Empty list if all is fine.
    - "issue_note": short explanation in Russian for the user (max 120 chars), e.g. "Блик закрывает последние цифры"; null if no issues."""
 
