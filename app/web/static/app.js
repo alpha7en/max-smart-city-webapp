@@ -619,9 +619,9 @@
         const vals = r.values || {};
         const keys = KEYS.slice(0, tariffCount(sel));
         const got = keys.filter(k => vals[k] != null && vals[k] !== '');
-        if (!got.length || (typeof r.confidence === 'number' && r.confidence < 0.5)) {
+        if (r.readable === false || !got.length || (typeof r.confidence === 'number' && r.confidence < 0.5)) {
           haptic('error');
-          return note(recBox, 'bad', 'Не разобрали цифры. Переснимите прямо, без бликов, или введите вручную.');
+          return note(recBox, 'bad', r.message || 'Не разобрали цифры. Переснимите прямо, без бликов, или введите вручную.');
         }
         got.forEach(k => { inputs[k].value = fmtNum(vals[k], sel); inputs[k].dispatchEvent(new Event('input')); });
         usedStub = !!r.stub;
@@ -629,8 +629,10 @@
         if (r.stub) parts2.push('Демо-распознавание. Проверьте цифры.');
         else if (typeof r.confidence === 'number' && r.confidence < 0.8) parts2.push('Проверьте цифры внимательно.');
         else parts2.push('Цифры с фото. Проверьте и отправьте.');
-        if (r.serial && sel.serial && normSerial(r.serial) !== normSerial(sel.serial)) {
-          parts2.push('На фото № ' + r.serial + ', у счётчика № ' + sel.serial + '. Тот ли это счётчик?');
+        if (r.message) parts2.push(r.message);
+        if (r.serial_note) parts2.push(r.serial_note);
+        else if (r.serial_mismatch === undefined && r.serial && sel.serial && normSerial(r.serial) !== normSerial(sel.serial)) {
+          parts2.push('На фото № ' + r.serial + ', у счётчика № ' + sel.serial + '. Проверьте, тот ли счётчик выбран.');
         }
         note(recBox, parts2.length > 1 || r.stub ? 'warn' : 'info', parts2.join(' '));
       } catch (e) {

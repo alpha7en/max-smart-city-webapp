@@ -14,7 +14,9 @@ from fastapi.testclient import TestClient
 
 import app.main as main
 from app import clock
+from app.bot.texts import submission as TS
 from app.domain.addresses import AddressCandidate, norm_key
+from app.integrations.recognizer import Recognition
 from app.web import api as web_api
 from app.web.auth import sign_init_data
 from tests import fakes
@@ -349,6 +351,53 @@ def test_a6_recognize_errors(client, monkeypatch):
     monkeypatch.setattr(client.app.state.deps, "recognizer", Broken())
     assert_error(recognize(client, mid), 500, "internal")
     assert seen == [True] and photos_left(client) == []
+
+
+class Answer:
+    """Распознаватель с заданным ответом."""
+
+    def __init__(self, rec: Recognition):
+        self.rec = rec
+
+    async def recognize(self, *a, **k) -> Recognition:
+        return self.rec
+
+
+def recognize_with(client, monkeypatch, mid, **kw) -> dict:
+    rec = Recognition(**{"values": {"t1": None, "t2": None, "t3": None}, **kw})
+    monkeypatch.setattr(client.app.state.deps, "recognizer", Answer(rec))
+    r = recognize(client, mid)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_a6_recognize_explains_issues(client, monkeypatch):
+    u = register(client)
+    mid = add_meter(client, u["address_id"])
+    d = recognize_with(client, monkeypatch, mid, issues=["glare", "angle", "too_dark"], note="Лампа отражается")
+    assert (d["readable"], d["issues"], d["note"]) == (False, ["glare", "angle", "too_dark"], "Лампа отражается")
+    assert d["message"] == " ".join([TS.ISSUE_TEXTS["glare"], TS.ISSUE_TEXTS["angle"], "Лампа отражается.",
+                                     TS.FAILED_TAIL])
+    d = recognize_with(client, monkeypatch, mid, error="timeout", issues=["service"])
+    assert d["readable"] is False and d["message"] == f"{TS.ISSUE_TEXTS['service']} {TS.FAILED_TAIL_SERVICE}"
+    d = recognize_with(client, monkeypatch, mid, confidence=0.3, values={"t1": 1000})
+    assert d["readable"] is False and d["message"] == TS.API_UNREADABLE
+    d = recognize_with(client, monkeypatch, mid, confidence=0.6, values={"t1": 1000}, issues=["wrong_type"])
+    assert (d["readable"], d["message"], d["values"]["t1"]) == (True, TS.WRONG_TYPE_WARN, 1.0)
+    d = recognize_with(client, monkeypatch, mid, confidence=0.9, values={"t1": 1000})
+    assert (d["readable"], d["message"], d["issues"], d["serial_mismatch"]) == (True, None, [], False)
+
+
+def test_a6_wrong_serial_in_miniapp_does_not_touch_meter(client, monkeypatch):
+    u = register(client)
+    mid = add_meter(client, u["address_id"])  # серийник 18-123456
+    d = recognize_with(client, monkeypatch, mid, confidence=0.9, values={"t1": 1000}, serial="18-654321")
+    assert d["serial_mismatch"] is True
+    assert d["serial_note"] == "Номер на фото — 18-654321, у счётчика — 18-123456. Проверьте, тот ли счётчик выбран."
+    d = recognize_with(client, monkeypatch, mid, confidence=0.9, values={"t1": 1000}, serial="18 123 456")
+    assert (d["serial_mismatch"], d["serial_note"]) == (False, None)
+    assert post(client, mid, values={"t1": "1"}).status_code == 200
+    assert run(client, repo(client).get_meter, mid)["serial"] == "18-123456"
 
 
 def test_a6_too_large_by_content_length(client):

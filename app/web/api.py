@@ -32,9 +32,11 @@ from app.bot import photos
 from app.bot.ctx import Deps
 from app.bot.texts import common as C
 from app.bot.texts import fmt
+from app.bot.texts import submission as TS
 from app.bot.texts.api import BTN_MORE, CHAT_FLAGGED, CHAT_MOCK, CHAT_SAVED, MSG
 from app.domain import meters as M
 from app.domain.dashboard import Dashboard, load_dashboard
+from app.integrations.recognizer import Recognition
 from app.readings import submit_reading
 from app.repo import Repo, Row, values_of
 from app.web.auth import InitData, current_user
@@ -243,7 +245,26 @@ async def _recognize_upload(deps: Deps, user: Row, meter: Row, upload: UploadFil
     finally:
         await photos.delete_photo(deps.repo, photo_id)
         path.unlink(missing_ok=True)
-    return {"values": units(rec.values), "serial": rec.serial, "confidence": rec.confidence, "stub": rec.stub}
+    return {"values": units(rec.values), "serial": rec.serial, "confidence": rec.confidence, "stub": rec.stub,
+            **recognition_notes(meter, rec)}
+
+
+def recognition_notes(meter: Row, rec: Recognition) -> dict:
+    """Почему не распознали / о чём предупредить: readable, issues (коды), note (пояснение модели),
+    message (что не так и что делать, обычный текст), serial_mismatch + serial_note (номер на фото не тот)."""
+    readable = rec.readable(M.fields_for(M.tariffs_of(meter["type"], meter["tariffs"])))
+    message = None
+    if not readable:
+        lines = TS.issue_lines(rec.issues, rec.note, meter["type"], markup=False)
+        tail = TS.FAILED_TAIL_SERVICE if "service" in rec.issues else TS.FAILED_TAIL
+        message = " ".join([*lines, tail]) if lines else TS.API_UNREADABLE
+    elif "wrong_type" in rec.issues:
+        message = TS.WRONG_TYPE_WARN
+    photo, saved = M.normalize_serial(rec.serial), M.normalize_serial(meter["serial"])
+    mismatch = bool(readable and photo and saved and photo != saved)
+    return {"readable": readable, "issues": rec.issues, "note": rec.note, "message": message,
+            "serial_mismatch": mismatch,
+            "serial_note": TS.API_SERIAL_MISMATCH.format(photo=rec.serial, saved=meter["serial"]) if mismatch else None}
 
 
 async def _save(upload: UploadFile, path: Path) -> int:
