@@ -12,6 +12,8 @@ from datetime import date
 from enum import StrEnum
 from typing import Any, Literal
 
+from app.domain.serials import format_serial, normalize_serial  # noqa: F401 — реэкспорт (repo, api)
+
 
 class MeterType(StrEnum):
     COLD_WATER = "cold_water"
@@ -104,19 +106,6 @@ def format_value(value: int, meter_type: str | None = None, *, unit: bool = Fals
     whole, frac = divmod(v, 10**digits)
     text = f"{sign}{whole}" + (f",{frac:0{digits}d}" if digits else "")
     return f"{text} {spec(meter_type).unit}" if unit and meter_type else text
-
-
-# Кириллица, похожая на латиницу: модель и человек пишут «АВ-77» по-разному.
-_SERIAL_LOOKALIKES = str.maketrans("авекмнорстух", "abekmhopctyx")
-
-
-def normalize_serial(serial: str | None) -> str | None:
-    """Серийник для сравнения: без пробелов, дефисов, «№», «#» и точек, casefold, кириллица-двойник → латиница.
-    Пусто → None."""
-    if not serial:
-        return None
-    s = re.sub(r"[\s\-‐-―№#.]+", "", serial).casefold().translate(_SERIAL_LOOKALIKES)
-    return s or None
 
 
 # --- Правдоподобие ---

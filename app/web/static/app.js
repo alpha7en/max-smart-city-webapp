@@ -600,7 +600,7 @@
           h('div', { class: 'meta' },
             h('span', {}, prev != null ? ['было ', h('span', { class: 'mono' }, pp[0] + pp[1])] : 'первое показание'), dl));
       });
-      const sub = [!one && sel.address_label, sel.serial && '№ ' + sel.serial,
+      const sub = [!one && sel.address_label, sel.serial && 'номер ' + sel.serial,
         last && last.created_at && 'прошлое ' + fmtDay(last.created_at)].filter(Boolean).join(' · ');
       formBox.replaceChildren(h('div', { class: 'card panel' },
         h('div', { class: 'ph' }, meterIcon(sel, 22), h('span', { class: 'grow' }, h('b', {}, sel.type_label), sub && h('small', {}, sub))),
@@ -624,17 +624,22 @@
           return note(recBox, 'bad', r.message || 'Не разобрали цифры. Переснимите прямо, без бликов, или введите вручную.');
         }
         got.forEach(k => { inputs[k].value = fmtNum(vals[k], sel); inputs[k].dispatchEvent(new Event('input')); });
+        // Тариф, которого нет на фото, не оставляем со старым значением: очищаем и просим ввести.
+        const missing = keys.filter(k => !got.includes(k));
+        missing.forEach(k => { inputs[k].value = ''; inputs[k].dispatchEvent(new Event('input')); markErr(inputs[k]); });
         usedStub = !!r.stub;
         const parts2 = [];
         if (r.stub) parts2.push('Демо-распознавание. Проверьте цифры.');
         else if (typeof r.confidence === 'number' && r.confidence < 0.8) parts2.push('Проверьте цифры внимательно.');
         else parts2.push('Цифры с фото. Проверьте и отправьте.');
         if (r.message) parts2.push(r.message);
+        else if (missing.length) parts2.push(missing.map(k => 'Т' + k.slice(1)).join(', ') + ': на фото не видно — введите вручную.');
         if (r.serial_note) parts2.push(r.serial_note);
         else if (r.serial_mismatch === undefined && r.serial && sel.serial && normSerial(r.serial) !== normSerial(sel.serial)) {
-          parts2.push('На фото № ' + r.serial + ', у счётчика № ' + sel.serial + '. Проверьте, тот ли счётчик выбран.');
+          parts2.push('Номер на фото — ' + r.serial + ', у счётчика — ' + sel.serial + '. Проверьте, тот ли счётчик выбран.');
         }
-        note(recBox, parts2.length > 1 || r.stub ? 'warn' : 'info', parts2.join(' '));
+        note(recBox, parts2.length > 1 || r.stub || missing.length ? 'warn' : 'info', parts2.join(' '));
+        if (missing.length) inputs[missing[0]].focus();
       } catch (e) {
         haptic('error');
         note(recBox, 'bad', e.status === 0 ? 'Нет связи с сервером. Фото не распознано.' : e.message,
@@ -650,14 +655,18 @@
       const keys = KEYS.slice(0, tariffCount(sel));
       const values = {};
       let bad = null;
+      const empty = [];
       for (const k of keys) {
         const v = inputs[k].value.trim();
+        if (!v) empty.push(k);
         if (!/^\d+([.,]\d+)?$/.test(v)) { markErr(inputs[k]); bad = bad || inputs[k]; }
         values[k] = v;
       }
       if (bad) {
         haptic('error');
-        note(errBox, 'bad', 'Введите число, например ' + (sel.type === 'electricity' ? '1234,56' : '123,456'));
+        const ex = sel.type === 'electricity' ? '1234,56' : '123,456';
+        const what = keys.length > 1 ? ' ' + empty.map(k => 'Т' + k.slice(1)).join(', ') : '';
+        note(errBox, 'bad', empty.length ? 'Заполните показание' + what + ', например ' + ex : 'Введите число, например ' + ex);
         return bad.focus();
       }
       const meter = sel;

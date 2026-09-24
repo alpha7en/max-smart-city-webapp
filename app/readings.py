@@ -40,6 +40,7 @@ from app.domain.meters import (
     total_delta,
     value_delta,
 )
+from app.domain.serials import usable_serial
 from app.repo import ReadingExists, Repo, values_of
 
 Status = Literal["accepted", "flagged", "needs_confirm", "less_than_previous", "already_submitted",
@@ -92,7 +93,8 @@ def format_delta(meter_type: str, delta: dict[str, int]) -> str:
 
 def parse_values(values: dict[str, str | int | float | None], meter_type: str, tariffs: int) -> Values:
     """Строки как ввёл пользователь (или int в тысячных) → {'t1','t2','t3'} в тысячных.
-    Нужны все поля по тарифности, лишние игнорируются. Ошибка → ValueParseError (с атрибутом field)."""
+    Нужны все поля по тарифности, лишние игнорируются; нет поля, None или пустая строка → 'empty'
+    (пустое показание не сохраняем). Ошибка → ValueParseError (с атрибутом field)."""
     out: Values = dict.fromkeys(FIELDS)
     int_digits = spec(meter_type).int_digits
     for f in fields_for(tariffs_of(meter_type, tariffs)):
@@ -118,7 +120,8 @@ def _bad_format(e: ValueParseError, meter_type: str, tariffs: int, meter_id: int
     field = getattr(e, "field", "t1")
     names = dict(zip(fields_for(3), ("Т1", "Т2", "Т3"), strict=True))
     label = f" в поле {names[field]}" if tariffs_of(meter_type, tariffs) > 1 else ""
-    msg = T.API_BAD_FORMAT.format(field=label, example=T.EXAMPLES[meter_type])
+    tpl = T.API_EMPTY if e.code == "empty" else T.API_BAD_FORMAT
+    msg = tpl.format(field=label, example=T.EXAMPLES[meter_type])
     return SubmitResult("bad_format", None, meter_id, None, None, msg)
 
 
@@ -221,7 +224,8 @@ async def _submit(repo: Repo, user_id: int, meter_id: int | None, draft: dict | 
         recognized=recognized, replace=replace, meter_id=meter_id,
         draft=None if meter_id is not None else {**draft, "tariffs": tariffs},
     )
-    serial = (recognized or {}).get("serial")
+    # Номер с фото: «№» и мусор по краям убираем, явное «не номер» (год, ГОСТ, Qn) не сохраняем.
+    serial = usable_serial((recognized or {}).get("serial"), mtype)
     if serial:
         row = await repo.get_meter(meter_id)
         if not row["serial_norm"] and not await repo.find_meter_by_serial(address_id, serial):

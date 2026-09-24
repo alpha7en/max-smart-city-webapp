@@ -425,3 +425,45 @@ def test_a7_cors_for_miniapp_origin(make_client):
 
 def test_a8_health_without_auth(client):
     assert client.get("/api/health").json() == {"ok": True}
+
+
+# --- Пустые поля и серийники в API ---
+
+@pytest.mark.parametrize("values", [{}, {"t1": None}, {"t1": ""}, {"t1": " "}])
+def test_readings_missing_value_422_nothing_saved(client, values):
+    u = register(client)
+    mid = add_meter(client, u["address_id"])
+    assert_error(post(client, mid, values=values), 422, "bad_format")
+    assert run(client, repo(client).reading_for_period, mid, "2026-10") is None
+
+
+def test_readings_multi_tariff_missing_t2_422(client):
+    u = register(client)
+    mid = add_meter(client, u["address_id"], "electricity", 2)
+    r = post(client, mid, values={"t1": "100", "t2": None})
+    assert_error(r, 422, "bad_format")
+    assert "Т2" in r.json()["message"]
+
+
+def test_recognize_partial_multi_tariff_lists_missing(client, monkeypatch):
+    u = register(client)
+    mid = add_meter(client, u["address_id"], "electricity", 2)
+    d = recognize_with(client, monkeypatch, mid, confidence=0.9, values={"t1": None, "t2": 505_500, "t3": None})
+    assert d["readable"] is True and d["missing"] == ["t1"]
+    assert d["message"] == "Т1: на фото не видно — введите вручную."
+    d = recognize_with(client, monkeypatch, mid, confidence=0.9, values={"t1": 1, "t2": 2, "t3": None})
+    assert (d["missing"], d["message"]) == ([], None)
+    d = recognize_with(client, monkeypatch, mid)
+    assert d["readable"] is False and d["missing"] == ["t1", "t2"]
+
+
+def test_recognize_serial_formatted_and_not_serial_dropped(client, monkeypatch):
+    u = register(client)
+    mid = add_meter(client, u["address_id"], serial="№ 18-123456")
+    d = recognize_with(client, monkeypatch, mid, confidence=0.9, values={"t1": 1000}, serial="№ 18 - 654321")
+    assert d["serial"] == "18-654321"
+    assert d["serial_note"] == "Номер на фото — 18-654321, у счётчика — 18-123456. Проверьте, тот ли счётчик выбран."
+    d = recognize_with(client, monkeypatch, mid, confidence=0.9, values={"t1": 1000}, serial="ГОСТ 50193")
+    assert (d["serial"], d["serial_mismatch"]) == (None, False)
+    me = client.get("/api/me", headers=auth()).json()
+    assert me["meters"][0]["serial"] == "18-123456"

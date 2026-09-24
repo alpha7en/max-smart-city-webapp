@@ -154,8 +154,8 @@ async def test_draft_with_existing_serial_uses_that_meter(repo, owner):
 
 async def test_recognized_serial_saved_for_meter_without_one(repo, owner):
     mid = await _meter(repo, owner)
-    await submit(repo, owner[0], meter_id=mid, values={"t1": "1"}, recognized={"serial": "AB-77"})
-    assert (await repo.get_meter(mid))["serial"] == "AB-77"
+    await submit(repo, owner[0], meter_id=mid, values={"t1": "1"}, recognized={"serial": "AB-7712345"})
+    assert (await repo.get_meter(mid))["serial"] == "AB-7712345"
 
 
 async def test_rollback_when_reading_insert_fails(repo, owner, monkeypatch):
@@ -227,3 +227,40 @@ async def test_created_at_follows_app_clock(repo):
     assert iso(rows[0]["created_at"]) == "2026-10-20T01:30:00+03:00"
     dash = await load_dashboard(repo, uid, late.date())
     assert "Хол. вода · Арбат 47к1, кв 32 — подано 20.10" in dash.lines
+
+
+# --- Пустые поля: сервер не сохраняет пустое показание ---
+
+@pytest.mark.parametrize("values", [{}, {"t1": None}, {"t1": ""}, {"t1": "   "}, {"t2": "5"}])
+async def test_missing_value_is_bad_format_and_not_saved(repo, owner, values):
+    mid = await _meter(repo, owner)
+    res = await submit(repo, owner[0], meter_id=mid, values=values)
+    assert res.status == "bad_format" and not res.ok and res.reading_id is None
+    assert res.message.startswith("Не заполнено показание")
+    assert await repo.history(mid) == []
+
+
+async def test_multi_tariff_missing_second_field_rejected(repo, owner):
+    mid = await _meter(repo, owner, "electricity", 2)
+    res = await submit(repo, owner[0], meter_id=mid, values={"t1": "100", "t2": None})
+    assert res.status == "bad_format" and "в поле Т2" in res.message
+    res = await submit(repo, owner[0], meter_id=mid, values={"t1": "100"})
+    assert res.status == "bad_format" and "в поле Т2" in res.message
+    assert await repo.history(mid) == []
+
+
+async def test_draft_with_missing_value_creates_no_meter(repo, owner):
+    draft = {"address_id": owner[1], "type": "electricity", "tariffs": 3}
+    res = await submit(repo, owner[0], draft=draft, values={"t1": "1", "t2": "2", "t3": ""})
+    assert res.status == "bad_format" and "в поле Т3" in res.message
+    assert await repo.address_meters(owner[1]) == []
+
+
+async def test_recognized_serial_cleaned_and_not_serial_dropped(repo, owner):
+    mid = await _meter(repo, owner)
+    await submit(repo, owner[0], meter_id=mid, values={"t1": "1"}, recognized={"serial": "2018"})
+    assert (await repo.get_meter(mid))["serial"] is None  # год выпуска — не номер
+    gas = await _meter(repo, owner, "gas")
+    await submit(repo, owner[0], meter_id=gas, values={"t1": "1"}, recognized={"serial": " № 0412345 "})
+    row = await repo.get_meter(gas)
+    assert (row["serial"], row["serial_norm"]) == ("0412345", "0412345")
