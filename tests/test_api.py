@@ -132,7 +132,9 @@ def test_a1_dev_user_only_with_dev_auth(make_client):
 # --- A2: незарегистрированный ---
 
 def test_a2_me_unregistered(client):
-    expected = {"registered": False, "user": None, "dashboard": {"lines": [], "urgent": None},
+    expected = {"registered": False, "user": None, "dashboard": {
+                    "lines": [], "urgent": None, "window": None, "bill": None, "verification": None,
+                    "pending": [], "submitted": 0, "total": 0},
                 "meters": [], "addresses": [], "bot_username": "test_bot"}
     assert client.get("/api/me", headers=auth()).json() == expected
     run(client, repo(client).ensure_user, UID, 1)  # начал регистрацию, но не закончил
@@ -162,12 +164,18 @@ def test_a3_me_contract_and_dashboard(client):
     assert power["tariffs"] == 2 and power["unit"] == "кВт·ч" and power["last"] is None
     assert power["submitted_this_period"] is False
 
-    # дашборд — тот же, что строит сервис меню (S4), в формате контракта
-    expected = web_api.dashboard_json(run(client, web_api.dashboard, client.app.state.deps, u["id"], clock.today()))
-    assert d["dashboard"] == expected
-    assert any("Счёт" in line and "(демо)" in line for line in d["dashboard"]["lines"])
-    urgent = d["dashboard"]["urgent"]
-    assert urgent is None or (urgent["kind"] in {"verification", "bill", "submit"} and urgent["text"])
+    # дашборд — тот же, что строит сервис меню: текст для бота + структура для мини-приложения
+    dash = d["dashboard"]
+    assert dash == run(client, web_api.dashboard, client.app.state.deps, u["id"], clock.today()).to_api()
+    assert any("Счёт" in line and "(демо)" in line for line in dash["lines"])
+    assert dash["urgent"] is None  # 19.10: до конца окна 6 дн., поверки нет, счёт до 10.11
+    assert dash["window"] == {"period": "2026-10", "month_label": "октябрь", "from": "2026-10-15",
+                              "to": "2026-10-25", "open": True, "days_left": 6, "next_from": None}
+    bill = dash["bill"]
+    assert set(bill) == {"id", "amount_kop", "amount_text", "due", "days_left", "demo", "count"}
+    assert bill["due"] == "2026-11-10" and bill["days_left"] == 22 and bill["demo"] is True
+    assert bill["amount_text"].endswith("₽") and isinstance(bill["amount_kop"], int)
+    assert (dash["verification"], dash["pending"], dash["submitted"], dash["total"]) == (None, [], 1, 2)
 
 
 def test_a3_pending_address_marked_and_hidden_meters(client):
@@ -177,26 +185,19 @@ def test_a3_pending_address_marked_and_hidden_meters(client):
     d = client.get("/api/me", headers=auth(TENANT)).json()
     assert d["registered"] is True and d["meters"] == []
     assert d["addresses"] == [{"label": owner["label"], "access": "pending", "role": "tenant"}]
+    dash = d["dashboard"]
+    assert dash["pending"] == [{"label": owner["label"]}] and dash["bill"] is None and dash["total"] == 0
+    assert sum("ждёт подтверждения" in line for line in dash["lines"]) == 1  # строка для бота — одна
 
 
-def test_a3_urgent_kind_and_dashboard_shapes():
-    @dataclasses.dataclass
-    class U:
-        kind: str
-        text: str
-        days_left: int
-
-    @dataclasses.dataclass
-    class D:
-        lines: list
-        urgent: U | None
-
-    got = web_api.dashboard_json(D(["a", "", "b"], U("verif", "Запишитесь на поверку: 20 дн.", 20)))
-    assert got == {"lines": ["a", "", "b"], "urgent": {"kind": "verification",
-                                                       "text": "Запишитесь на поверку: 20 дн.", "days_left": 20}}
-    assert web_api.dashboard_json({"lines": [], "urgent": {"kind": "pay", "text": "x", "days_left": 1}})[
-        "urgent"]["kind"] == "bill"
-    assert web_api.urgent_kind("submit") == "submit"
+def test_a3_dashboard_verification_urgent(client):
+    u = register(client)
+    m = add_meter(client, u["address_id"])
+    run(client, repo(client).set_verification, m, "2026-11-02", "user")
+    dash = client.get("/api/me", headers=auth()).json()["dashboard"]
+    assert dash["verification"] == {"meter_id": m, "meter_label": f"Хол. вода · {u['label']}", "type": "cold_water",
+                                    "due": "2026-11-02", "days_left": 14}
+    assert dash["urgent"] == {"kind": "verification", "text": "Запишитесь на поверку: 14 дн.", "days_left": 14}
 
 
 # --- A4: /api/meters/{id} ---

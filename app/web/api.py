@@ -4,11 +4,12 @@
 - Значения показаний в ответах — числа в единицах счётчика (123.456); на вход — строки, как ввёл пользователь.
 - Ошибки — всегда JSON {code, message} с message на русском: HTTPException с detail-словарём → обработчик
   в main.py; невалидный запрос и сбой обработчика ловит _JsonErrors.
-- Подача и дашборд — сервисы потоков S2/S4 (адаптеры в конце файла), своей бизнес-логики тут нет.
+- Подача и дашборд — сервисы потоков S2 (адаптер в конце файла) и domain/dashboard; своей бизнес-логики тут нет.
+- dashboard в /api/me — Dashboard.to_api(): lines/urgent для текста и структура window/bill/verification/pending
+  для экранов (мини-приложение строки не разбирает).
 """
 from __future__ import annotations
 
-import inspect
 import logging
 import os
 import uuid
@@ -33,6 +34,7 @@ from app.bot.ctx import Deps
 from app.bot.texts import common as C
 from app.bot.texts import fmt
 from app.domain import meters as M
+from app.domain.dashboard import Dashboard, load_dashboard
 from app.repo import ReadingExists, Repo, Row, values_of
 from app.web.auth import InitData, current_user
 
@@ -60,6 +62,8 @@ CHAT_SAVED = "Записали показание из мини-приложен
 CHAT_FLAGGED = "Прирост больше обычного — отметили показание для проверки."
 CHAT_MOCK = "Передача в управляющую компанию в MVP смоделирована."
 BTN_MORE = "Подать ещё"
+EMPTY_DASHBOARD = {"lines": [], "urgent": None, "window": None, "bill": None, "verification": None,
+                   "pending": [], "submitted": 0, "total": 0}
 ERROR_STATUS = {"bad_format": 422, "less_than_previous": 422, "needs_confirm": 409,
                 "already_submitted": 409, "no_access": 403, "not_found": 404}
 
@@ -123,25 +127,6 @@ def meter_json(m: Row, today: date) -> dict:
     }
 
 
-def _get(obj: Any, key: str) -> Any:
-    return obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
-
-
-def urgent_kind(kind: Any) -> str:
-    """Вид срочного действия для мини-приложения: 'verification' | 'bill' | 'submit'."""
-    k = str(kind or "")
-    return "verification" if "verif" in k else "bill" if ("bill" in k or "pay" in k) else "submit"
-
-
-def dashboard_json(d: Any) -> dict:
-    """Dashboard (dataclass или dict с lines, urgent{kind,text,days_left}) → JSON контракта."""
-    u = _get(d, "urgent")
-    urgent = None
-    if u:
-        urgent = {"kind": urgent_kind(_get(u, "kind")), "text": _get(u, "text"), "days_left": _get(u, "days_left")}
-    return {"lines": [str(line) for line in (_get(d, "lines") or [])], "urgent": urgent}
-
-
 # === Доступ ===
 
 def _deps(request: Request) -> Deps:
@@ -166,6 +151,12 @@ async def _meter(repo: Repo, init: InitData, raw_id: Any) -> tuple[Row, Row]:
     return user, row
 
 
+async def dashboard(deps: Deps, user_id: int, today: date) -> Dashboard:
+    """Дашборд пользователя (тот же, что в меню бота)."""
+    s = deps.settings
+    return await load_dashboard(deps.repo, user_id, today, day_from=s.submit_day_from, day_to=s.submit_day_to)
+
+
 # === Эндпоинты ===
 
 @router.get("/me")
@@ -173,7 +164,7 @@ async def me(request: Request, init: InitData = Depends(current_user)) -> dict:
     deps = _deps(request)
     user = await _registered(deps.repo, init)
     if not user:
-        return {"registered": False, "user": None, "dashboard": {"lines": [], "urgent": None},
+        return {"registered": False, "user": None, "dashboard": EMPTY_DASHBOARD,
                 "meters": [], "addresses": [], "bot_username": deps.bot_username}
     today = clock.today()
     meters = await deps.repo.user_meters(user["id"])
@@ -182,7 +173,7 @@ async def me(request: Request, init: InitData = Depends(current_user)) -> dict:
         "registered": True,
         "user": {"full_name": user["full_name"], "phone": user["phone"],
                  "phone_verified": bool(user["phone_verified"])},
-        "dashboard": dashboard_json(await dashboard(deps, user["id"], today)),
+        "dashboard": (await dashboard(deps, user["id"], today)).to_api(),
         "meters": [meter_json(m, today) for m in meters],
         "addresses": [{"label": a["label"], "access": a["access"], "role": a["role"]} for a in addresses],
         "bot_username": deps.bot_username,
@@ -307,9 +298,8 @@ async def notify_chat(deps: Deps, user: Row, meter: Row, reading: Row) -> None:
         log.warning("miniapp reading %s: chat notify failed: %s", reading["id"], e)
 
 
-# === Адаптеры к потокам S2 (подача) и S4 (дашборд) ===
-# TODO(S2)/TODO(S4): после слияния удалить временные реализации _submit_fallback/_dashboard_fallback и
-# блоки except ImportError — останутся только импорты.
+# === Адаптер к потоку S2 (подача) ===
+# TODO(S2): после слияния удалить временную реализацию _submit_fallback и блок except ImportError.
 
 @dataclass
 class _SubmitResult:
@@ -364,31 +354,7 @@ async def _submit_fallback(repo: Repo, *, user_id: int, meter_id: int | None, dr
     return _SubmitResult(status, reading_id, meter_id, prev)
 
 
-async def _dashboard_fallback(repo: Repo, user_id: int, today: date, day_from: int = 15, day_to: int = 25) -> dict:
-    """TODO(S4): простой дашборд (окно подачи, демо-счета) до слияния domain/dashboard.load_dashboard."""
-    lines = []
-    if await repo.user_meters(user_id):
-        w = M.submission_window(today, day_from, day_to)
-        lines.append(f"Показания за {fmt.month_name(M.current_period(today))} — до {fmt.day_month(w.end)}, "
-                     f"осталось {w.days_left} дн." if w.is_open else f"Следующая подача — с {fmt.day_month(w.start)}")
-    for b in await repo.unpaid_bills(user_id):
-        lines.append(f"Счёт: {fmt.money(b['amount_kop'])} до {fmt.day_month(date.fromisoformat(b['due_date']))} (демо)")
-    return {"lines": lines, "urgent": None}
-
-
 try:
     from app.readings import submit_reading  # S2
 except ImportError:  # TODO(S2)
     submit_reading = _submit_fallback
-
-try:
-    from app.domain.dashboard import load_dashboard  # S4
-except ImportError:  # TODO(S4)
-    load_dashboard = _dashboard_fallback
-
-
-async def dashboard(deps: Deps, user_id: int, today: date) -> Any:
-    """Дашборд пользователя (тот же, что в меню бота)."""
-    s = deps.settings
-    res = load_dashboard(deps.repo, user_id, today, day_from=s.submit_day_from, day_to=s.submit_day_to)
-    return await res if inspect.isawaitable(res) else res
