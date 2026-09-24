@@ -1,109 +1,124 @@
-"""
-Main entry point for MAX Smart City Housing Platform.
-Hosts:
-- REST API (/api/...)
-- MAX Mini-App SPA (/ and /app)
-- Background MAX Bot Long Polling worker
-"""
+"""Точка входа: FastAPI (API и статика мини-приложения) + бот (long polling) + планировщик."""
+from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.config import settings
-from app.api.routes import router as api_router
-from app.bot.client import MaxBotClient
-from app.bot.handlers import BotHandler
-from app.bot.worker import bot_worker
+from app.bot.ctx import Deps
+from app.config import Settings, load_settings
+from app.integrations.max_api import MaxApi
+from app.integrations.recognizer import get_recognizer
+from app.repo import Repo
+from app.scheduler import run_scheduler
+from app.web import api
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
-logger = logging.getLogger("max_smart_city")
+log = logging.getLogger("app")
+STATIC_DIR = Path(__file__).parent / "web" / "static"
+COMMANDS = [("start", "Главное меню"), ("demo", "Примеры уведомлений")]
 
-bot_task: asyncio.Task = None
 
-async def run_bot_polling_loop():
-    """
-    Background asynchronous loop for MAX Bot long polling updates.
-    Delegates to modular BotWorker.
-    """
-    return await bot_worker.start()
+def _address_service(settings: Settings):
+    """AddressService из потока S3; без модуля — None (регистрация адреса недоступна)."""
+    try:
+        from app.integrations.address_service import get_address_service
+    except ImportError:
+        log.warning("address service module is missing")
+        return None
+    return get_address_service(settings)
+
+
+async def _start_bot(deps: Deps) -> asyncio.Task | None:
+    from app.bot.poller import Poller
+    from app.bot.router import Router
+
+    try:
+        me = await deps.api.get_me()
+        log.info("MAX bot: id=%s username=%s", me.get("user_id"), me.get("username"))
+        if not deps.bot_username:
+            deps.bot_username = me.get("username") or ""
+        elif me.get("username") and me["username"] != deps.bot_username:
+            log.warning("BOT_USERNAME=%s differs from GET /me username=%s", deps.bot_username, me["username"])
+    except Exception as e:  # noqa: BLE001 — бот поднимется, poller будет повторять
+        log.error("GET /me failed: %s", e)
+    try:
+        await deps.api.set_commands(COMMANDS)
+    except Exception as e:  # noqa: BLE001
+        log.warning("set commands failed: %s", e)
+    poller = Poller(deps.api, deps.repo, Router(deps))
+    return asyncio.create_task(poller.run(), name="poller")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    logger.info("Launching MAX Smart City Platform v%s...", settings.VERSION)
-    global bot_task
-    if settings.BOT_TOKEN:
-        bot_task = await bot_worker.start()
-    yield
-    # Shutdown
-    logger.info("Shutting down MAX Smart City Platform...")
-    await bot_worker.stop()
-
-app = FastAPI(
-    title="MAX Умный Дом — Платформа ЖКХ и Счетчиков",
-    description=(
-        "Комплексное решение для трека «Умный город» на Хакатоне MAX:\n\n"
-        "• Взаимодействие жителей и управляющих организаций по ПП РФ № 40 от 26.01.2026 г.;\n"
-        "• Мгновенный прием показаний приборов учета через пересылку фото в чат-бот;\n"
-        "• Зеленый Щит Безопасности: сверка заводских номеров с реестром ФГИС «АРШИН» (102-ФЗ);\n"
-        "• Оплата квитанций по ГОСТ Р 56042-2014 с автоматическим расщеплением на спецсчет 40821 (103-ФЗ);\n"
-        "• «Ночной дозор»: крауд-диагностика ночного небаланса ОДПУ со скидкой 10% на квартплату (261-ФЗ);\n"
-        "• Гостевой доступ для арендаторов без авторизации через ЕСИА."
-    ),
-    version=settings.VERSION,
-    lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
-
-# CORS Middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Mount Static Files
-STATIC_DIR = Path(__file__).resolve().parent / "static"
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
-# Mount API Router
-app.include_router(api_router)
-
-@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
-@app.api_route("/app", methods=["GET", "HEAD"], include_in_schema=False)
-async def serve_miniapp():
-    """
-    Serves the MAX Mini-App single page application.
-    """
-    index_file = STATIC_DIR / "index.html"
-    return FileResponse(str(index_file))
-
-@app.api_route("/styles.css", methods=["GET", "HEAD"], include_in_schema=False)
-async def serve_styles():
-    css_file = STATIC_DIR / "styles.css"
-    return FileResponse(str(css_file), media_type="text/css")
-
-@app.api_route("/app.js", methods=["GET", "HEAD"], include_in_schema=False)
-async def serve_app_js():
-    js_file = STATIC_DIR / "app.js"
-    return FileResponse(str(js_file), media_type="application/javascript")
+    settings: Settings = app.state.settings
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    repo = await Repo.open(settings.db_path)
+    api_client = MaxApi(settings.bot_token, settings.max_api_base) if settings.bot_token else None
+    deps = Deps(api=api_client, repo=repo, settings=settings, recognizer=get_recognizer(settings),
+                addresses=_address_service(settings), bot_username=settings.bot_username)
+    app.state.repo, app.state.deps = repo, deps
+    tasks: list[asyncio.Task] = [asyncio.create_task(run_scheduler(deps), name="scheduler")]
+    if api_client:
+        bot_task = await _start_bot(deps)
+        if bot_task:
+            tasks.append(bot_task)
+    else:
+        log.warning("BOT_TOKEN is not set — bot is disabled, only the web part is running")
+    try:
+        yield
+    finally:
+        for t in tasks:
+            t.cancel()
+        for t in tasks:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await t
+        if api_client:
+            await api_client.close()
+        await repo.close()
 
 
-@app.get("/favicon.ico", include_in_schema=False)
-async def favicon():
-    from fastapi.responses import Response
-    return Response(status_code=204)
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or load_settings()
+    app = FastAPI(title="ЖКХ-бот MAX", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app.state.settings = settings
+    if settings.miniapp_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=list(settings.miniapp_origins),
+            allow_methods=["GET", "POST"],
+            allow_headers=["X-Max-Init-Data", "Content-Type"],
+            allow_credentials=False,
+        )
 
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+        """Ошибки API — всегда {code, message}."""
+        if isinstance(exc.detail, dict) and "code" in exc.detail:
+            body = exc.detail
+        else:
+            body = {"code": f"http_{exc.status_code}", "message": str(exc.detail)}
+        return JSONResponse(body, status_code=exc.status_code, headers=getattr(exc, "headers", None))
+
+    @app.get("/api/health")
+    async def health() -> dict:
+        return {"ok": True}
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        return RedirectResponse("/app/")
+
+    app.include_router(api.router)
+    app.mount("/app", StaticFiles(directory=STATIC_DIR, html=True), name="miniapp")
+    return app
+
+
+app = create_app()
