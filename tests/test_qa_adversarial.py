@@ -575,8 +575,6 @@ async def test_ttl_expiry_in_every_step(chat, api, repo, settings, state, event)
     assert len(list(settings.photos_dir.glob("*"))) == (1 if event == "photo" else 0)
 
 
-@pytest.mark.xfail(strict=True, reason="QA-2: после «Готово! Записали» TTL/«отмена»/«меню» на вопросе о поверке "
-                                       "сообщают, что подача прервалась/отменена, хотя показание сохранено")
 @pytest.mark.parametrize("how", ["ttl", "cancel", "menu_text", "menu_button"])
 async def test_verif_date_step_does_not_claim_submission_lost(chat, api, repo, how):
     await _walk_to(chat, api, S.SUB_VERIF_DATE)
