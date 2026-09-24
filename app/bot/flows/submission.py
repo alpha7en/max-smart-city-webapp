@@ -5,7 +5,9 @@
   photo_id, caption                      — временное фото и подпись к нему (демо-ошибка «ошибка»)
   meter_id | draft{type,tariffs,address_id,serial?} — выбранный или новый счётчик (в БД — при отправке)
   addr{raw, cands, not_found, chosen}    — ввод нового адреса
-  recognized{t1,t2,t3,serial,confidence,stub}, serial_status, serial_ok
+  recognized{t1,t2,t3,serial,confidence,stub,issues}, serial_status, serial_ok
+    serial_status: 'match' | 'new' | 'mismatch' | 'other' (номер другого счётчика) | 'ignored' (номер на фото неверный)
+    Серийник черновика берём только при отправке (из recognized) — до неё у нового счётчика номера нет.
   values{t1,t2,t3} (тысячные), source    — что отправим
   manual{idx, vals, back}                — ручной ввод по полям; back: 'review' | 'pick' | 'await'
   confirm, replace, check{kind,prev,delta,months} — повторная отправка после вопросов
@@ -57,18 +59,18 @@ from app.domain.meters import (
     spec,
     tariffs_of,
 )
-from app.integrations.recognizer import Recognition
+from app.integrations.recognizer import CONF_MIN, SERVICE, Recognition
 from app.readings import SubmitResult, format_delta, format_months, format_values, submit_reading
 from app.repo import values_of
 
 log = logging.getLogger(__name__)
 RECOGNIZE_TIMEOUT = 25.0          # с; сам HTTP-клиент ограничен 20 с (сервис отвечает за 2–5 с)
-LOW_CONFIDENCE, CHECK_CONFIDENCE = 0.5, 0.8
+LOW_CONFIDENCE, CHECK_CONFIDENCE = CONF_MIN, 0.8
 PAGE_SIZE = 20                    # кнопок-вариантов на экране выбора счётчика/адреса
 DRAFT_STATES = {S.SUB_NEW_TYPE, S.SUB_NEW_TARIFF, S.SUB_NEW_ADDRESS, S.SUB_ADDR_INPUT, S.SUB_ADDR_PICK,
                 S.SUB_ADDR_FLAT}
 RESET_ON_NEW_PHOTO = ("recognized", "values", "source", "serial_status", "serial_ok", "manual", "confirm",
-                      "replace", "check")
+                      "replace", "check", "serial_other")
 TYPE_ROWS = ((MeterType.COLD_WATER, MeterType.HOT_WATER), (MeterType.ELECTRICITY, MeterType.GAS, MeterType.HEAT))
 _FLAT_OK = re.compile(r"^\d{1,5}[а-яёa-z]?$", re.I)
 
@@ -307,9 +309,13 @@ async def await_photo(ctx: Ctx) -> None:
     if await _handled_exit(ctx):
         return
     alias = K.text_alias(ctx.text) if not ctx.is_callback else None
+    if ctx.action == "pick_other":  # «Похоже, это не тот счётчик» — то же фото, другой счётчик
+        await _go_pick(ctx)
+        return
     if ctx.action == "manual":
         await _manual_from_await(ctx)
     elif ctx.action == "retake":
+        await photos.delete_photo(ctx.repo, ctx.data.pop("photo_id", None))
         ctx.data["await_mode"] = "retake"
         await ask_photo(ctx)
     elif not ctx.is_callback and looks_like_value(ctx.text):  # B9: число вместо фото — ручной ввод
@@ -322,6 +328,8 @@ async def await_photo(ctx: Ctx) -> None:
 
 
 async def _manual_from_await(ctx: Ctx, typed: str | None = None) -> None:
+    # Фото, оставленное для «Выбрать другой счётчик», при ручном вводе не нужно.
+    await photos.delete_photo(ctx.repo, ctx.data.pop("photo_id", None))
     if _has_meter(ctx):
         await _start_manual_input(ctx, back="await", typed=typed)
         return
@@ -633,7 +641,24 @@ async def _run_recognizer(ctx: Ctx, path: str, m: Meter, prev: dict | None) -> R
             ctx.deps.recognizer.recognize(path, m.type, m.tariffs, hint=hint), RECOGNIZE_TIMEOUT)
     except Exception as e:  # noqa: BLE001 — таймаут/сбой клиента = не распознали
         log.warning("recognizer failed: %r", e)
-        return Recognition(confidence=0.0, error=type(e).__name__)
+        return Recognition(confidence=0.0, error=type(e).__name__, issues=[SERVICE])
+
+
+async def _recognition_failed(ctx: Ctx, m: Meter, rec: Recognition) -> None:
+    """«Не получилось распознать»: что не так на фото и что делать. Фото оставляем, только если
+    предлагаем выбрать другой счётчик (на фото, похоже, счётчик другого типа)."""
+    d = ctx.data
+    other_type = "wrong_type" in rec.issues
+    if not other_type:
+        await photos.delete_photo(ctx.repo, d.pop("photo_id", None))
+    for key in RESET_ON_NEW_PHOTO:
+        d.pop(key, None)
+    ctx.session.go(S.SUB_AWAIT_PHOTO, await_mode="retake")
+    rows = [_row(ctx, (T.BTN_RETAKE, "retake"), (T.BTN_MANUAL, "manual"))]
+    if other_type:
+        rows.append(_row(ctx, (T.BTN_PICK_OTHER, "pick_other")))
+    rows.append(_row(ctx, (C.BTN_CANCEL, "cancel")))
+    await ctx.reply(T.recognize_failed(rec.issues, rec.note, m.type), K.kb(*rows))
 
 
 async def _recognize(ctx: Ctx) -> None:
@@ -650,13 +675,8 @@ async def _recognize(ctx: Ctx) -> None:
     await ctx.typing()
     await ctx.reply(T.LOOKING)
     rec = await _run_recognizer(ctx, path, m, await _prev_values(ctx, m))
-    if rec.error or rec.confidence < LOW_CONFIDENCE or all(rec.values.get(f) is None for f in m.fields):
-        await photos.delete_photo(ctx.repo, d.pop("photo_id", None))
-        for key in RESET_ON_NEW_PHOTO:
-            d.pop(key, None)
-        ctx.session.go(S.SUB_AWAIT_PHOTO, await_mode="retake")
-        await ctx.reply(T.RECOGNIZE_FAILED, K.kb(
-            _row(ctx, (T.BTN_RETAKE, "retake"), (T.BTN_MANUAL, "manual")), _row(ctx, (C.BTN_CANCEL, "cancel"))))
+    if not rec.readable(m.fields):
+        await _recognition_failed(ctx, m, rec)
         return
     if m.id is None and rec.serial:  # F12: новый счётчик, а по адресу уже есть счётчик с этим номером
         same = await ctx.repo.find_meter_by_serial(m.address_id, rec.serial)
@@ -669,14 +689,17 @@ async def _recognize(ctx: Ctx) -> None:
             ctx.note(T.SWITCHED_METER.format(label=esc(m.label)))
             if (m.type, m.tariffs) != old_kind:
                 rec = await _run_recognizer(ctx, path, m, await _prev_values(ctx, m))
-        else:
-            d["draft"]["serial"] = rec.serial
+                if not rec.readable(m.fields):
+                    await _recognition_failed(ctx, m, rec)
+                    return
+    # Распознанный номер в черновик не пишем: номер нового счётчика сохранится при отправке
+    # (readings.submit_reading), а до неё сравнивать новый счётчик не с чем.
     d["recognized"] = {**{f: rec.values.get(f) for f in m.fields}, "serial": rec.serial,
-                       "confidence": rec.confidence, "stub": rec.stub}
+                       "confidence": rec.confidence, "stub": rec.stub, "issues": rec.issues}
     d["values"] = {f: rec.values.get(f) for f in m.fields}
     d["source"] = "photo"
     d["serial_status"] = await _serial_status(ctx, m, rec.serial)
-    if d["serial_status"] == "mismatch" and not d.get("serial_ok"):
+    if d["serial_status"] in ("mismatch", "other") and not d.get("serial_ok"):
         ctx.session.go(S.SUB_SERIAL_MISMATCH)
         await ask_serial(ctx)
         return
@@ -693,15 +716,17 @@ async def _review_recognized(ctx: Ctx) -> None:
 
 
 async def _serial_status(ctx: Ctx, m: Meter, serial: str | None) -> str | None:
-    """'match' | 'mismatch' | 'new' (сохраним) | None (нечего показать)."""
-    if not serial:
+    """'match' | 'mismatch' | 'other' (номер другого счётчика) | 'new' (сохраним) | None (нечего показать).
+    Сравнение — только нормализованных номеров: «18-123 456» и «18123456» совпадают."""
+    if not normalize_serial(serial):
         return None
     if m.serial:
         return "match" if normalize_serial(serial) == normalize_serial(m.serial) else "mismatch"
-    if m.id is None:
-        return "new"
-    other = await ctx.repo.find_meter_by_serial(m.address_id, serial)
-    return None if other and other["id"] != m.id else "new"
+    other = await ctx.repo.find_meter_by_serial(m.address_id, serial or "")
+    if other and other["id"] != m.id:
+        ctx.data["serial_other"] = other["id"]
+        return "other"
+    return "new"
 
 
 @on_repeat(S.SUB_SERIAL_MISMATCH)
@@ -710,8 +735,15 @@ async def ask_serial(ctx: Ctx) -> None:
     if m is None:
         return
     photo_serial = (ctx.data.get("recognized") or {}).get("serial") or "—"
+    other_id = ctx.data.get("serial_other") if ctx.data.get("serial_status") == "other" else None
+    if other_id:
+        meters = await ctx.repo.user_meters(_uid(ctx))
+        other = next((lb for x, lb in zip(meters, meter_labels(meters), strict=True) if x["id"] == other_id), "")
+        text = T.SERIAL_OF_OTHER.format(photo=esc(photo_serial), other=esc(other), label=esc(m.label))
+    else:
+        text = T.SERIAL_MISMATCH.format(photo=esc(photo_serial), label=esc(m.label), saved=esc(m.serial or "—"))
     await ctx.reply(
-        T.SERIAL_MISMATCH.format(photo=esc(photo_serial), label=esc(m.label), saved=esc(m.serial)),
+        text,
         K.kb(_row(ctx, (T.BTN_OTHER_METER, "other")), _row(ctx, (T.BTN_SAME_METER, "same")),
              _row(ctx, (T.BTN_RETAKE, "retake"), (C.BTN_CANCEL, "cancel"))),
     )
@@ -763,7 +795,8 @@ async def ask_review(ctx: Ctx) -> None:
         labels = field_labels(m.type, m.tariffs)
         lines += [T.TARIFF_LINE.format(label=labels[f], value=fmt.value(values.get(f), m.type)) for f in m.fields]
     serial = (d.get("recognized") or {}).get("serial")
-    status_line = {"match": T.SERIAL_MATCH, "new": T.SERIAL_NEW, "ignored": T.SERIAL_IGNORED}.get(
+    ignored = T.SERIAL_IGNORED if m.serial else T.SERIAL_REJECTED
+    status_line = {"match": T.SERIAL_MATCH, "new": T.SERIAL_NEW, "ignored": ignored}.get(
         d.get("serial_status") or "")
     if status_line and serial:
         lines.append(status_line.format(serial=esc(serial)))
@@ -780,10 +813,16 @@ async def ask_review(ctx: Ctx) -> None:
             lines.append(T.CHECK_DIGITS)
         if rec.get("stub"):
             lines.append(T.STUB_NOTE)
+    other_type = d.get("source") == "photo" and "wrong_type" in (rec.get("issues") or []) and _is_photo_path(ctx)
+    if other_type:
+        lines.append(T.WRONG_TYPE_WARN)
     lines += ["", T.REVIEW_QUESTION]
     second = [(T.BTN_EDIT, "edit")] + ([(T.BTN_RETAKE, "retake")] if _is_photo_path(ctx) else [])
-    await ctx.reply("\n".join(lines), K.kb(
-        _row(ctx, (T.BTN_SEND, "send")), _row(ctx, *second), _row(ctx, (C.BTN_CANCEL, "cancel"))))
+    rows = [_row(ctx, (T.BTN_SEND, "send")), _row(ctx, *second)]
+    if other_type:
+        rows.append(_row(ctx, (T.BTN_PICK_OTHER, "pick_other")))
+    rows.append(_row(ctx, (C.BTN_CANCEL, "cancel")))
+    await ctx.reply("\n".join(lines), K.kb(*rows))
 
 
 @on_state(S.SUB_REVIEW)
@@ -797,6 +836,10 @@ async def got_review(ctx: Ctx) -> None:
         await _start_manual_input(ctx, back="review")
     elif action == "retake" and _is_photo_path(ctx):
         await _retake(ctx)
+    elif action == "pick_other" and _is_photo_path(ctx):
+        for key in RESET_ON_NEW_PHOTO:
+            ctx.data.pop(key, None)
+        await _go_pick(ctx)
     elif not ctx.is_callback and looks_like_value(ctx.text):  # B9: число — исправление
         await _start_manual_input(ctx, back="review", typed=ctx.text)
     else:
@@ -904,9 +947,13 @@ async def _submit(ctx: Ctx) -> None:
     m = await _meter(ctx)
     if m is None:
         return
+    recognized = d.get("recognized")
+    if recognized and d.get("serial_status") not in ("match", "new"):
+        # Номер на фото пользователь отверг (или он чужой) — счётчику его не присваиваем.
+        recognized = {**recognized, "serial": None, "photo_serial": recognized.get("serial")}
     res = await submit_reading(
         ctx.repo, user_id=_uid(ctx), meter_id=m.id, draft=None if m.id else d.get("draft"),
-        values=d.get("values") or {}, source=d.get("source") or "manual", recognized=d.get("recognized"),
+        values=d.get("values") or {}, source=d.get("source") or "manual", recognized=recognized,
         confirm=bool(d.get("confirm")), replace=bool(d.get("replace")), today=ctx.now.date(),
     )
     if res.ok:

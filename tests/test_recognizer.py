@@ -109,3 +109,53 @@ def test_url_selects_http_client():
     assert isinstance(get_recognizer(load_settings({})), StubRecognizer)
     r = get_recognizer(load_settings({"RECOGNIZER_URL": URL}))
     assert isinstance(r, HttpRecognizer) and r.url == URL
+
+
+# --- Коды проблем с фото: readable / issues / issue_note ---
+
+def test_old_answer_has_no_issues():
+    rec = parse()
+    assert (rec.issues, rec.note, rec.confidence) == ([], None, CONF_OK)
+
+
+@pytest.mark.parametrize("answer, issues", [
+    ({"readable": False, "issues": ["glare", "angle"]}, ["glare", "angle"]),
+    ({"readable": False, "issues": []}, ["digits_not_visible"]),
+    ({"readable": False, "issues": ["serial_not_visible"]}, ["digits_not_visible", "serial_not_visible"]),
+    ({"reading_text": None, "reading": None}, ["digits_not_visible"]),               # старый ответ без цифр
+    ({"readable": False, "issues": ["smudge", "glare", "glare"]}, ["other", "glare"]),  # чужой код → other
+])
+def test_unreadable_gives_zero_confidence_and_issues(answer, issues):
+    rec = parse(**answer, issue_note="  Табло   закрыто бликом ")
+    assert rec.confidence == 0.0 and rec.values["t1"] is None and not rec.readable(("t1",))
+    assert rec.issues == issues and rec.note == "Табло закрыто бликом" and rec.serial == "123456"
+
+
+def test_wrong_type_readable_value_kept_with_check():
+    rec = parse("cold_water", meter_type="cold_water", issues=["wrong_type"], readable=True)
+    assert rec.values["t1"] == 595_825 and rec.confidence == CONF_CHECK and rec.issues == ["wrong_type"]
+    assert rec.readable(("t1",))
+
+
+def test_serial_not_visible_does_not_block_value():
+    rec = parse(issues=["serial_not_visible"], readable=True, serial_number=None)
+    assert (rec.values["t1"], rec.confidence, rec.serial, rec.issues) == (595_825, CONF_OK, None, ["serial_not_visible"])
+
+
+def test_heat_meter_in_other_units_asks_to_check():
+    rec = parse("heat", meter_type="heat", unit="MWh", reading_text="0012.345", integer_digits="0012",
+                fraction_digits="345")
+    assert rec.values["t1"] == 12_345 and rec.confidence == CONF_CHECK
+
+
+async def test_http_error_is_service_issue(photo):
+    r, _ = rec_with(lambda _: httpx.Response(502, json={"detail": "Yandex Cloud returned 429"}))
+    rec = await r.recognize(photo, "cold_water", 1)
+    assert rec.issues == ["service"] and rec.error
+
+
+async def test_stub_error_caption_with_codes(photo):
+    rec = await StubRecognizer().recognize(photo, "cold_water", 1, hint={"caption": "ошибка glare too_dark"})
+    assert rec.error and rec.issues == ["glare", "too_dark"]
+    rec = await StubRecognizer().recognize(photo, "cold_water", 1, hint={"caption": "Ошибка"})
+    assert rec.issues == ["digits_not_visible"]

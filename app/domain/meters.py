@@ -106,11 +106,16 @@ def format_value(value: int, meter_type: str | None = None, *, unit: bool = Fals
     return f"{text} {spec(meter_type).unit}" if unit and meter_type else text
 
 
+# Кириллица, похожая на латиницу: модель и человек пишут «АВ-77» по-разному.
+_SERIAL_LOOKALIKES = str.maketrans("авекмнорстух", "abekmhopctyx")
+
+
 def normalize_serial(serial: str | None) -> str | None:
-    """Серийник для сравнения: без пробелов и дефисов, casefold. Пусто → None."""
+    """Серийник для сравнения: без пробелов, дефисов, «№», «#» и точек, casefold, кириллица-двойник → латиница.
+    Пусто → None."""
     if not serial:
         return None
-    s = re.sub(r"[\s\-‐-―]+", "", serial).casefold()
+    s = re.sub(r"[\s\-‐-―№#.]+", "", serial).casefold().translate(_SERIAL_LOOKALIKES)
     return s or None
 
 
