@@ -13,11 +13,15 @@
 <body>
   <header class="top">
     <button class="back" id="back" type="button" aria-label="Назад">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
     </button>
-    <h1 id="title">ЖКХ</h1>
+    <div class="ttl">
+      <h1 id="title">ЖКХ</h1>
+      <p id="sub" hidden></p>
+    </div>
   </header>
   <main id="view" aria-live="polite"></main>
+  <div class="bar" id="bar" hidden></div>
   <noscript><p style="padding:16px">Для работы мини-приложения нужен JavaScript.</p></noscript>
   <script src="app.js?v=dev"></script>
 </body>

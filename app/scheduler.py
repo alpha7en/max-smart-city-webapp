@@ -1,7 +1,7 @@
 """Фоновые задачи: sweeper (фото, сессии) и уведомления.
 
-Уведомления — КАРКАС S0: notify_tick() заполняет поток S4 (срок подачи, поверка, демо-счёт;
-отправка только 9:00–21:00 МСК, дедуп через repo.try_mark_sent).
+Уведомления (S4): срок подачи, поверка, демо-счёт; отправка только 9:00–21:00 МСК,
+не больше одного уведомления пользователю за тик, дедуп через repo.try_mark_sent.
 """
 from __future__ import annotations
 
@@ -24,8 +24,20 @@ async def sweep(deps: Deps, now: datetime) -> None:
     await photos.sweep(deps.repo, now)
 
 
-async def notify_tick(deps: Deps, now: datetime) -> None:
-    """Разослать положенные уведомления. Реализует поток S4."""
+async def notify_tick(deps: Deps, now: datetime) -> int:
+    """Разослать положенные уведомления зарегистрированным. Сбой у одного не прерывает рассылку.
+    → сколько отправили."""
+    from app.bot.flows.notify import send_due_notice  # флоу импортируем лениво: они тянут роутер
+
+    if now.hour not in NOTIFY_HOURS:
+        return 0
+    sent = 0
+    for user in await deps.repo.registered_users():
+        try:
+            sent += await send_due_notice(deps, user, now)
+        except Exception:
+            log.exception("notification failed user=%s", user["id"])
+    return sent
 
 
 async def run_scheduler(deps: Deps) -> None:

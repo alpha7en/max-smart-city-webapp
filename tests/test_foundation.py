@@ -19,6 +19,7 @@ from app.bot.router import STATE_HANDLERS, Router
 from app.bot.session import load_session
 from app.bot.states import S
 from app.bot.texts import common as C
+from app.bot.texts import menu as MT
 from app.bot.texts import registration as RT
 from app.config import Settings
 from app.domain import meters as M
@@ -123,7 +124,7 @@ async def test_registration_stub_to_menu_with_contact(chat, api, repo):
     await chat.feed(fakes.message_created(UID, None, [fakes.contact(UID)]))
     user = await repo.get_user(UID)
     assert user["registered_at"] and user["phone"] == "+79123456789" and user["phone_verified"] == 1
-    assert api.last_text().endswith("выберите действие.")
+    assert api.last_text().endswith(MT.FOOTER)
 
 
 async def test_foreign_contact_rejected(chat, api):
@@ -181,7 +182,7 @@ async def test_start_in_idle_and_in_submission(chat, api, repo):
     await register(chat)
     api.clear()
     await chat.text("/start")
-    assert api.last_text().startswith("Главное меню")
+    assert api.last_text().endswith(MT.FOOTER)
     await chat.press("Подать показания")
     user = await repo.get_user(UID)
     assert (await load_session(repo, user["id"])).state == S.SUB_AWAIT_PHOTO
