@@ -1,12 +1,15 @@
 """Сервис подачи app/readings.py: все статусы, порядок проверок (C5), откат, замена + домен S2."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
+from app import clock
 from app.domain import meters as M
+from app.domain.dashboard import load_dashboard
 from app.readings import SubmitResult, format_values, submit_reading, to_units, values_to_units
+from app.web.api import iso
 from tests.conftest import NOW
 
 TODAY = NOW.date()  # 2026-10-19 → период 2026-10
@@ -207,3 +210,20 @@ def test_parse_due_date():
         with pytest.raises(M.DateParseError) as e:
             M.parse_due_date(text, TODAY)
         assert e.value.code == code
+
+
+async def test_created_at_follows_app_clock(repo):
+    """created_at пишется по app.clock (не datetime('now') SQLite); в дашборде и API — дата по Москве."""
+    late = datetime(2026, 10, 20, 1, 30, tzinfo=clock.TZ)  # по UTC ещё 19.10 22:30
+    clock.set_now(late)
+    uid, aid = await _user(repo, 7)
+    mid = await _meter(repo, (uid, aid))
+    res = await submit(repo, uid, meter_id=mid, values={"t1": "123,456"}, today=late.date())
+    assert res.ok
+    rows = [await repo.get_reading(res.reading_id), await repo.get_meter(mid), await repo.get_address(aid),
+            await repo.get_user_by_id(uid)]
+    linked = (await repo.user_addresses(uid))[0]["linked_at"]
+    assert {r["created_at"] for r in rows} | {linked} == {"2026-10-19 22:30:00"}
+    assert iso(rows[0]["created_at"]) == "2026-10-20T01:30:00+03:00"
+    dash = await load_dashboard(repo, uid, late.date())
+    assert "Хол. вода · Арбат 47к1, кв 32 — подано 20.10" in dash.lines

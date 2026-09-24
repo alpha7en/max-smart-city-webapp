@@ -139,12 +139,19 @@ async def drop_scenario(ctx: Ctx) -> None:
     ctx.session.reset()
 
 
+def _nothing_to_cancel(state: S) -> bool:
+    """SUB_VERIF_DATE: показание уже сохранено, ждём только необязательную дату поверки."""
+    return state == S.SUB_VERIF_DATE
+
+
 async def cancel_scenario(ctx: Ctx, *, by_user: bool = False) -> None:
     """Отмена подачи/профиля + строка об этом в следующем сообщении."""
     st = ctx.session.state
     if not st.is_scenario:
         return
     await drop_scenario(ctx)
+    if _nothing_to_cancel(st):
+        return
     if st.is_sub:
         ctx.note(T.SUB_CANCELLED_BY_USER if by_user else T.SUB_CANCELLED)
     else:
@@ -274,10 +281,11 @@ class Router:
 
         # 10. Истёкшая подача/профиль → IDLE (фото удаляем).
         if s.is_expired(ctx.now):
-            was_profile = s.state.is_profile
+            was = s.state
             await drop_scenario(ctx)
             if not (ev.kind == "start" or is_menu_text or is_global_cb):
-                ctx.note(T.PROFILE_EXPIRED if was_profile else T.SUB_EXPIRED)
+                if not _nothing_to_cancel(was):
+                    ctx.note(T.PROFILE_EXPIRED if was.is_profile else T.SUB_EXPIRED)
                 if ev.kind != "photo":
                     await ctx.ack()
                     await show_menu(ctx)

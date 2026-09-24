@@ -16,7 +16,7 @@ from app.bot.flows.menu import MENU, PAY, SUBMIT, VERIFY, dashboard, send_menu
 from app.bot.router import call_hook, on_command, on_global
 from app.bot.texts import common as C
 from app.bot.texts import notify as T
-from app.bot.texts.fmt import day_month, esc, left_days, money, month_name
+from app.bot.texts.fmt import day_month, esc, left_days, meter_of, money, month_name
 from app.domain.dashboard import DashboardData, load_data, meter_names, submitted
 from app.domain.meters import current_period, days_left, submission_window
 from app.integrations.max_api import MaxApiError
@@ -65,12 +65,13 @@ def submit_notice(meters: list[Row], today: date, day_from: int, day_to: int, st
 def verification_notice(meter: Row, name: str, today: date, stage: str = "") -> Notice:
     due = date.fromisoformat(meter["verification_due"])
     n = days_left(today, due)
+    full = esc(meter_of(meter["type"], name))  # в предложении — полное название: «холодной воды (адрес)»
     if n < 0:
-        head = T.VERIFICATION_OVERDUE.format(meter=esc(name), date=day_month(due))
+        head = T.VERIFICATION_OVERDUE.format(meter=full, date=day_month(due))
     elif n == 0:
-        head = T.VERIFICATION_TODAY.format(meter=esc(name))
+        head = T.VERIFICATION_TODAY.format(meter=full)
     else:
-        head = T.VERIFICATION_SOON.format(meter=esc(name), date=day_month(due), left=left_days(n))
+        head = T.VERIFICATION_SOON.format(meter=full, date=day_month(due), left=left_days(n))
     lines = [head, T.VERIFICATION_WHY]
     if meter.get("verification_source") == "model":
         lines.append(T.VERIFICATION_MODEL)

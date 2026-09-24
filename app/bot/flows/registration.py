@@ -16,7 +16,7 @@ from app.bot.router import call_hook, on_hook, on_repeat, on_state, repeat_step,
 from app.bot.states import S
 from app.bot.texts import common as C
 from app.bot.texts import registration as T
-from app.bot.texts.fmt import esc, format_phone
+from app.bot.texts.fmt import esc, flats, format_phone
 from app.db import ts
 from app.domain.addresses import AddressCandidate, button_text, house_short, norm_key
 from app.domain.people import first_name, normalize_name, normalize_phone, validate_name
@@ -60,19 +60,25 @@ def said(ctx: Ctx) -> str | None:
     return ctx.action if ctx.is_callback else K.text_alias(ctx.text)
 
 
-def address_notes(ctx: Ctx, c: AddressCandidate) -> list[str]:
-    """Пометки к адресу: не сверен с ФИАС; квартира больше, чем в доме по ФИАС."""
+def address_notes(ctx: Ctx, c: AddressCandidate, shown: list[str] | tuple = ()) -> list[str]:
+    """Пометки к адресу, кроме уже показанных (`shown`): не сверен с ФИАС (демо без справочника;
+    «сохранить как есть» говорит об этом сам); квартира больше, чем в доме по ФИАС (C12)."""
     notes = []
-    if c.source == "local":
-        notes.append(T.ASIS_NOTE if address_service(ctx).verified else T.LOCAL_NOTE)
+    if c.source == "local" and not address_service(ctx).verified:
+        notes.append(T.LOCAL_NOTE)
     digits = re.match(r"\d+", c.flat or "")
     if c.house_flat_count and digits and int(digits.group()) > c.house_flat_count:
-        notes.append(T.FLAT_WARNING.format(count=c.house_flat_count))
-    return notes
+        notes.append(T.FLAT_WARNING.format(flats=flats(c.house_flat_count)))
+    return [n for n in notes if n not in shown]
 
 
 def _with_notes(text: str, notes: list[str]) -> str:
     return "\n\n".join([text, *notes])
+
+
+def notes_block(notes: list[str]) -> str:
+    """Пометки перед вопросом «Верно?»: 'пометка\n\n' или ''."""
+    return "".join(f"{n}\n\n" for n in notes)
 
 
 def _house(c: AddressCandidate) -> str:
@@ -178,8 +184,9 @@ class AddressFlow:
         ctx.session.go(self.pick)
         if len(cands) == 1:
             c = cands[0]
+            notes = self.draft(ctx)["shown"] = address_notes(ctx, c)
             await ctx.reply(
-                _with_notes(T.ADDRESS_ONE.format(address=esc(c.full_text)), address_notes(ctx, c)),
+                T.ADDRESS_ONE.format(address=esc(c.full_text), notes=notes_block(notes)),
                 K.kb([ctx.btn(T.BTN_YES, "yes")], [ctx.btn(T.BTN_NO_OTHER, "no")], [self._back(ctx)]),
             )
             return
@@ -238,8 +245,9 @@ class AddressFlow:
                 [ctx.btn(T.BTN_PRIVATE_HOUSE, "private")], [ctx.btn(C.BTN_BACK, "back")]))
 
     async def _done(self, ctx: Ctx, c: AddressCandidate) -> None:
-        raw = ctx.data.pop("addr", {}).get("raw")
-        ctx.data["addr_raw"] = raw
+        d = ctx.data.pop("addr", {})
+        ctx.data["addr_raw"] = d.get("raw")
+        ctx.data["addr_shown"] = d.get("shown", []) if len(d.get("cands", [])) == 1 else []
         await self.on_chosen(ctx, c)
 
 
@@ -380,6 +388,7 @@ async def _address_chosen(ctx: Ctx, c: AddressCandidate) -> None:
     reg = _reg(ctx)
     reg["address"] = c.to_dict()
     reg["raw_address"] = ctx.data.pop("addr_raw", None)
+    reg["notes_shown"] = ctx.data.pop("addr_shown", [])
     await to_confirm(ctx)
 
 
@@ -398,12 +407,13 @@ def _missing_step(reg: dict) -> S | None:
     return None
 
 
-def _summary(ctx: Ctx, template: str) -> str:
+def _summary(ctx: Ctx, template: str, notes: bool = True) -> str:
+    """Сводка регистрации; пометки к адресу — только те, что ещё не показывали на «Мы поняли так»."""
     reg = _reg(ctx)
     c = AddressCandidate.from_dict(reg["address"])
     text = template.format(name=esc(reg["name"]), phone=phone_line(reg["phone"], reg.get("phone_verified")),
                            address=esc(c.full_text))
-    return _with_notes(text, address_notes(ctx, c))
+    return _with_notes(text, address_notes(ctx, c, reg.get("notes_shown", ())) if notes else [])
 
 
 async def to_confirm(ctx: Ctx) -> None:
@@ -459,7 +469,7 @@ async def finish(ctx: Ctx) -> None:
     )
     ctx.user = await ctx.repo.get_user_by_id(ctx.user["id"])
     if ctx.is_callback:  # сводка остаётся в чате без кнопок
-        await ctx.reply(_summary(ctx, T.SAVED))
+        await ctx.reply(_summary(ctx, T.SAVED, notes=False))
     pending = ctx.data.get("pending_photo_id")
     ctx.session.reset()
     if res["access"] != "granted":

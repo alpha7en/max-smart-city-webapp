@@ -17,6 +17,7 @@ from typing import Any
 
 import aiosqlite
 
+from app import clock
 from app.db import init_db, ts
 from app.domain.access import decide_role
 from app.domain.meters import FIELDS, demo_bill, normalize_serial
@@ -56,6 +57,11 @@ def default_labeler(rows: list[Row]) -> list[str]:
         AddressCandidate.from_dict({k: v for k, v in r.items() if k in names}) for r in rows
     ]
     return short_labels(cands)
+
+
+def _now() -> str:
+    """Время записи из app.clock (подменяется в тестах) в формате БД — не datetime('now') SQLite."""
+    return ts(clock.now())
 
 
 class Repo:
@@ -127,7 +133,8 @@ class Repo:
             user = await self.get_user(max_user_id)
             if user is None:
                 await self._exec(
-                    "INSERT INTO users(max_user_id, chat_id) VALUES(?, ?)", (max_user_id, chat_id)
+                    "INSERT INTO users(max_user_id, chat_id, created_at) VALUES(?, ?, ?)",
+                    (max_user_id, chat_id, _now()),
                 )
             elif chat_id and user["chat_id"] != chat_id:
                 await self._exec("UPDATE users SET chat_id=? WHERE id=?", (chat_id, user["id"]))
@@ -190,10 +197,10 @@ class Repo:
                         f"UPDATE addresses SET {cols} WHERE id=?", (*vals.values(), existing["id"])
                     )
                 return existing["id"]
-            cols = ", ".join(["norm_key", *vals])
-            marks = ", ".join("?" * (len(vals) + 1))
+            cols = ", ".join(["norm_key", "created_at", *vals])
+            marks = ", ".join("?" * (len(vals) + 2))
             cur = await self._exec(
-                f"INSERT INTO addresses({cols}) VALUES({marks})", (norm_key, *vals.values())
+                f"INSERT INTO addresses({cols}) VALUES({marks})", (norm_key, _now(), *vals.values())
             )
             return cur.lastrowid
 
@@ -231,9 +238,9 @@ class Repo:
                 return cur["role"], cur["access"]
             role, access = decide_role(await self.address_owner(address_id) is not None)
             await self._exec(
-                "INSERT INTO user_addresses(user_id, address_id, role, access, label, raw_input) "
-                "VALUES(?, ?, ?, ?, ?, ?)",
-                (user_id, address_id, role, access, label, raw_input),
+                "INSERT INTO user_addresses(user_id, address_id, role, access, label, raw_input, created_at) "
+                "VALUES(?, ?, ?, ?, ?, ?, ?)",
+                (user_id, address_id, role, access, label, raw_input, _now()),
             )
             return role, access
 
@@ -316,9 +323,9 @@ class Repo:
     ) -> int:
         cur = await self._exec(
             "INSERT INTO meters(address_id, type, tariffs, serial, serial_norm, created_by, "
-            "verification_due, verification_source) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+            "verification_due, verification_source, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (address_id, type, tariffs, serial or None, normalize_serial(serial), created_by,
-             verification_due, verification_source),
+             verification_due, verification_source, _now()),
         )
         return cur.lastrowid
 
@@ -415,10 +422,10 @@ class Repo:
                     raise ReadingExists(old)
                 await self._exec("UPDATE readings SET status='replaced' WHERE id=?", (old["id"],))
             cur = await self._exec(
-                "INSERT INTO readings(meter_id, user_id, period, t1, t2, t3, source, recognized_json, status) "
-                "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO readings(meter_id, user_id, period, t1, t2, t3, source, recognized_json, status, "
+                "created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (meter_id, user_id, period, values["t1"], values.get("t2"), values.get("t3"), source,
-                 json.dumps(recognized, ensure_ascii=False) if recognized else None, status),
+                 json.dumps(recognized, ensure_ascii=False) if recognized else None, status, _now()),
             )
             return cur.lastrowid
 

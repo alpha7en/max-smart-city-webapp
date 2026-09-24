@@ -14,7 +14,6 @@ import logging
 import os
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -33,9 +32,11 @@ from app.bot import photos
 from app.bot.ctx import Deps
 from app.bot.texts import common as C
 from app.bot.texts import fmt
+from app.bot.texts.api import BTN_MORE, CHAT_FLAGGED, CHAT_MOCK, CHAT_SAVED, MSG
 from app.domain import meters as M
 from app.domain.dashboard import Dashboard, load_dashboard
-from app.repo import ReadingExists, Repo, Row, values_of
+from app.readings import submit_reading
+from app.repo import Repo, Row, values_of
 from app.web.auth import InitData, current_user
 
 log = logging.getLogger(__name__)
@@ -43,25 +44,6 @@ MAX_UPLOAD = photos.MAX_BYTES          # 10 МБ
 FORM_OVERHEAD = 64 * 1024              # запас на заголовки multipart при проверке Content-Length
 CHUNK = 256 * 1024
 
-# --- Тексты API ---
-MSG = {
-    "bad_request": "Не получилось прочитать запрос. Обновите страницу и попробуйте ещё раз.",
-    "not_found": "Не нашли этот счётчик — возможно, данные уже изменились. Вернитесь на главную.",
-    "no_access": "Нет доступа к этому адресу. Попросите собственника открыть доступ в боте.",
-    "too_large": "Фото больше 10 МБ. Снимите ещё раз или введите показание вручную.",
-    "not_image": "Это не похоже на фото. Сфотографируйте счётчик ещё раз.",
-    "no_file": "Не нашли фото в запросе. Сфотографируйте счётчик ещё раз.",
-    "internal": "Что-то пошло не так на нашей стороне. Ваши данные на месте — попробуйте ещё раз.",
-    # TODO(S2): тексты ниже нужны только временной подаче; после слияния message приходит из SubmitResult.
-    "bad_format": "Введите число, например 123,456.",
-    "less_than_previous": "Показание меньше прошлого ({prev}). Проверьте цифры.",
-    "needs_confirm": "Прирост необычно большой: {delta}. Всё верно?",
-    "already_submitted": "За {month} уже передано показание: {prev}. Заменить?",
-}
-CHAT_SAVED = "Записали показание из мини-приложения.\n\n{title}\n{values}"
-CHAT_FLAGGED = "Прирост больше обычного — отметили показание для проверки."
-CHAT_MOCK = "Передача в управляющую компанию в MVP смоделирована."
-BTN_MORE = "Подать ещё"
 EMPTY_DASHBOARD = {"lines": [], "urgent": None, "window": None, "bill": None, "verification": None,
                    "pending": [], "submitted": 0, "total": 0}
 ERROR_STATUS = {"bad_format": 422, "less_than_previous": 422, "needs_confirm": 409,
@@ -296,65 +278,3 @@ async def notify_chat(deps: Deps, user: Row, meter: Row, reading: Row) -> None:
                             keyboard=K.kb([K.gbtn(BTN_MORE, "submit"), K.gbtn(C.BTN_MENU, "menu")]))
     except Exception as e:  # noqa: BLE001
         log.warning("miniapp reading %s: chat notify failed: %s", reading["id"], e)
-
-
-# === Адаптер к потоку S2 (подача) ===
-# TODO(S2): после слияния удалить временную реализацию _submit_fallback и блок except ImportError.
-
-@dataclass
-class _SubmitResult:
-    status: str
-    reading_id: int | None = None
-    meter_id: int | None = None
-    previous: dict | None = None
-    delta: dict | None = None
-    message: str = ""
-
-
-async def _submit_fallback(repo: Repo, *, user_id: int, meter_id: int | None, draft: dict | None,
-                           values: dict[str, str | int], source: str, recognized: dict | None,
-                           confirm: bool = False, replace: bool = False, today: date) -> _SubmitResult:
-    """TODO(S2): временная подача поверх repo.submit_reading (порядок проверок — SPEC_REVIEW C5)."""
-    meter = await repo.user_meter(user_id, meter_id) if meter_id else None
-    if not meter:
-        return _SubmitResult("no_access", message=MSG["no_access"])
-    mtype = meter["type"]
-    try:
-        parsed = {f: M.parse_value(str(values.get(f, "")), mtype) for f in M.fields_for(meter["tariffs"])}
-    except M.ValueParseError:
-        return _SubmitResult("bad_format", message=MSG["bad_format"])
-    period = M.current_period(today)
-
-    def exists(row: Row) -> _SubmitResult:
-        prev = values_of(row)
-        text = MSG["already_submitted"].format(month=fmt.month_name(period), prev=fmt.value(prev["t1"], mtype))
-        return _SubmitResult("already_submitted", previous=prev, message=text)
-
-    current = await repo.reading_for_period(meter_id, period)
-    if current and not replace:
-        return exists(current)
-    prev_row = await repo.last_reading(meter_id, before_period=period)
-    prev = values_of(prev_row) if prev_row else None
-    months = M.months_between(prev_row["period"], period) if prev_row else 1
-    verdict = M.check_plausibility(mtype, parsed, prev, months)
-    if verdict == "less":
-        text = MSG["less_than_previous"].format(prev=fmt.value(prev["t1"], mtype))
-        return _SubmitResult("less_than_previous", previous=prev, message=text)
-    if verdict == "too_big" and not confirm:
-        delta = {f: parsed[f] - prev[f] for f in parsed if prev.get(f) is not None}
-        text = MSG["needs_confirm"].format(delta=f"{fmt.delta(delta['t1'], mtype)} {fmt.unit(mtype)}")
-        return _SubmitResult("needs_confirm", previous=prev, delta=delta, message=text)
-    status = "flagged" if verdict == "too_big" else "accepted"
-    try:
-        _, reading_id = await repo.submit_reading(user_id=user_id, period=period, values=parsed, source=source,
-                                                  status=status, recognized=recognized, replace=replace,
-                                                  meter_id=meter_id)
-    except ReadingExists as e:
-        return exists(e.reading)
-    return _SubmitResult(status, reading_id, meter_id, prev)
-
-
-try:
-    from app.readings import submit_reading  # S2
-except ImportError:  # TODO(S2)
-    submit_reading = _submit_fallback

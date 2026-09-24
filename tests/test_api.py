@@ -187,7 +187,7 @@ def test_a3_pending_address_marked_and_hidden_meters(client):
     assert d["addresses"] == [{"label": owner["label"], "access": "pending", "role": "tenant"}]
     dash = d["dashboard"]
     assert dash["pending"] == [{"label": owner["label"]}] and dash["bill"] is None and dash["total"] == 0
-    assert sum("ждёт подтверждения" in line for line in dash["lines"]) == 1  # строка для бота — одна
+    assert sum("одобрения собственника" in line for line in dash["lines"]) == 1  # строка для бота — одна
 
 
 def test_a3_dashboard_verification_urgent(client):
@@ -197,7 +197,7 @@ def test_a3_dashboard_verification_urgent(client):
     dash = client.get("/api/me", headers=auth()).json()["dashboard"]
     assert dash["verification"] == {"meter_id": m, "meter_label": f"Хол. вода · {u['label']}", "type": "cold_water",
                                     "due": "2026-11-02", "days_left": 14}
-    assert dash["urgent"] == {"kind": "verification", "text": "Запишитесь на поверку: 14 дн.", "days_left": 14}
+    assert dash["urgent"] == {"kind": "verification", "text": "Запишитесь на поверку: 14 дней", "days_left": 14}
 
 
 # --- A4: /api/meters/{id} ---

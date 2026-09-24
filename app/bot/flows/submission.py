@@ -502,8 +502,8 @@ async def ask_address_pick(ctx: Ctx) -> None:
         await ctx.reply(T.ADDRESS_NOT_IN_REGISTRY.format(address=esc(cands[0].full_text)), K.kb(
             _row(ctx, (T.BTN_SAVE_AS_IS, "c", 0), (T.BTN_FIX, "again")), _row(ctx, back)))
     elif len(cands) == 1:
-        note = T.ADDRESS_LOCAL_NOTE if cands[0].source == "local" else ""
-        await ctx.reply(T.ADDRESS_ONE.format(address=esc(cands[0].full_text), note=note), K.kb(
+        note = f"{T.ADDRESS_LOCAL_NOTE}\n\n" if cands[0].source == "local" else ""
+        await ctx.reply(T.ADDRESS_ONE.format(address=esc(cands[0].full_text), notes=note), K.kb(
             _row(ctx, (T.BTN_YES, "c", 0), (T.BTN_REENTER, "again")), _row(ctx, back)))
     else:
         rows = [[ctx.btn(button_text(c), "c", i)] for i, c in enumerate(cands)]
@@ -542,7 +542,8 @@ async def got_address_pick(ctx: Ctx) -> None:
 
 @on_repeat(S.SUB_ADDR_FLAT)
 async def ask_flat(ctx: Ctx) -> None:
-    await ctx.reply(T.ASK_FLAT, K.kb(_row(ctx, (T.BTN_PRIVATE_HOUSE, "house")),
+    chosen = (ctx.data.get("addr") or {}).get("chosen") or {}
+    await ctx.reply(T.ASK_FLAT.format(address=esc(chosen.get("full_text"))), K.kb(_row(ctx, (T.BTN_PRIVATE_HOUSE, "house")),
                                      _row(ctx, (C.BTN_BACK, "back"), (C.BTN_CANCEL, "cancel"))))
 
 
@@ -962,18 +963,14 @@ def _after_kb() -> dict:
 
 
 async def _done(ctx: Ctx, m: Meter, res: SubmitResult) -> None:
-    d = ctx.data
-    stub = d.get("source") == "photo" and (d.get("recognized") or {}).get("stub")
     created = m.id is None and res.meter_id is not None
     if created:  # подпись нового счётчика — с учётом остальных
         meters = await ctx.repo.user_meters(_uid(ctx))
         label = dict(zip([x["id"] for x in meters], meter_labels(meters), strict=True)).get(res.meter_id, m.label)
     else:
         label = m.label
-    lines = [T.DONE.format(label=esc(label), value=format_values(res.values, m.type, m.tariffs),
-                           month=fmt.month_name(res.period)), T.UK_MOCK]
-    if stub:
-        lines.append(T.STUB_DONE)
+    lines = [T.DONE.format(meter=esc(fmt.meter_of(m.type, label)), month=fmt.month_name(res.period),
+                           value=format_values(res.values, m.type, m.tariffs)), T.UK_MOCK]
     if res.status == "flagged":
         lines.append(T.FLAGGED_DONE)
     await drop_scenario(ctx)  # фото удалено, новый flow — кнопки проверки устарели

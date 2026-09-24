@@ -6,7 +6,6 @@ build_dashboard() — чистая функция от строк репозит
 """
 from __future__ import annotations
 
-from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any, Literal
@@ -14,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 from app import clock
 from app.bot.texts import menu as T
-from app.bot.texts.fmt import day_month, days, money, month_name, short_date
+from app.bot.texts.fmt import day_month, days, money, month_name, n_days, short_date
 from app.domain.meters import (
     TYPE_LABELS,
     UNITS,
@@ -23,6 +22,7 @@ from app.domain.meters import (
     days_left,
     fields_for,
     format_value,
+    meter_labels,
     submission_window,
 )
 
@@ -108,16 +108,8 @@ def local_time(value: str | None, tz: ZoneInfo = clock.TZ) -> datetime | None:
 
 
 def meter_names(meters: list[Row]) -> dict[int, str]:
-    """«Хол. вода · Арбат 47к1, кв 32»; одинаковые тип+адрес различаем «№2», «№3»."""
-    base = {m["id"]: T.METER.format(type=TYPE_LABELS[m["type"]], address=m.get("address_label") or "")
-            for m in meters}
-    seen: Counter[str] = Counter()
-    names = {}
-    for m in meters:
-        name = base[m["id"]]
-        seen[name] += 1
-        names[m["id"]] = name if seen[name] == 1 else f"{name} №{seen[name]}"
-    return names
+    """{meter_id: «Хол. вода · Арбат 47к1, кв 32»} — подписи как в подаче (domain.meters.meter_labels)."""
+    return dict(zip([m["id"] for m in meters], meter_labels(meters), strict=True))
 
 
 def submitted(meter: Row, period: str) -> bool:
@@ -148,7 +140,7 @@ def _urgent_text(kind: UrgentKind, n: int) -> str:
         "bill": (T.URGENT_BILL, T.URGENT_BILL_TODAY, T.URGENT_BILL_OVERDUE),
         "submit": (T.URGENT_SUBMIT, T.URGENT_SUBMIT_TODAY, T.URGENT_SUBMIT_TODAY),
     }[kind]
-    return texts[0].format(n=n) if n > 0 else texts[1] if n == 0 else texts[2]
+    return texts[0].format(n=n_days(n)) if n > 0 else texts[1] if n == 0 else texts[2]
 
 
 def _window_json(window: Window, period: str) -> dict:

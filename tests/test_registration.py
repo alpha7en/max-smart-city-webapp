@@ -272,7 +272,8 @@ async def test_r11_several_candidates(chat, api, repo, deps):
     assert (await session(repo)).state == S.REG_FLAT
     await chat.text("500")
     text = api.last_text()
-    assert RT.FLAT_WARNING.format(count=40) in text and RT.LOCAL_NOTE not in text
+    assert RT.FLAT_WARNING.format(flats="40 квартир") in text and RT.LOCAL_NOTE not in text
+    assert text.startswith("Проверьте, всё ли верно:") and text.endswith(RT.FLAT_WARNING.format(flats="40 квартир"))
 
 
 async def test_r11_house_match_picks_single(chat, api, repo, deps):
@@ -294,7 +295,7 @@ async def test_r12_not_found_save_as_is(chat, api, repo, deps):
     await chat.press(RT.BTN_ASIS)
     s = await session(repo)
     assert s.state == S.REG_CONFIRM and s.data["reg"]["address"]["status"] == "unverified"
-    assert RT.ASIS_NOTE in api.last_text()
+    assert "ФИАС" not in api.last_text()  # о сверке уже сказали в «Не нашли такой адрес…»
 
 
 async def test_r12_no_house_repeats_with_example(chat, api, repo):
@@ -305,9 +306,16 @@ async def test_r12_no_house_repeats_with_example(chat, api, repo):
     assert (await session(repo)).state == S.REG_ADDRESS
 
 
-async def test_r13_local_address_marked_on_confirm(chat, api):
-    await to_confirm(chat)
-    assert RT.LOCAL_NOTE in api.last_text()
+async def test_r13_local_address_marked_once(chat, api):
+    """«Не сверен с ФИАС» — один раз, на «Мы поняли так»; ни на подтверждении, ни в «Записали»."""
+    await _at_address(chat)
+    await chat.text(ADDRESS)
+    assert RT.LOCAL_NOTE in api.last_text() and api.last_text().endswith("Верно?")
+    await chat.press(RT.BTN_YES)
+    assert api.last_text().startswith("Проверьте, всё ли верно:") and "ФИАС" not in api.last_text()
+    await chat.press(RT.BTN_ALL_OK)
+    saved = api.named("answer")[-1]["message"]["text"]
+    assert saved.startswith("Записали:") and "ФИАС" not in saved
 
 
 async def test_r14_text_on_pick_is_new_search(chat, api, repo):
