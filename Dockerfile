@@ -1,40 +1,26 @@
-# Multi-stage lightweight Docker build (< 30 sec build time)
-FROM python:3.11-slim as base
+FROM python:3.12-slim
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DATA_DIR=/app/data \
+    TZ=Europe/Moscow
 
 WORKDIR /app
+RUN useradd --system --uid 10001 --no-create-home app
 
-# Create persistent data directory for SQLite
-RUN mkdir -p /app/data
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
-# Copy application source
 COPY app/ app/
-COPY max_bot_sdk/ max_bot_sdk/
-COPY docs/ docs/
-COPY scripts/ scripts/
-COPY tests/ tests/
-COPY openapi.yaml .
-COPY openapi.json .
-COPY DATA-API.yaml .
-COPY .env.example .
-COPY conftest.py .
+RUN mkdir -p /app/data && chown app:app /app/data
 
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=3)"
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/api/health || exit 1
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Том ./data с хоста может принадлежать root: отдаём его пользователю app и сразу
+# сбрасываем права (setpriv) — само приложение всегда работает не от root.
+ENTRYPOINT ["/bin/sh", "-c", "if [ \"$(id -u)\" = 0 ]; then chown -R app:app /app/data && exec setpriv --reuid=app --regid=app --init-groups \"$@\"; fi; exec \"$@\"", "--"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers"]

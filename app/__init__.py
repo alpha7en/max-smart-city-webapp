@@ -1,4 +1,1 @@
-"""
-MAX Smart City package initialization.
-"""
-__version__ = "1.0.0"
+"""Единый бот ЖКХ для MAX: бот + API мини-приложения."""

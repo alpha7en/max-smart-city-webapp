@@ -1,45 +1,21 @@
-# Environment variables and secrets
-*.env
+# Секреты
 .env
-token.env
+*.env
+!.env.example
 
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-venv/
 .venv/
+venv/
 .pytest_cache/
 
-# Databases and data volumes
+# Данные (SQLite, временные фото)
+data/
 *.db
-*.sqlite
-*.sqlite3
 *.db-wal
 *.db-shm
-data/
 
-# Node & Frontend
-node_modules/
-dist/
-build/
-.next/
-
-# Logs and runtime artifacts
-logs/
-*.log
-
-# Screenshots, audit images, and design dumps
-*.png
-*.jpg
-*.jpeg
-/редизайн ии/
-/тз raw/
-
-# Operating System
+# Прочее
 .DS_Store
-Thumbs.db
-
-# Agent subagent logs and build artifacts
-.agents/
-dist_gh_pages/
+*.log
