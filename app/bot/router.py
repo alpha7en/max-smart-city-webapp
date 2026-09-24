@@ -46,7 +46,17 @@ ACCEPTS: dict[S, frozenset[str]] = {}
 #   "menu"               — показать меню-дашборд; перевести сессию в IDLE.
 #   "registration.begin" — приветствие + первый вопрос (REG_NAME); сохранить data["pending_photo_id"].
 #   "submission.photo"   — фото в IDLE / SUB_*: начать подачу или заменить фото в текущей.
-HOOK_NAMES = ("menu", "registration.begin", "submission.photo")
+# Точки входа между потоками (вызывать через call_hook, регистрировать через @on_hook):
+#   "submission.start"     — инструкция «пришлите фото» (S2), вызывает меню/уведомления (S4).
+#   "submission.manual"    — ручной ввод: выбор счётчика без фото (S2).
+#   "submission.add_meter" — «Добавить счётчик» из «Мои счётчики» (S2).
+#   "submission.with_photo"— начать подачу с уже сохранённым фото, kw photo_id (S2; вызывает S1 после регистрации).
+#   "access.no_access"     — сообщение «нет прав» по адресу, kw address_id (S1; вызывает S2).
+HOOK_NAMES = (
+    "menu", "registration.begin", "submission.photo",
+    "submission.start", "submission.manual", "submission.add_meter", "submission.with_photo",
+    "access.no_access",
+)
 DEDUP_SIZE = 2000
 
 
@@ -96,6 +106,16 @@ def on_hook(name: str):
 
 
 # --- Общие действия, доступные потокам ---
+
+async def call_hook(name: str, ctx: Ctx, **kw) -> None:
+    """Вызвать точку входа другого потока. Нет регистрации — показать меню (и залогировать)."""
+    handler = HOOKS.get(name)
+    if handler is None:
+        log.error("hook %s is not registered", name)
+        await show_menu(ctx)
+        return
+    await handler(ctx, **kw)
+
 
 async def show_menu(ctx: Ctx) -> None:
     await HOOKS["menu"](ctx)
