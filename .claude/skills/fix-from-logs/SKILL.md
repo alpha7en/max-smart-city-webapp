@@ -24,7 +24,11 @@ grep -nE 'trace=|Traceback|MAX API|MaxApiError|polling error|retry in|failed|not
 | `polling error` сетевой, повторяется | сеть, TLS, VPN | `max_api.ssl_context`, окружение |
 | `attachment.not.ready`, `retry in` | нормальные повторы | баг, только если повторы кончились |
 | `pending photo download failed`, `PhotoError`, `415 not_image`, `413 too_large` | фото не скачалось | `app/bot/photos.py`, `max_api.download` (редиректы CDN?) |
-| `recognizer failed` | микросервис распознавания недоступен | `app/integrations/recognizer.py`, RECOGNIZER_URL |
+| `recognizer failed … ConnectError` | `meter-reader` не запущен или не тот URL | `COMPOSE_PROFILES=recognizer`, `RECOGNIZER_URL=http://meter-reader:8000/recognize`, `docker compose ps` |
+| `recognizer failed … 502` | Yandex Cloud: ключ, квота, битый ответ модели | `docker compose logs meter-reader`; `services/meter_reader` (llm.py, recognizer.py) |
+| `recognizer failed … 400` | сервис не смог открыть картинку | формат фото из MAX; `services/meter_reader/meter_reader/image_utils.py` |
+| `recognizer failed: TimeoutError`/`ReadTimeout` | модель дольше 20 с | `YC_TIMEOUT`, нагрузка; клиент `HttpRecognizer` |
+| цифры распознаны неверно (жалоба, не ошибка) | качество модели | прогнать фото через `services/meter_reader/recognize.sh`, передать автору сервиса; бот не чинить |
 | `hook … is not registered` | поток не зарегистрировал точку входа | `@on_hook` в `app/bot/flows/*` |
 | `broken session … reset to IDLE` | в sessions.data несовместимый JSON | кто пишет `session.data` |
 | `scheduler tick failed` | ошибка уведомлений | `app/scheduler.py`, `flows/notify.py` |

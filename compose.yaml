@@ -15,3 +15,18 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
+
+  # Распознавание показаний (services/meter_reader): Qwen в Yandex Cloud AI Studio.
+  # Включается профилем: COMPOSE_PROFILES=recognizer в .env (или docker compose --profile recognizer up).
+  # Боту нужен RECOGNIZER_URL=http://meter-reader:8000/recognize, иначе работает демо-распознавание.
+  meter-reader:
+    profiles: ["recognizer"]
+    build: ./services/meter_reader
+    restart: unless-stopped
+    environment:
+      YC_API_KEY: ${YC_API_KEY:-}
+      YC_FOLDER_ID: ${YC_FOLDER_ID:-}
+      YC_MODEL: ${YC_MODEL:-qwen3.6-35b-a3b}
+      YC_TIMEOUT: ${YC_TIMEOUT:-15}
+    ports:
+      - "127.0.0.1:8000:8000"   # только для отладки с хоста (recognize.sh); наружу не открываем

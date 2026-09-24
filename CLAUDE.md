@@ -26,7 +26,7 @@ app/
   scheduler.py       уведомления и чистка фото/сессий
   domain/            чистые функции без I/O: meters, people, addresses, access (+dashboard)
   integrations/      ВЕСЬ внешний HTTP: max_api.py (клиент MAX + certs/ Минцифры),
-                     recognizer.py (микросервис или демо-заглушка), address_service.py (DaData/локально)
+                     recognizer.py (клиент meter-reader или демо-заглушка), address_service.py (DaData/локально)
   bot/
     events.py        сырой update MAX → Event        poller.py   long polling, marker в kv
     router.py        глобальные правила + @on_state/@on_repeat/@on_global/@on_command/@on_hook
@@ -35,6 +35,8 @@ app/
     texts/           ВСЕ тексты бота; fmt.py: esc(), числа, деньги, даты
   web/               auth.py (initData), api.py (/api/*), static/ (мини-приложение, vanilla JS)
 tests/               pytest; conftest.py (фикстура chat), fakes.py (FakeMaxApi + апдейты в формате MAX)
+services/meter_reader/  сервис распознавания (автор — коллега, свой README): POST /recognize, фото → Qwen
+                     в Yandex Cloud → показание, тип, серийник. Свой Dockerfile и тесты, контейнер meter-reader
 tools/live_smoke.py  живая проверка MAX API (нужен доступ к MAX, то есть запуск из РФ)
 ```
 
@@ -44,6 +46,10 @@ python3.12 -m venv .venv && . .venv/bin/activate && pip install -r requirements.
 python -m pytest -q                                   # все тесты, меньше 15 с, должны быть зелёными
 cp .env.example .env                                  # затем вписать BOT_TOKEN
 docker compose up -d --build && docker compose logs -f app    # бот + API на :8080
+# + распознавание: в .env COMPOSE_PROFILES=recognizer, YC_API_KEY, YC_FOLDER_ID,
+#   RECOGNIZER_URL=http://meter-reader:8000/recognize; проверка: curl localhost:8000/health
+services/meter_reader/recognize.sh фото.jpg             # что сервис видит на фото
+(cd services/meter_reader && python -m pytest -q)       # тесты сервиса (своё окружение: его requirements + pytest)
 curl -s localhost:8080/api/health                     # {"ok":true}
 uvicorn app.main:app --env-file .env --port 8080      # без docker (docker compose stop app перед этим)
 python -m tools.live_smoke --dry-run                  # запросы к MAX без сети и токена
@@ -64,6 +70,15 @@ sqlite3 data/bot.db 'select user_id,state,data from sessions'  # состоян�
 - Время брать из `app.clock` / `ctx.now`. Сценарные тесты писать через фикстуру `chat` + `FakeMaxApi`.
   Проверять тексты, кнопки, state и строки БД.
 - Регистрация хендлеров декораторами, `router.py` без нужды не править. Межпотоковые вызовы через `call_hook`.
+
+## Распознавание (services/meter_reader)
+- Сервис пишет и отлаживает коллега: без нужды его код не править, а если правишь, то вместе с его README
+  и тестами. Граница с ботом одна: `HttpRecognizer._parse` + `tests/test_recognizer.py`.
+- Проверено только на водомерах (Yandex.Toloka): 74% показаний точно, 91% верных целых м³, ~2.5 с на фото.
+  `confidence` сервиса почти всегда 0.95, уверенность считает наш клиент. Свет и газ не проверены, поэтому бот
+  всегда просит проверить цифры.
+- Без `RECOGNIZER_URL` работает демо-заглушка с пометкой в UI. Ключи YC только в `.env`. Исходная папка
+  коллеги `УСЛОВИЯ/сырые файлы…` не в git и содержит ключи: оттуда ничего не копировать, кроме кода.
 
 ## MAX: что важно (проверено живьём или по схеме)
 - API `https://platform-api2.max.ru`, заголовок `Authorization: <token>` без Bearer. Нужен CA Минцифры.

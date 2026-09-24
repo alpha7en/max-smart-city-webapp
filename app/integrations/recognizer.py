@@ -1,8 +1,10 @@
-"""Распознавание показаний по фото: HTTP-клиент внешнего микросервиса или демо-заглушка.
+"""Распознавание показаний по фото: HTTP-клиент микросервиса services/meter_reader или демо-заглушка.
 
-Контракт микросервиса (уточнит владелец; маппинг — только в HttpRecognizer._parse):
-POST {RECOGNIZER_URL} multipart: file=<image>, meter_type, tariffs
-→ 200 JSON {"values": {"t1": 123.456, "t2": ..., "t3": ...}, "serial": "...", "confidence": 0.93}
+Контракт микросервиса (services/meter_reader/README.md; маппинг только в HttpRecognizer._parse):
+POST {RECOGNIZER_URL} multipart: image=<фото> (+ meter_type, tariffs как подсказка, сервис их пока не читает)
+→ 200 JSON {"meter_type": "hot_water", "reading_text": "00595.825", "integer_digits": "00595",
+            "fraction_digits": "825", "tariff": null, "serial_number": "123456", "confidence": 0.95, ...}
+400 не картинка, 413 больше 20 МБ, 502 ошибка Yandex Cloud.
 """
 from __future__ import annotations
 
@@ -15,7 +17,7 @@ from typing import Any, Protocol
 
 import httpx
 
-from app.domain.meters import FIELDS, MeterType, fields_for
+from app.domain.meters import FIELDS, MeterType, fields_for, spec
 
 log = logging.getLogger(__name__)
 
@@ -46,6 +48,16 @@ def _thousandths(v: Any) -> int | None:
         return None
 
 
+# Уверенность выставляем сами: у сервиса она почти всегда 0.95 и ничего не говорит.
+CONF_OK, CONF_CHECK = 0.9, 0.6            # CHECK попадает в «Проверьте цифры» бота и мини-приложения
+_VALIDATED = {MeterType.COLD_WATER, MeterType.HOT_WATER}  # на датасетах проверены только водомеры
+_TARIFF_FIELD = {"1": "t1", "2": "t2", "3": "t3"}
+
+
+def _digits(v: Any) -> str:
+    return "".join(ch for ch in str(v) if ch.isdigit()) if v is not None else ""
+
+
 class HttpRecognizer:
     def __init__(self, url: str, timeout: float = 20.0, client: httpx.AsyncClient | None = None):
         self.url = url
@@ -53,20 +65,33 @@ class HttpRecognizer:
         self._client = client
 
     @staticmethod
-    def _parse(data: dict, tariffs: int) -> Recognition:
-        raw = data.get("values") or {}
-        allowed = fields_for(tariffs)
-        values = {f: _thousandths(raw.get(f)) if f in allowed else None for f in FIELDS}
-        conf = float(data.get("confidence") or 0.0)
-        if values.get("t1") is None:
-            conf = 0.0
-        return Recognition(values, data.get("serial") or None, conf, stub=False)
+    def _parse(data: dict, meter_type: str, tariffs: int) -> Recognition:
+        values: dict[str, int | None] = dict.fromkeys(FIELDS)
+        serial = str(data.get("serial_number") or "").strip() or None
+        value = _thousandths(data.get("reading_text") or data.get("reading"))
+        if value is None:
+            return Recognition(values, serial, 0.0)
+        # Многотарифный счётчик показывает один тариф за раз: кладём значение в его поле.
+        fields = fields_for(tariffs if meter_type == MeterType.ELECTRICITY else 1)
+        field_ = _TARIFF_FIELD.get(_digits(data.get("tariff"))[:1], "t1")
+        values[field_ if field_ in fields else "t1"] = value
+        sp = spec(meter_type)
+        whole, frac = _digits(data.get("integer_digits")), _digits(data.get("fraction_digits"))
+        atypical = len(whole.lstrip("0")) > sp.int_digits or len(frac) > sp.frac_digits
+        conf = CONF_OK
+        if atypical or data.get("meter_type") != meter_type or meter_type not in _VALIDATED:
+            conf = CONF_CHECK
+        try:
+            conf = min(conf, float(data.get("confidence")))
+        except (TypeError, ValueError):
+            pass
+        return Recognition(values, serial, conf, stub=False)
 
     async def recognize(self, image_path: str, meter_type: str, tariffs: int,
                         *, hint: dict | None = None) -> Recognition:
         try:
             content = Path(image_path).read_bytes()
-            files = {"file": (Path(image_path).name, content, "image/jpeg")}
+            files = {"image": (Path(image_path).name, content, "image/jpeg")}
             form = {"meter_type": meter_type, "tariffs": str(tariffs)}
             if self._client:
                 resp = await self._client.post(self.url, files=files, data=form, timeout=self.timeout)
@@ -74,7 +99,7 @@ class HttpRecognizer:
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
                     resp = await client.post(self.url, files=files, data=form)
             resp.raise_for_status()
-            return self._parse(resp.json(), tariffs)
+            return self._parse(resp.json(), meter_type, tariffs)
         except Exception as e:  # noqa: BLE001 — контракт: не бросаем
             log.warning("recognizer failed: %s", e)
             return Recognition(confidence=0.0, error=str(e) or type(e).__name__)

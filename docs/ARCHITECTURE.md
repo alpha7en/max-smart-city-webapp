@@ -2,7 +2,8 @@
 
 Бот, планировщик и API мини-приложения работают в одном процессе FastAPI (`app/main.py`). Бот и планировщик
 запускаются фоновыми задачами в lifespan. Внешний HTTP ходит только из `app/integrations/`. В `app/domain/`
-лежат чистые функции без ввода-вывода. SQL собран в `app/repo.py`.
+лежат чистые функции без ввода-вывода. SQL собран в `app/repo.py`. Распознавание показаний — отдельный
+сервис `services/meter_reader/` (свой контейнер `meter-reader`, профиль compose `recognizer`).
 
 ## Модули
 
@@ -25,7 +26,7 @@ app/
     max_api.py         клиент MAX Bot API (httpx, повторы при 429/5xx, TLS с сертификатом Минцифры)
     certs/             russian_trusted_ca.pem
     address_service.py DaData suggest или локальный разбор адреса
-    recognizer.py      HttpRecognizer (RECOGNIZER_URL) или StubRecognizer (демо)
+    recognizer.py      HttpRecognizer (RECOGNIZER_URL → services/meter_reader) или StubRecognizer (демо)
   bot/
     events.py          сырой update MAX → Event (текст, фото, контакт, кнопка, bot_started)
     poller.py          long polling GET /updates, маркер в kv, отдельная задача на каждый апдейт
@@ -44,7 +45,23 @@ app/
 tools/live_smoke.py    живая проверка MAX API тем же клиентом и теми же кнопками
 tools/transcript.py    пример диалога через настоящий роутер → docs/DIALOG_EXAMPLE.md
 tests/                 pytest: fakes.py (FakeMaxApi, апдейты в формате MAX), conftest.py (фикстура chat)
+
+services/meter_reader/ отдельный FastAPI-сервис: POST /recognize (фото → Qwen в Yandex Cloud AI Studio → JSON)
+  meter_reader/        api.py, recognizer.py (барабаны → показание, 5 + 3), prompts.py, llm.py, image_utils.py
+  scripts/eval_water.py  замер точности на датасете Yandex.Toloka Water Meters
+  tests/               постобработка ответа модели без сети
 ```
+
+## Распознавание
+
+Бот скачивает фото из MAX во временный файл и, когда счётчик выбран, вызывает `recognizer.recognize(path, type,
+tariffs)` с таймаутом 25 с. `HttpRecognizer` отправляет файл в `meter-reader` (`POST /recognize`, поле `image`)
+и переводит ответ в `Recognition`: значение в тысячных из `reading_text`, серийный номер, свою уверенность.
+Уверенность 0.9, если всё сходится, и 0.6 («Проверьте цифры внимательно»), если тип на фото не совпал с выбранным,
+цифр больше, чем на табло такого типа, или это не водомер (свет и газ не проверены на данных). Нет значения или
+ошибка сервиса → «Не получилось разобрать», переснять или ввести вручную. У многотарифного счётчика сервис видит
+один тариф: его значение идёт подсказкой, тарифы вводятся вручную. Мини-приложение ходит в тот же распознаватель
+через `POST /api/recognize`. Фото на время распознавания уходит в Yandex Cloud, у нас удаляется после подачи.
 
 ## Путь одного апдейта
 
@@ -82,9 +99,11 @@ SQLite `DATA_DIR/bot.db`. В Docker это том `./data`, поэтому да�
 
 ## Как расширять
 
-**Реальное распознавание.** Поднять сервис распознавания (например, вторым сервисом в `compose.yaml`) и задать
-`RECOGNIZER_URL`. Если его ответ отличается от контракта из `integrations/recognizer.py`, поправить
-только `HttpRecognizer._parse`. Бот и API уже умеют работать с низкой уверенностью, ошибкой и таймаутом.
+**Распознавание.** Сервис `services/meter_reader` меняется независимо от бота: промпт, модель, постобработка.
+Если меняется формат ответа, поправить только `HttpRecognizer._parse` и `tests/test_recognizer.py`.
+Подсказки `meter_type` и `tariffs` бот уже отправляет, сервис может начать их учитывать без правок бота.
+Для нового типа счётчика добавить его в промпт сервиса и замерить точность, затем убрать из «непроверенных»
+(`_VALIDATED` в `recognizer.py`).
 
 **Новый тип счётчика.** Добавить значение в `MeterType` и `SPECS` (подпись, единица, разрядность, порог прироста)
 в `domain/meters.py`. Расширить `CHECK` на `meters.type` миграцией (`db.MIGRATIONS`, `SCHEMA_VERSION`), добавить
