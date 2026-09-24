@@ -67,3 +67,25 @@ def days(n: int) -> str:
     if n == 0:
         return "сегодня последний день"
     return f"просрочено на {-n} дн."
+
+
+def plural(n: int, one: str, few: str, many: str) -> str:
+    """Форма слова по числу: plural(3, 'день', 'дня', 'дней') → 'дня'."""
+    n = abs(n)
+    if n % 10 == 1 and n % 100 != 11:
+        return one
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return few
+    return many
+
+
+def n_days(n: int) -> str:
+    """'1 день', '3 дня', '5 дней'."""
+    return f"{n} {plural(n, 'день', 'дня', 'дней')}"
+
+
+def left_days(n: int) -> str:
+    """'остался 1 день', 'осталось 3 дня'; 0 → 'сегодня последний день'."""
+    if n <= 0:
+        return "сегодня последний день"
+    return f"{plural(n, 'остался', 'осталось', 'осталось')} {n_days(n)}"
