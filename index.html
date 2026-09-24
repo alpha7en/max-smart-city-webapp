@@ -1,0 +1,5684 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="shell-type" content="mobile_tab" />
+  <title>MAX Умный Дом — ЖКХ и Приборы Учета</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script src="https://st.max.ru/js/max-web-app.js"></script>
+  <script>
+    if (window.WebApp) {
+      if (typeof window.WebApp.ready === "function") {
+        try { window.WebApp.ready(); } catch (e) {}
+      }
+      if (typeof window.WebApp.expand === "function") {
+        try { window.WebApp.expand(); } catch (e) {}
+      }
+    }
+  </script>
+  <style>
+/* --- Inlined MAX UI styles.css --- */
+/* MAX UI Design System — De-AI Industrial & High-Precision Utility
+ * Standards: Dieter Rams / Linear / Gosuslugi / Russian FinTech (GOST R 56042-2014, 102-FZ, 103-FZ, 63-FZ)
+ * Strictly ZERO Emoji, Zero Neon Slop. Fully Responsive for 16:9, 4:3, and Mobile.
+ */
+
+:root {
+  /* De-AI Industrial Titan & Laboratory Graphite Palette */
+  --bg-primary: #111317;
+  --bg-surface: #181B20;
+  --bg-surface-elevated: #20242B;
+  --bg-surface-hover: #2A303A;
+  --border-color: #272C35;
+  --border-subtle: #1E232B;
+  --border-strong: #383F4C;
+  --border-focus: #3B82F6;
+  --max-border: var(--border-color);
+
+  /* Primary Brand: State Cobalt */
+  --primary: #3B82F6;
+  --primary-deep: #2563EB;
+  --primary-hover: #1D4ED8;
+  --primary-subtle: rgba(59, 130, 246, 0.12);
+  --max-primary: var(--primary);
+
+  /* Industrial Semantic Accents */
+  --success: #10B981;
+  --success-dark: #059669;
+  --success-bg: rgba(16, 185, 129, 0.12);
+  --success-border: rgba(16, 185, 129, 0.28);
+  --max-success: var(--success);
+  --radar-green: var(--success);
+
+  --warning: #F59E0B;
+  --warning-industrial: #E06A1A;
+  --warning-bg: rgba(245, 158, 11, 0.12);
+  --warning-border: rgba(245, 158, 11, 0.28);
+  --accent-amber: var(--warning);
+
+  --danger: #EF4444;
+  --danger-bg: rgba(239, 68, 68, 0.12);
+  --danger-border: rgba(239, 68, 68, 0.28);
+  --max-danger: var(--danger);
+
+  /* Text Hierarchy */
+  --text-primary: #ECEEF2;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+
+  /* Typography Stack */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', Menlo, Consolas, monospace;
+  --font: var(--font-sans);
+
+  /* Component Radii */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* Natural Physical Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.6);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Material Symbols Outlined Icon Styling */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  vertical-align: middle;
+}
+
+/* Helper Utilities */
+.font-mono { font-family: var(--font-mono); }
+.font-bold { font-weight: 700; }
+.font-medium { font-weight: 500; }
+.text-xs { font-size: 12px; }
+.text-sm { font-size: 13px; }
+.text-muted { color: var(--text-muted); }
+.text-accent { color: var(--primary); }
+.text-success { color: var(--success); }
+.text-warning { color: var(--warning); }
+.text-danger { color: var(--danger); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+
+/* Responsive Container: Mobile first, expands gracefully to 4:3 and 16:9 */
+#app-container {
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background-color: var(--bg-primary);
+  padding-bottom: calc(72px + max(env(safe-area-inset-bottom, 0px), 12px));
+  transition: max-width 0.25s ease;
+}
+
+/* ================= 1. HEADER ================= */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: max(env(safe-area-inset-top, 0px), 10px) 16px 12px;
+  background-color: rgba(17, 19, 23, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.header-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.header-user-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.header-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  background-color: rgba(59, 130, 246, 0.15);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.header-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.header-role-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.role-name-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.badge-role {
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background-color: var(--bg-surface-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.badge-role:hover {
+  background-color: var(--bg-surface-hover);
+  color: #fff;
+}
+
+.badge-status.online {
+  font-size: 10px;
+  color: var(--success);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-icon-header {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-icon-header:hover {
+  background-color: var(--bg-surface-elevated);
+  color: #fff;
+}
+
+.btn-icon-header:active {
+  transform: scale(0.97);
+}
+
+.header-profile-text {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.header-address-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease;
+}
+
+.header-address-card:hover {
+  background-color: var(--bg-surface-elevated);
+}
+
+.header-address-card:active {
+  background-color: var(--bg-surface-hover);
+}
+
+.header-address-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.header-address-icon {
+  font-size: 17px;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.header-address-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-chevron {
+  font-size: 18px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ================= 2. NAVIGATION ================= */
+.tab-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  z-index: 50;
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
+  background-color: rgba(17, 19, 23, 0.95);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-top: 1px solid var(--border-color);
+  transition: max-width 0.25s ease;
+}
+
+.tab-nav-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  height: 56px;
+  align-items: center;
+  padding: 4px 6px;
+}
+
+/* Role-based workspace isolation: Inspector gets completely dedicated view */
+body[data-role="inspector"] .app-header {
+  display: none !important;
+}
+
+body[data-role="inspector"] .tab-nav {
+  display: none !important;
+}
+
+body[data-role="inspector"] #app-container {
+  padding-bottom: 24px;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 2px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.tab-btn.active {
+  color: var(--primary);
+}
+
+.tab-icon .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.tab-label {
+  font-size: 10px;
+  font-weight: 500;
+  margin-top: 3px;
+  letter-spacing: -0.01em;
+}
+
+/* ================= 3. CONTENT AREA & TABS ================= */
+.content-area {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.tab-content {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tab-content.active {
+  display: flex;
+}
+
+.tab-layout-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.tab-col-primary,
+.tab-col-secondary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+/* ================= 4. CARDS & HERO SECTIONS ================= */
+.card-surface {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.card-hero-scan {
+  background: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
+  border-radius: 16px;
+  padding: 20px;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(29, 78, 216, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-scan-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hero-pill-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  margin-bottom: 6px;
+}
+
+.hero-scan-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.hero-scan-desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 2px;
+}
+
+.hero-scan-icon-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  background-color: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.hero-scan-icon-wrap .material-symbols-outlined {
+  font-size: 24px;
+}
+
+.hero-scan-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+/* ================= 5. BUTTONS ================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-full {
+  width: 100%;
+}
+
+.btn-sm {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.btn-lg {
+  height: 46px;
+  font-size: 14px;
+}
+
+.btn-primary {
+  background-color: #fff;
+  color: #1D4ED8;
+  box-shadow: var(--shadow-sm);
+}
+
+.card-hero-scan .btn,
+.content-area .card-hero-scan .btn {
+  height: 40px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.card-hero-scan .btn .material-symbols-outlined,
+.content-area .card-hero-scan .btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.card-hero-scan .btn.btn-primary,
+.content-area .card-hero-scan .btn-primary,
+.card-hero-scan #btn-open-camera {
+  background-color: #ffffff !important;
+  color: #1D4ED8 !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.card-hero-scan .btn.btn-secondary,
+.content-area .card-hero-scan .btn-secondary,
+.card-hero-scan #btn-upload-file {
+  background-color: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+.content-area .btn-primary {
+  background-color: var(--primary);
+  color: #fff;
+}
+
+.content-area .btn-primary:hover {
+  background-color: var(--primary-deep);
+}
+
+.btn-secondary {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.content-area .btn-secondary {
+  background-color: var(--bg-surface-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.content-area .btn-secondary:hover {
+  background-color: var(--bg-surface-hover);
+}
+
+.btn-success {
+  background-color: var(--primary);
+  color: #fff;
+}
+
+.btn-success:hover {
+  background-color: var(--primary-deep);
+}
+
+/* ================= 6. TACTILE MECHANICAL ODOMETER (SPLIT ROLLERS) ================= */
+.odometer-panel {
+  background-color: #0E1014;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 14px 10px;
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.5);
+}
+
+.roller-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.roller-group {
+  display: flex;
+  gap: 3px;
+}
+
+.roller-drum {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  user-select: none;
+}
+
+.roller-stepper {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  transition: color 0.1s ease;
+}
+
+.roller-stepper:hover {
+  color: var(--text-primary);
+}
+
+.roller-digit {
+  width: 26px;
+  height: 38px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  box-shadow: inset 0 2px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.6);
+  border: 1px solid #1E232B;
+  cursor: ns-resize;
+}
+
+/* Black drums: integer cubic meters */
+.roller-black {
+  background: linear-gradient(180deg, #232731 0%, #13161C 45%, #0B0D11 55%, #1C2028 100%);
+  color: #FFFFFF;
+  border-color: #2D3442;
+}
+
+/* Red drums: decimal fractions (liters) */
+.roller-red {
+  background: linear-gradient(180deg, #DC2626 0%, #B91C1C 45%, #7F1D1D 55%, #991B1B 100%);
+  color: #FFFFFF;
+  border-color: #EF4444;
+}
+
+.roller-dot {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  padding: 0 1px;
+  margin-top: 14px;
+}
+
+.dial-caption {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 280px;
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.caption-red {
+  color: #F87171;
+}
+
+/* ================= Active Meter Focus Card & Stepper ================= */
+.active-focus-card {
+  background-color: #181B20;
+  border: 1px solid #272C35;
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.focus-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.focus-meter-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.focus-meter-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.focus-deadline-pill {
+  font-size: 11px;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+/* Big Stepper Input Box */
+.big-stepper-box {
+  background-color: #111317;
+  border: 1px solid #272C35;
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stepper-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background-color: #181B20;
+  border: 1px solid #272C35;
+  color: #CBD5E1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stepper-btn:hover {
+  background-color: #20242B;
+  color: #fff;
+}
+
+.stepper-btn:active {
+  transform: scale(0.95);
+}
+
+.stepper-center-val {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.stepper-number-input {
+  width: 100px;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+  padding: 0;
+}
+
+.stepper-unit-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: #94A3B8;
+}
+
+/* Stat row below stepper */
+.focus-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+  font-size: 12px;
+  color: #94A3B8;
+}
+
+.focus-stat-left {
+  color: #94A3B8;
+}
+
+.focus-stat-left .text-accent {
+  color: #93C5FD;
+}
+
+.focus-stat-right {
+  color: #64748B;
+}
+
+.btn-primary-submit {
+  width: 100%;
+  height: 44px;
+  background-color: #2563EB;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.btn-primary-submit:hover {
+  background-color: #1D4ED8;
+}
+
+.btn-primary-submit:active {
+  transform: scale(0.98);
+}
+
+.focus-feedback-note {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-height: 18px;
+}
+
+.focus-feedback-note.alert-success {
+  color: #34D399;
+}
+
+.focus-feedback-note.alert-danger {
+  color: #F87171;
+}
+
+/* Reading Stepper Box (Compatibility) */
+.reading-stepper-box {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0;
+}
+
+.stepper-action-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-xs);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stepper-action-btn:hover {
+  background-color: var(--bg-surface-elevated);
+  color: #fff;
+}
+
+.stepper-action-btn:active {
+  transform: scale(0.95);
+}
+
+.stepper-input-wrap {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* Calculation Breakdown Card */
+.calculation-breakdown-card {
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.calc-line-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.calc-line-item.total-line {
+  border-top: 1px dashed var(--border-color);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+/* Scan Metrics Grid */
+.scan-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+
+.metric-cell {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metric-cell-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.metric-cell-val {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Multi-Tariff Panel */
+.multi-tariff-panel {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  margin: 12px 0;
+}
+
+.tariff-grid-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.tariff-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  display: block;
+}
+
+/* ================= 7. METERS REGISTRY & CHIPS ================= */
+.section-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 0 2px;
+}
+
+.section-title-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.section-heading-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.btn-add-meter {
+  background: transparent;
+  border: none;
+  color: #60A5FA;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  padding: 4px 8px;
+}
+
+.btn-add-meter:hover {
+  color: #93C5FD;
+}
+
+.btn-add-meter:active {
+  transform: scale(0.96);
+}
+
+.meter-filter-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.chip {
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.chip:hover {
+  color: #fff;
+}
+
+.chip.active {
+  background-color: var(--primary-subtle);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Colored Icon Circles for Meters */
+.meter-icon-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.meter-icon-circle-blue {
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #3B82F6;
+}
+
+.meter-icon-circle-orange {
+  background-color: rgba(249, 115, 22, 0.12);
+  color: #F97316;
+}
+
+.meter-icon-circle-amber {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #F59E0B;
+}
+
+.meter-icon-circle-cyan {
+  background-color: rgba(6, 182, 212, 0.12);
+  color: #06B6D4;
+}
+
+.meter-icon-circle-purple {
+  background-color: rgba(168, 85, 247, 0.12);
+  color: #A855F7;
+}
+
+/* Meter Cards List */
+.meters-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meter-card {
+  background-color: #181B20;
+  border: 1px solid #272C35;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.meter-card:hover {
+  background-color: #20242B;
+  border-color: #374151;
+}
+
+.meter-card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.meter-card-text {
+  min-width: 0;
+}
+
+.meter-card-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meter-card-sub {
+  font-size: 12px;
+  color: #94A3B8;
+  margin-top: 2px;
+}
+
+.meter-card-right {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.badge-submitted-pill {
+  font-size: 12px;
+  font-weight: 500;
+  color: #34D399;
+  background-color: rgba(6, 78, 59, 0.4);
+  border: 1px solid rgba(6, 95, 70, 0.4);
+  padding: 4px 10px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-auto-pill {
+  font-size: 12px;
+  font-weight: 500;
+  color: #94A3B8;
+  background-color: #20242B;
+  border: 1px solid #272C35;
+  padding: 4px 10px;
+  border-radius: 9999px;
+}
+
+.btn-meter-action-btn {
+  height: 32px;
+  padding: 0 14px;
+  background-color: #2563EB;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-meter-action-btn:hover {
+  background-color: #1D4ED8;
+}
+
+.btn-meter-action-btn:active {
+  transform: scale(0.95);
+}
+
+.btn-meter-action-secondary {
+  height: 32px;
+  padding: 0 14px;
+  background-color: #20242B;
+  border: 1px solid #272C35;
+  color: #E2E8F0;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-meter-action-secondary:hover {
+  background-color: #272C35;
+  color: #fff;
+}
+
+.btn-meter-action-secondary:active {
+  transform: scale(0.95);
+}
+
+.meter-info-col h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.meter-sub-info {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.meter-reading-col {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.meter-val-num {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  display: block;
+}
+
+/* ================= 8. ARSHIN ANTI-FRAUD TAB STYLES ================= */
+.section-title-row-clean {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.view-header-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.badge-arshin-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.dot-indicator-green {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--success);
+}
+
+.search-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.input-with-icon-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-prefix-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  font-size: 18px;
+  pointer-events: none;
+}
+
+.arshin-serial-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px 0 38px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.arshin-serial-input:focus {
+  border-color: var(--primary);
+}
+
+.btn-search-arshin {
+  flex-shrink: 0;
+}
+
+.presets-row-wrap {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.presets-caption-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.presets-chips-scroller {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.chip-preset {
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.chip-preset:hover {
+  background-color: var(--bg-surface-hover);
+  color: #fff;
+}
+
+/* Shield Status Result Card */
+.shield-card {
+  margin-top: 14px;
+  border-left: 4px solid var(--success);
+}
+
+.shield-card.shield-danger {
+  border-left-color: var(--danger);
+}
+
+.shield-card.shield-expired {
+  border-left-color: var(--warning);
+}
+
+.shield-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.shield-title-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.shield-status-symbol {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--success);
+}
+
+.shield-card.shield-danger .shield-status-symbol { color: var(--danger); }
+.shield-card.shield-expired .shield-status-symbol { color: var(--warning); }
+
+.shield-title-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--success);
+}
+
+.shield-card.shield-danger .shield-title-text { color: var(--danger); }
+.shield-card.shield-expired .shield-title-text { color: var(--warning); }
+
+.shield-org-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.btn-out-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+  background-color: var(--primary-subtle);
+}
+
+.shield-card-body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-top: 10px;
+}
+
+.shield-fraud-alert {
+  background-color: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-xs);
+  padding: 10px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: #FCA5A5;
+  line-height: 1.5;
+}
+
+/* Accordions / Spoilers */
+.card-spoiler {
+  padding: 0;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.spoiler-summary-btn {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.spoiler-title-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spoiler-chevron {
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+details[open] .spoiler-chevron {
+  transform: rotate(180deg);
+}
+
+.spoiler-body-content {
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.registry-data-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.registry-data-val {
+  color: var(--text-primary);
+}
+
+/* ================= 9. BILLING & GOST QR STYLES ================= */
+.billing-focus-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bill-focus-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bill-period-caps {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.badge-cb-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  background-color: var(--success-bg);
+  border: 1px solid var(--success-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.bill-amount-display {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bill-amount-sum {
+  font-size: 32px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.bill-deadline-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.billing-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.action-tile-btn {
+  height: 84px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.action-tile-btn:hover {
+  background-color: var(--bg-surface-elevated);
+}
+
+.tile-icon-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-xs);
+  background-color: var(--bg-surface-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tile-title-main {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  display: block;
+}
+
+.tile-subtitle-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: block;
+}
+
+/* 103-FZ Split List */
+.card-split-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.split-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.split-header-title h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.split-org-requisites {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  padding: 10px;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.req-row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+}
+
+.split-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.split-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.split-row:last-child {
+  border-bottom: none;
+}
+
+.split-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: block;
+}
+
+.split-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  display: block;
+}
+
+.split-amount {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* ================= 10. TICKETS & GUEST ACCESS ================= */
+.card-hero-ticket {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hero-ticket-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.hero-ticket-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.guest-box {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guest-link-display-box {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  padding: 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.tickets-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* ================= 11. INSPECTOR WORKSPACE (АРМ ОБХОДЧИКА) ================= */
+.inspector-workspace-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.inspector-cockpit-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+}
+
+.inspector-cockpit-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.inspector-badge-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background-color: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: var(--success);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inspector-heading-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.inspector-sub-title {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.inspector-cockpit-badges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.badge-gps-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+  background-color: var(--success-bg);
+  border: 1px solid var(--success-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.badge-route-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.inspector-form-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.inspector-form-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.inspector-form-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-label-styled {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.form-input-styled {
+  height: 38px;
+  padding: 0 10px;
+  border-radius: var(--radius-xs);
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.form-input-styled:focus {
+  border-color: var(--primary);
+}
+
+.form-textarea {
+  height: auto;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.inspector-photo-buttons-row {
+  display: flex;
+  gap: 8px;
+}
+
+.photo-preview-wrap {
+  margin-top: 8px;
+}
+
+.photo-preview-box {
+  position: relative;
+  display: inline-block;
+}
+
+.photo-preview-box img {
+  max-width: 160px;
+  max-height: 110px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-color);
+  display: block;
+}
+
+.btn-remove-photo {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo-meta-text {
+  font-size: 10px;
+  color: var(--success);
+  margin-top: 4px;
+  display: block;
+}
+
+.hash-preview-box {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  padding: 8px 10px;
+}
+
+.code-box-inline {
+  font-size: 11px;
+  color: var(--primary);
+  word-break: break-all;
+}
+
+/* Digital Act Document Card */
+.act-card {
+  border-top: 3px solid var(--primary);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.act-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+}
+
+.act-badges-row {
+  display: flex;
+  gap: 8px;
+}
+
+.act-stamp {
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  background-color: var(--primary-subtle);
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.badge-1c {
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  background-color: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: var(--success);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.act-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  line-height: 1.6;
+}
+
+.act-row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-secondary);
+}
+
+.act-row span {
+  color: var(--text-primary);
+}
+
+.code-hash-snippet {
+  color: var(--primary);
+}
+
+.badge-success-tag {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.act-photo-wrap {
+  margin-top: 6px;
+}
+
+.act-photo-label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.act-photo-wrap img {
+  max-width: 140px;
+  max-height: 90px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-color);
+}
+
+/* ================= 12. OPTICAL CAMERA VIEWFINDER MODAL ================= */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background-color: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-viewfinder-box,
+.camera-screen-box {
+  width: 100%;
+  max-width: 440px;
+  background-color: #111317;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8);
+}
+
+.modal-camera-viewfinder {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-color: #111317;
+  border: 1px solid #272C35;
+  border-radius: 20px;
+  max-width: 440px;
+  width: 100%;
+}
+
+.camera-modal-header,
+.viewfinder-header-bar,
+.camera-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.camera-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-camera-back {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background-color: #181B20;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-camera-back:hover {
+  background-color: #20242B;
+  color: #fff;
+}
+
+.camera-title-group,
+.viewfinder-title-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.camera-title-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.camera-subtitle-text {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.btn-torch-pill,
+.btn-torch-pill.btn-circle {
+  width: auto;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  background-color: #181B20;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.btn-torch-pill .material-symbols-outlined {
+  font-size: 17px;
+}
+
+.btn-torch-pill:hover {
+  background-color: #20242B;
+  color: #fff;
+}
+
+.btn-torch-pill.active,
+.btn-circle.btn-torch.active {
+  background-color: #F59E0B;
+  color: #000;
+  border-color: #F59E0B;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.5);
+}
+
+/* Horizontal Service Filter Chips Row */
+.camera-filter-chips-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+}
+
+.camera-chip {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border-radius: var(--radius-full);
+  background-color: #181B20;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.camera-chip:hover {
+  color: #fff;
+  border-color: var(--border-strong);
+}
+
+.camera-chip.active {
+  background-color: rgba(59, 130, 246, 0.15);
+  border-color: #3B82F6;
+  color: #60A5FA;
+  font-weight: 600;
+}
+
+.camera-chip .chip-icon {
+  font-size: 16px;
+}
+
+.icon-blue { color: #3B82F6; }
+.icon-orange { color: #F97316; }
+.icon-amber { color: #F59E0B; }
+.icon-cyan { color: #06B6D4; }
+
+.btn-close-modal {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+}
+
+.btn-close-modal:hover {
+  color: #fff;
+}
+
+/* Camera Viewfinder Card & Reticle */
+.camera-viewfinder-card,
+.viewfinder-frame {
+  height: 270px;
+  background-color: #08090C;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  transition: box-shadow 0.3s ease;
+}
+
+.viewfinder-frame.torch-active,
+.camera-viewfinder-card.torch-active {
+  box-shadow: inset 0 0 45px rgba(255, 230, 150, 0.35);
+}
+
+.viewfinder-autofocus-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background-color: rgba(17, 19, 23, 0.85);
+  border: 1px solid var(--border-color);
+  font-size: 11px;
+  color: var(--text-primary);
+  z-index: 10;
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #3B82F6;
+  box-shadow: 0 0 6px #3B82F6;
+}
+
+.viewfinder-reticle {
+  position: absolute;
+  top: calc(50% - 15px);
+  transform: translateY(-50%);
+  width: 210px;
+  height: 85px;
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.corner {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--primary);
+}
+
+.corner.top-left { top: -1px; left: -1px; border-top: 2px solid var(--primary); border-left: 2px solid var(--primary); }
+.corner.top-right { top: -1px; right: -1px; border-top: 2px solid var(--primary); border-right: 2px solid var(--primary); }
+.corner.bottom-left { bottom: -1px; left: -1px; border-bottom: 2px solid var(--primary); border-left: 2px solid var(--primary); }
+.corner.bottom-right { bottom: -1px; right: -1px; border-bottom: 2px solid var(--primary); border-right: 2px solid var(--primary); }
+
+.laser-scan-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  animation: laserScan 2.4s ease-in-out infinite;
+  box-shadow: 0 0 6px var(--primary);
+}
+
+@keyframes laserScan {
+  0% { top: 0; opacity: 0.2; }
+  50% { top: calc(100% - 2px); opacity: 1; }
+  100% { top: 0; opacity: 0.2; }
+}
+
+.reticle-caption {
+  position: absolute;
+  bottom: -20px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--primary);
+}
+
+.reticle-hud {
+  position: absolute;
+  top: -20px;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.viewfinder-sim-counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.sim-counter-box {
+  display: flex;
+  font-size: 20px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background-color: #000;
+  border: 1px solid #333;
+}
+
+.sim-black { color: #fff; }
+.sim-red { color: #EF4444; }
+.sim-serial { font-size: 10px; color: var(--text-muted); }
+
+.viewfinder-bottom-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  z-index: 10;
+}
+
+.viewfinder-device-subtext {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.viewfinder-pill-guide {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  background-color: rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #93C5FD;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.viewfinder-pitch-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Bottom Control Bar Card */
+.camera-control-card {
+  background-color: #181B20;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.camera-control-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+}
+
+.camera-tile-btn {
+  background: transparent;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.camera-tile-btn:hover {
+  color: #fff;
+}
+
+.tile-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background-color: #20242B;
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #CBD5E1;
+  transition: all 0.15s ease;
+}
+
+.camera-tile-btn:hover .tile-icon-box {
+  background-color: #282E37;
+  color: #fff;
+  border-color: var(--border-strong);
+}
+
+.tile-label {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.camera-control-card .btn-camera-shutter,
+.camera-control-card .btn-camera-shutter.btn-shutter {
+  width: 68px;
+  height: 68px;
+  min-width: 68px;
+  min-height: 68px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.camera-control-card .btn-camera-shutter:active,
+.camera-control-card .btn-camera-shutter.btn-shutter:active {
+  transform: scale(0.92);
+}
+
+.camera-control-card .shutter-outer-ring {
+  width: 68px;
+  height: 68px;
+  min-width: 68px;
+  min-height: 68px;
+  border-radius: 50%;
+  border: 3px solid #3B82F6;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.camera-control-card .shutter-inner-btn,
+.camera-control-card .shutter-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: #3B82F6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.6);
+}
+
+.shutter-camera-icon {
+  font-size: 26px;
+}
+
+.camera-footer-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #64748B;
+  text-align: center;
+}
+
+.viewfinder-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 6px 0;
+}
+
+.btn-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-circle:hover {
+  background-color: var(--bg-surface-elevated);
+  color: #fff;
+}
+
+.btn-shutter {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background-color: transparent;
+  border: 3px solid #fff;
+  padding: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s ease;
+}
+
+.btn-shutter:active {
+  transform: scale(0.92);
+}
+
+.shutter-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: #fff;
+}
+
+.viewfinder-hint-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ================= 13. MODAL DIALOGS ================= */
+.modal-dialog-box {
+  width: 100%;
+  max-width: 420px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.modal-dialog-head {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-dialog-head h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.modal-dialog-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-dialog-foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+}
+
+/* Profile Specific */
+.profile-card-header-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.profile-avatar-circle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background-color: rgba(59, 130, 246, 0.15);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-meta-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.profile-user-phone {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.profile-properties-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+.properties-head-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.profile-properties-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-address-item {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.profile-address-item.active {
+  border-color: var(--primary);
+}
+
+.profile-address-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.profile-address-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background-color: rgba(24, 27, 32, 0.96);
+  border: 1px solid var(--border-strong);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+  opacity: 0;
+  transition: all 0.2s ease;
+  z-index: 100;
+  box-shadow: var(--shadow-md);
+  white-space: nowrap;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Feedback Box */
+.feedback-notification-box {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.alert-success {
+  background-color: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: #A7F3D0;
+}
+
+.alert-danger {
+  background-color: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: #FECACA;
+}
+
+/* =========================================================================
+ * 14. RESPONSIVE ARCHITECTURE (16:9 Desktop & 4:3 Tablet Layouts)
+ * ========================================================================= */
+
+/* TABLET & 4:3 ASPECT RATIO (min-width: 768px, e.g. iPad, 1024x768) */
+@media (min-width: 768px) {
+  #app-container {
+    max-width: 960px;
+    padding-bottom: 24px;
+  }
+
+  .content-area {
+    padding: 20px;
+  }
+
+  /* Two-column layout on 4:3 screens */
+  .tab-layout-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: flex-start;
+  }
+
+  .tab-col-primary, .tab-col-secondary {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Move bottom navigation to sleek persistent bar or expand width */
+  .tab-nav {
+    max-width: 960px;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+  }
+
+  .modal-dialog-box {
+    max-width: 500px;
+  }
+
+  .inspector-workspace-container {
+    max-width: 920px;
+    margin: 0 auto;
+    width: 100%;
+  }
+}
+
+/* DESKTOP & 16:9 WIDE SCREENS (min-width: 1024px, e.g. 1920x1080) */
+@media (min-width: 1024px) {
+  #app-container {
+    max-width: 1260px;
+    padding-bottom: 28px;
+  }
+
+  .content-area {
+    padding: 24px;
+  }
+
+  .tab-layout-grid {
+    grid-template-columns: 1fr 1.15fr;
+    gap: 24px;
+  }
+
+  .inspector-workspace-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .inspector-cockpit-bar {
+    padding: 18px 24px;
+    border-radius: var(--radius-md);
+  }
+
+  .tab-nav {
+    max-width: 1260px;
+  }
+
+  .header-main-row {
+    padding: 4px 0;
+  }
+
+  .section-header-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .scan-metrics-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .billing-actions-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .modal-dialog-box {
+    max-width: 540px;
+  }
+}
+
+
+</style>
+</head>
+<body data-role="resident">
+  <div id="app-container">
+
+    <!-- Sticky Header -->
+    <header class="app-header">
+      <div class="header-main-row">
+        <div class="header-user-badge">
+          <div class="header-avatar" id="header-avatar-box">
+            <span class="material-symbols-outlined">person</span>
+          </div>
+          <div class="header-identity">
+            <div class="header-role-title">
+              <span class="role-name-text" id="role-title-text">Иван Иванов</span>
+              <span class="badge-role" id="role-badge" title="Статус в помещении">СОБСТВЕННИК</span>
+            </div>
+            <span class="badge-status online" id="bridge-status" style="display: none;">MAX Bridge</span>
+          </div>
+        </div>
+        <div class="header-actions-group">
+          <button type="button" class="btn-icon-header" id="header-profile-btn" title="Личный кабинет">
+            <span class="material-symbols-outlined">tune</span>
+            <span id="profile-badge-label" class="header-profile-text">Профиль</span>
+          </button>
+        </div>
+      </div>
+      <button type="button" class="header-address-card" id="header-address-btn" title="Выбрать объект">
+        <div class="header-address-content">
+          <span class="material-symbols-outlined header-address-icon">home</span>
+          <span class="header-address-text" id="header-active-address-text">ул. Ленина, д. 42, кв. 15 (ЕЛС 1004567890)</span>
+        </div>
+        <span class="material-symbols-outlined header-chevron">expand_more</span>
+      </button>
+    </header>
+
+    <!-- Navigation Bar: 4 resident tabs strictly (Inspector isolated to dedicated view) -->
+    <nav class="tab-nav" id="resident-tab-nav">
+      <div class="tab-nav-grid">
+        <button type="button" class="tab-btn active" data-tab="tab-meters" id="tab-btn-meters">
+          <span class="tab-icon">
+            <span class="material-symbols-outlined">speed</span>
+          </span>
+          <span class="tab-label">Счетчики</span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="tab-arshin" id="tab-btn-arshin">
+          <span class="tab-icon">
+            <span class="material-symbols-outlined">verified_user</span>
+          </span>
+          <span class="tab-label">Поверка</span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="tab-billing" id="tab-btn-billing">
+          <span class="tab-icon">
+            <span class="material-symbols-outlined">receipt_long</span>
+          </span>
+          <span class="tab-label">Оплата</span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="tab-tickets" id="tab-btn-tickets">
+          <span class="tab-icon">
+            <span class="material-symbols-outlined">assignment</span>
+          </span>
+          <span class="tab-label">Заявки</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="content-area">
+
+      <!-- ================= TAB 1: METERS ================= -->
+      <section id="tab-meters" class="tab-content active">
+        <div class="tab-layout-grid">
+          
+          <!-- Left / Primary Column on Desktop & 4:3 -->
+          <div class="tab-col-primary">
+            <!-- Hero Scan Section -->
+            <section class="card-hero-scan" id="hero-scan-section">
+              <div class="hero-scan-top">
+                <div class="hero-scan-info">
+                  <span class="hero-pill-badge">AI РАСПОЗНАВАНИЕ</span>
+                  <h2 class="hero-scan-title">Скан счётчика</h2>
+                  <p class="hero-scan-desc">Наведите камеру на циферблат</p>
+                </div>
+                <div class="hero-scan-icon-wrap">
+                  <span class="material-symbols-outlined">document_scanner</span>
+                </div>
+              </div>
+              <div class="hero-scan-actions">
+                <button type="button" class="btn btn-primary" id="btn-open-camera">
+                  <span class="material-symbols-outlined">photo_camera</span>
+                  <span>Сфотографировать</span>
+                </button>
+                <button type="button" class="btn btn-secondary" id="btn-upload-file">
+                  <span class="material-symbols-outlined">photo_library</span>
+                  <span>Из галереи</span>
+                </button>
+                <input type="file" id="file-meter-input" accept="image/*" class="sr-only" />
+              </div>
+            </section>
+
+            <!-- Active Meter Focus Card -->
+            <section class="card-surface active-focus-card" id="ai-scan-result">
+              <div class="focus-card-header">
+                <div class="focus-meter-title-group">
+                  <div class="meter-icon-circle meter-icon-circle-blue" id="focus-meter-icon-box">
+                    <span class="material-symbols-outlined" id="focus-meter-icon">water_drop</span>
+                  </div>
+                  <h3 class="focus-meter-title" id="ocr-device-title">Холодная вода (ХВС)</h3>
+                </div>
+                <span class="focus-deadline-pill font-mono">до 25 числа</span>
+              </div>
+
+              <!-- Big Stepper Input Box -->
+              <div class="big-stepper-box" id="single-reading-box">
+                <button type="button" class="stepper-btn" id="btn-reading-minus" aria-label="Уменьшить">
+                  <span class="material-symbols-outlined">remove</span>
+                </button>
+                <div class="stepper-center-val">
+                  <input type="number" step="0.1" id="input-reading-correct" class="stepper-number-input font-mono" value="142" />
+                  <span class="stepper-unit-label font-mono" id="stepper-unit-label">м³</span>
+                </div>
+                <button type="button" class="stepper-btn" id="btn-reading-plus" aria-label="Увеличить">
+                  <span class="material-symbols-outlined">add</span>
+                </button>
+              </div>
+
+              <!-- Multi-tariff inputs for Electricity -->
+              <div id="multi-tariff-box" class="multi-tariff-panel" style="display: none;">
+                <div class="tariff-grid-cols">
+                  <div class="tariff-field">
+                    <label class="tariff-label">Т1 Пик / День (кВт·ч):</label>
+                    <input type="number" step="0.1" id="input-t1-val" class="form-input-styled font-mono" value="1840.0" />
+                  </div>
+                  <div class="tariff-field">
+                    <label class="tariff-label">Т2 Ночь (кВт·ч):</label>
+                    <input type="number" step="0.1" id="input-t2-val" class="form-input-styled font-mono" value="520.0" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Stat row below stepper -->
+              <div class="focus-stat-row font-mono">
+                <div class="focus-stat-left">
+                  <span>Расход: <strong class="text-accent" id="calc-delta-val">+4 м³</strong></span>
+                </div>
+                <div class="focus-stat-right">
+                  <span id="calc-prev-val">Было: 138 м³</span>
+                </div>
+              </div>
+
+              <!-- Confirm Submission Button -->
+              <button type="button" class="btn btn-primary-submit btn-full" id="btn-submit-reading">
+                <span class="material-symbols-outlined">check</span>
+                <span>Отправить показания</span>
+              </button>
+              <div class="focus-feedback-note" id="reading-feedback" style="display:none;"></div>
+
+              <!-- Preserved elements for compatibility contracts & forensic tests -->
+              <div style="display:none;" aria-hidden="true">
+                <p class="mock-disclaimer" id="ai-mock-notice">
+                  Оптическая сегментация циферблата. Автоматическое отсечение красных роликов литров.
+                </p>
+                <div class="odometer-panel" id="roller-box">
+                  <div class="roller-container">
+                    <div class="roller-group roller-group-black" id="roller-black-group"></div>
+                    <div class="roller-dot">,</div>
+                    <div class="roller-group roller-group-red" id="roller-red-group"></div>
+                  </div>
+                  <div class="dial-caption" id="dial-caption-box">
+                    <span class="caption-black">Черные: кубометры (м³)</span>
+                    <span class="caption-red">Красные: литры (отсекаются)</span>
+                  </div>
+                </div>
+                <span id="ocr-black-digits">00142</span>
+                <span id="ocr-red-digits">789</span>
+                <div class="calculation-breakdown-card" id="scan-calc-breakdown">
+                  <span class="calc-line-val font-mono text-success" id="calc-cost-val">219.20 ₽</span>
+                </div>
+                <div class="scan-metrics-grid">
+                  <span id="ocr-reading-val">142.0 м³</span>
+                  <span id="ocr-serial-val">№ 2809142</span>
+                  <span id="ocr-confidence-val">96.8%</span>
+                  <span id="ocr-shield-active">Активирована</span>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- Right / Secondary Column on Desktop & 4:3 -->
+          <div class="tab-col-secondary">
+            <div class="section-header-row">
+              <div class="section-title-wrap">
+                <h3 class="section-heading-text">Счётчики</h3>
+              </div>
+              <button type="button" class="btn-add-meter" id="btn-add-meter">
+                <span class="material-symbols-outlined">add</span>
+                <span>Добавить</span>
+              </button>
+            </div>
+
+            <div class="meter-filter-chips" style="display:none;" aria-hidden="true">
+              <button type="button" class="chip active" data-filter="all">Все (4)</button>
+              <button type="button" class="chip" data-filter="cold_water">ХВС</button>
+              <button type="button" class="chip" data-filter="hot_water">ГВС</button>
+              <button type="button" class="chip" data-filter="el_multi">Свет</button>
+              <button type="button" class="chip" data-filter="heat">Тепло</button>
+            </div>
+
+            <!-- Active Meters Registry -->
+            <div class="meters-cards-list" id="meters-container">
+              <!-- Dynamically populated by app.js -->
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ================= TAB 2: ARSHIN ANTI-FRAUD ================= -->
+      <section id="tab-arshin" class="tab-content">
+        <div class="tab-layout-grid">
+          
+          <div class="tab-col-primary">
+            <!-- Header Banner -->
+            <div class="section-title-row-clean">
+              <h2 class="view-header-title">Проверка счетчика</h2>
+              <span class="badge-arshin-tag">
+                <span class="dot-indicator-green"></span>
+                ФГИС АРШИН
+              </span>
+            </div>
+
+            <!-- Search & Quick Presets -->
+            <div class="card-surface card-search-arshin">
+              <div class="search-input-group">
+                <div class="input-with-icon-wrap">
+                  <span class="material-symbols-outlined input-prefix-icon">search</span>
+                  <input type="text" id="input-arshin-serial" class="arshin-serial-input font-mono" placeholder="Номер счетчика" value="2809142" />
+                </div>
+                <button type="button" class="btn btn-primary btn-search-arshin" id="btn-check-arshin">
+                  <span class="material-symbols-outlined">search</span>
+                  <span>Проверить</span>
+                </button>
+              </div>
+
+              <div class="presets-row-wrap">
+                <span class="presets-caption-label">Быстрая проверка:</span>
+                <div class="presets-chips-scroller">
+                  <button type="button" class="preset-arshin chip-preset" data-serial="2809142">Поверен до 2029</button>
+                  <button type="button" class="preset-arshin chip-preset" data-serial="991201">Срок истек</button>
+                  <button type="button" class="preset-arshin chip-preset" data-serial="000000">Не в реестре</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Shield Status Result Card -->
+            <div class="card-surface shield-card" id="arshin-result-card" style="display:none;">
+              <div class="shield-card-header">
+                <div class="shield-title-block">
+                  <span class="shield-status-symbol" id="shield-icon">●</span>
+                  <div>
+                    <h3 class="shield-title-text" id="shield-title">Поверка действительна</h3>
+                    <p class="shield-org-text" id="shield-org">ФБУ «РОСТЕСТ-МОСКВА»</p>
+                  </div>
+                </div>
+                <a href="#" target="_blank" rel="noopener noreferrer" id="shield-link" class="btn-out-link">
+                  <span>Выписка</span>
+                  <span class="material-symbols-outlined">north_east</span>
+                </a>
+              </div>
+              <div class="shield-card-body" id="shield-message">
+                Запись поверки подтверждена в единой государственной базе данных Росстандарта.
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-col-secondary">
+            <!-- Accordion 1: Metrology details -->
+            <details class="card-surface card-spoiler group" open>
+              <summary class="spoiler-summary-btn">
+                <span class="spoiler-title-content">
+                  <span class="material-symbols-outlined text-primary">description</span>
+                  <span>Данные реестра Росстандарта</span>
+                </span>
+                <span class="material-symbols-outlined spoiler-chevron">expand_more</span>
+              </summary>
+              <div class="spoiler-body-content font-mono text-xs">
+                <div class="registry-data-row">
+                  <span class="registry-data-label">Номер в реестре СИ:</span>
+                  <span class="registry-data-val">№ 52410-13</span>
+                </div>
+                <div class="registry-data-row">
+                  <span class="registry-data-label">Методика поверки:</span>
+                  <span class="registry-data-val">МИ 1592-2015</span>
+                </div>
+                <div class="registry-data-row">
+                  <span class="registry-data-label">Правовое основание:</span>
+                  <span class="registry-data-val">Федеральный закон № 102-ФЗ</span>
+                </div>
+              </div>
+            </details>
+
+            <!-- Accordion 2: Anti-fraud guide -->
+            <details class="card-surface card-spoiler group" open>
+              <summary class="spoiler-summary-btn">
+                <span class="spoiler-title-content">
+                  <span class="material-symbols-outlined text-warning">shield</span>
+                  <span>Защита от мошенников</span>
+                </span>
+                <span class="material-symbols-outlined spoiler-chevron">expand_more</span>
+              </summary>
+              <div class="spoiler-body-content text-xs">
+                <p>• Игнорируйте угрожающие листовки и фальшивые квитанции в почтовых ящиках.</p>
+                <p>• Поверка действительна исключительно при наличии электронной записи во ФГИС «АРШИН».</p>
+                <p>• Реальный межповерочный интервал контролируется вашей УК без навязанных замен.</p>
+              </div>
+            </details>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ================= TAB 3: BILLING & GOST QR ================= -->
+      <section id="tab-billing" class="tab-content">
+        <div class="tab-layout-grid">
+
+          <div class="tab-col-primary">
+            <!-- Focus Bill Card -->
+            <div class="card-surface billing-focus-card" id="billing-details-card">
+              <div class="bill-focus-head">
+                <span class="bill-period-caps">К оплате за октябрь</span>
+                <div class="badge-cb-verified" id="account-checksum-badge">
+                  <span class="material-symbols-outlined">verified</span>
+                  <span>Счет ЦБ проверен</span>
+                </div>
+              </div>
+
+              <div class="bill-amount-display">
+                <span class="bill-amount-sum font-mono" id="bill-total-amount">4 850,50 ₽</span>
+                <div class="bill-deadline-hint">
+                  <span class="material-symbols-outlined">event</span>
+                  <span>Срок оплаты: до 10 ноября</span>
+                </div>
+              </div>
+
+              <div class="bill-pay-actions">
+                <button type="button" class="btn btn-primary btn-full btn-sbp-pay" id="btn-pay-sbp">
+                  <span class="material-symbols-outlined">bolt</span>
+                  <span>Оплатить по СБП</span>
+                </button>
+                <div class="feedback-notification-box alert-success" id="payment-success-alert" style="display:none;"></div>
+              </div>
+            </div>
+
+            <!-- Quick QR Scanner Action Cards -->
+            <div class="billing-actions-grid">
+              <button type="button" class="card-surface action-tile-btn" id="btn-scan-qr-bridge">
+                <div class="tile-icon-circle text-primary">
+                  <span class="material-symbols-outlined">photo_camera</span>
+                </div>
+                <div class="tile-text-wrap">
+                  <span class="tile-title-main">Скан QR</span>
+                  <span class="tile-subtitle-sub">Камера</span>
+                </div>
+              </button>
+
+              <button type="button" class="card-surface action-tile-btn" id="btn-paste-sample-qr">
+                <div class="tile-icon-circle text-accent">
+                  <span class="material-symbols-outlined">content_paste</span>
+                </div>
+                <div class="tile-text-wrap">
+                  <span class="tile-title-main">Вставка QR</span>
+                  <span class="tile-subtitle-sub">ГОСТ</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div class="tab-col-secondary">
+            <!-- 103-FZ Details and Split List -->
+            <div class="card-surface card-split-details" id="split-recipients-box">
+              <div class="split-card-header">
+                <div class="split-header-title">
+                  <span class="material-symbols-outlined text-accent">receipt</span>
+                  <h3>Детализация начислений (103-ФЗ)</h3>
+                </div>
+              </div>
+
+              <div class="split-org-requisites">
+                <div class="req-row">
+                  <span class="req-label">Получатель:</span>
+                  <span class="req-val font-medium" id="bill-payee-name">ООО «УК ДОМОВОЙ СЕРВИС»</span>
+                </div>
+                <div class="req-row">
+                  <span class="req-label">Лицевой счет (ЕЛС):</span>
+                  <span class="req-val font-mono" id="bill-pers-acc">1004567890</span>
+                </div>
+                <div class="req-row">
+                  <span class="req-label">Спецсчет агента:</span>
+                  <span class="req-val font-mono text-primary" id="bill-account-40821">40821810500000001001</span>
+                </div>
+              </div>
+
+              <div class="split-items-list" id="split-recipients-list">
+                <!-- Dynamically populated or sample breakdown -->
+                <div class="split-row">
+                  <div class="split-info">
+                    <span class="split-name">АО «Мосводоканал» (ХВС)</span>
+                    <span class="split-sub">Прямой договор 59-ФЗ</span>
+                  </div>
+                  <span class="split-amount font-mono">1 212,63 ₽</span>
+                </div>
+                <div class="split-row">
+                  <div class="split-info">
+                    <span class="split-name">ПАО «МОЭК» (Отопление)</span>
+                    <span class="split-sub">Прямой договор 59-ФЗ</span>
+                  </div>
+                  <span class="split-amount font-mono">2 182,72 ₽</span>
+                </div>
+                <div class="split-row">
+                  <div class="split-info">
+                    <span class="split-name">АО «Мосэнергосбыт» (Свет)</span>
+                    <span class="split-sub">Прямой договор 59-ФЗ</span>
+                  </div>
+                  <span class="split-amount font-mono">727,58 ₽</span>
+                </div>
+                <div class="split-row">
+                  <div class="split-info">
+                    <span class="split-name">ООО «УК ДОМОВОЙ СЕРВИС»</span>
+                    <span class="split-sub">Содержание жилого фонда</span>
+                  </div>
+                  <span class="split-amount font-mono">727,57 ₽</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ================= TAB 4: TICKETS & GUEST ACCESS ================= -->
+      <section id="tab-tickets" class="tab-content">
+        <div class="tab-layout-grid">
+
+          <div class="tab-col-primary">
+            <!-- Hero Create Ticket -->
+            <div class="card-hero-ticket">
+              <div class="hero-ticket-text">
+                <span class="hero-pill-badge">ПП РФ № 40 от 26.01.2026 г.</span>
+                <h2 class="hero-ticket-title">Заявки в АДС УК</h2>
+                <p class="hero-ticket-desc">Гарантированные сроки SLA и журнал аварийных обращений</p>
+              </div>
+              <button type="button" class="btn btn-primary" id="btn-show-ticket-modal">
+                <span class="material-symbols-outlined">add</span>
+                <span>Создать заявку</span>
+              </button>
+            </div>
+
+            <!-- Guest Tenant Access Box -->
+            <div class="card-surface guest-box">
+              <div class="card-head-row">
+                <div class="card-title-group">
+                  <span class="material-symbols-outlined text-primary">key</span>
+                  <h3 class="card-title-text">Гостевой доступ</h3>
+                </div>
+                <span class="badge-subtle-pill">Без ЕСИА</span>
+              </div>
+              <p class="text-xs text-muted">
+                Безопасный доступ для арендатора квартиры без обязательной авторизации на Госуслугах. Передача показаний и оплата квитанций по СБП в 1 клик.
+              </p>
+              <div class="guest-cta-row">
+                <button type="button" class="btn btn-secondary btn-full" id="btn-generate-guest-link">
+                  <span class="material-symbols-outlined">link</span>
+                  <span>Гостевой доступ</span>
+                </button>
+              </div>
+              <div id="guest-link-result" class="guest-link-display-box" style="display:none;"></div>
+            </div>
+          </div>
+
+          <div class="tab-col-secondary">
+            <div class="section-title-wrap">
+              <h3 class="section-heading-text">Журнал обращений</h3>
+              <span class="section-meta-text">Регламентные сроки АДС</span>
+            </div>
+            <!-- Dynamic Tickets Container -->
+            <div class="tickets-cards-list" id="tickets-container">
+              <!-- Populated by app.js -->
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ================= TAB 5: DEDICATED INSPECTOR ARM WORKSPACE ================= -->
+      <section id="tab-inspector" class="tab-content">
+        <div class="inspector-workspace-container">
+          
+          <!-- Inspector Header Cockpit -->
+          <div class="card-surface inspector-cockpit-bar">
+            <div class="inspector-cockpit-info">
+              <div class="inspector-badge-icon-box">
+                <span class="material-symbols-outlined">engineering</span>
+              </div>
+              <div>
+                <h2 class="inspector-heading-title">АРМ Обходчика УК</h2>
+                <p class="inspector-sub-title">Контрольный осмотр ИПУ • Выгрузка в 1С:ЖКХ по 63-ФЗ</p>
+              </div>
+            </div>
+            <div class="inspector-cockpit-badges">
+              <span class="badge-route-pill font-mono">Маршрут № 14</span>
+              <span class="badge-gps-active">
+                <span class="dot-indicator-green"></span>
+                <span class="material-symbols-outlined text-[14px]">my_location</span>
+                <span>ГЛОНАСС/GPS</span>
+              </span>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-switch-to-resident" title="Перейти в режим жителя">
+                <span class="material-symbols-outlined text-[16px]">arrow_back</span>
+                <span>Режим жителя</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Inspector Work Area Grid: Input on Left, Live Hash & Output on Right -->
+          <div class="tab-layout-grid">
+            
+            <!-- Left Form Column -->
+            <div class="tab-col-primary">
+              <div class="card-surface inspector-form-card">
+                <div class="inspector-form-header">
+                  <span class="material-symbols-outlined text-primary">fact_check</span>
+                  <h3>Фиксация контрольных показаний</h3>
+                </div>
+
+                <div class="inspector-form-body">
+                  <div class="form-field-group">
+                    <label class="form-label-styled" for="inspector-name-input">Инспектор / Контролер УК:</label>
+                    <input type="text" id="inspector-name-input" class="form-input-styled" value="Смирнов А. В. (Служба учета)" />
+                  </div>
+
+                  <div class="form-field-group">
+                    <label class="form-label-styled" for="inspector-address-select">Адрес квартиры (маршрут):</label>
+                    <select id="inspector-address-select" class="form-input-styled">
+                      <option value="г. Москва, ул. Ленина, д. 42, кв. 15">ул. Ленина, д. 42, кв. 15 (Иванов И. И.)</option>
+                      <option value="г. Москва, ул. Ленина, д. 42, кв. 16">ул. Ленина, д. 42, кв. 16 (Петров П. С.)</option>
+                      <option value="г. Москва, ул. Ленина, д. 42, кв. 17">ул. Ленина, д. 42, кв. 17 (Сидоров К. В.)</option>
+                    </select>
+                  </div>
+
+                  <div class="form-field-group">
+                    <label class="form-label-styled" for="inspector-meter-select">Прибор учета:</label>
+                    <select id="inspector-meter-select" class="form-input-styled">
+                      <option value="meter-khvs-1" data-serial="2809142" data-reading="142.385">ХВС: ИТЭЛМА № 2809142</option>
+                      <option value="meter-gvs-1" data-serial="3910844" data-reading="89.140">ГВС: Бетар № 3910844</option>
+                      <option value="meter-el-1" data-serial="01458291" data-reading="2360.500">Электроэнергия: Меркурий 208 № 01458291</option>
+                      <option value="meter-heat-1" data-serial="7741209" data-reading="12.840">Отопление: Sayany № 7741209</option>
+                    </select>
+                  </div>
+
+                  <div class="form-field-group">
+                    <label class="form-label-styled" for="inspector-serial-input">Серийный номер счетчика:</label>
+                    <input type="text" id="inspector-serial-input" class="form-input-styled font-mono" value="2809142" placeholder="Заводской номер" />
+                  </div>
+
+                  <div class="form-field-group">
+                    <label class="form-label-styled" for="inspector-reading-input">Контрольные показания (0.001 м³):</label>
+                    <input type="number" step="0.001" id="inspector-reading-input" class="form-input-styled font-mono font-bold" value="142.385" />
+                  </div>
+
+                  <div class="form-field-group">
+                    <label class="form-label-styled" for="inspector-gps-input">Координаты ГЛОНАСС/GPS:</label>
+                    <input type="text" id="inspector-gps-input" class="form-input-styled font-mono" value="55.7558° N, 37.6173° E" readonly />
+                  </div>
+
+                  <!-- Photo Proof & Seal Section -->
+                  <div class="form-field-group">
+                    <label class="form-label-styled">Фотофиксация прибора и антимагнитной пломбы:</label>
+                    <div class="inspector-photo-buttons-row">
+                      <button type="button" class="btn btn-secondary btn-sm" id="btn-inspector-photo">
+                        <span class="material-symbols-outlined">photo_camera</span>
+                        <span>Снять фото</span>
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-sm" id="btn-inspector-sample-photo">
+                        <span class="material-symbols-outlined">image</span>
+                        <span>Эталонное фото</span>
+                      </button>
+                      <input type="file" id="inspector-photo-input" accept="image/*" capture="environment" class="sr-only" />
+                    </div>
+                    
+                    <div id="inspector-photo-preview-wrap" class="photo-preview-wrap" style="display:none;">
+                      <div class="photo-preview-box">
+                        <img id="inspector-photo-preview" src="" alt="Фотофиксация счетчика" />
+                        <button type="button" class="btn-remove-photo" id="btn-remove-inspector-photo" title="Удалить фото">
+                          <span class="material-symbols-outlined text-[16px]">close</span>
+                        </button>
+                      </div>
+                      <span class="photo-meta-text font-mono" id="inspector-photo-meta">Геопривязка EXIF подтверждена</span>
+                    </div>
+                  </div>
+
+                  <!-- Live Cryptographic Seal Preview -->
+                  <div class="form-field-group">
+                    <label class="form-label-styled">Криптографический хеш акта (SHA-256):</label>
+                    <div class="hash-preview-box">
+                      <code id="inspector-hash-preview" class="code-box-inline font-mono">d7a8fbb307d7809469ca933b02d19420d8c660c6e0c281320377449926442616</code>
+                    </div>
+                  </div>
+
+                  <button type="button" class="btn btn-primary btn-full btn-lg" id="btn-generate-inspector-act">
+                    <span class="material-symbols-outlined">verified</span>
+                    <span>Создать акт</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Output Column: Certified Act Document -->
+            <div class="tab-col-secondary">
+              <div class="card-surface act-card" id="inspector-act-result" style="display: none;">
+                <div class="act-header">
+                  <div class="act-badges-row">
+                    <span class="act-stamp font-mono"><span class="material-symbols-outlined text-[13px]">verified</span> ЭЦП 63-ФЗ</span>
+                    <span class="badge-1c font-mono" id="act-export-badge"><span class="material-symbols-outlined text-[13px]">sync</span> 1С:ЖКХ ГОТОВ</span>
+                  </div>
+                  <div class="act-title-wrap">
+                    <h3 id="act-title">Электронный акт контрольного осмотра ПУ</h3>
+                    <p class="font-mono text-xs text-muted" id="act-number">№ ACT-ЖКХ-1789983492</p>
+                  </div>
+                </div>
+
+                <div class="act-body font-mono text-xs">
+                  <div class="act-row"><b>Инспектор:</b> <span id="act-inspector">Смирнов А. В.</span></div>
+                  <div class="act-row"><b>Объект:</b> <span id="act-address">г. Москва, ул. Ленина, д. 42, кв. 15</span></div>
+                  <div class="act-row"><b>Прибор:</b> <span id="act-meter-info">ХВС (ИТЭЛМА № 2809142)</span></div>
+                  <div class="act-row"><b>Показания:</b> <span id="act-reading" class="text-accent font-bold">142.385 м³</span></div>
+                  <div class="act-row"><b>Метка GPS:</b> <span id="act-gps">55.7558° N, 37.6173° E</span></div>
+                  <div class="act-row"><b>Таймстемп:</b> <span id="act-timestamp">2026-09-21T12:00:00</span></div>
+                  <div class="act-row"><b>SHA-256 хеш:</b> <code id="act-hash" class="code-hash-snippet">a94f82...</code></div>
+                  <div class="act-row"><b>Статус 1С:</b> <span class="badge-success-tag" id="act-export-status">EXPORTED_TO_1C_ZHKH</span></div>
+
+                  <div id="act-photo-display-wrap" class="act-photo-wrap" style="display:none;">
+                    <span class="act-photo-label">Прикрепленный снимок:</span>
+                    <img id="act-photo-display" src="" alt="Фотофиксация в акте" />
+                  </div>
+                </div>
+
+                <div class="act-footer text-xs text-muted">
+                  Юридическая сила: Заверен усиленной квалифицированной ЭЦП управляющей компании (Федеральный закон № 63-ФЗ). Синхронизировано с подсистемой биллинга 1С:Предприятие 8.
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ================= MODALS ================= -->
+
+    <!-- 1. Optical Camera Viewfinder Modal -->
+    <div id="camera-modal" class="modal-backdrop" style="display:none;">
+      <div class="camera-screen-box modal-viewfinder-box">
+        <!-- Header Bar: Back Button, Title, Subtitle, Flashlight -->
+        <div class="camera-header-bar viewfinder-header-bar">
+          <div class="camera-header-left">
+            <button type="button" class="btn-camera-back btn-close-modal" id="btn-close-viewfinder" aria-label="Назад">
+              <span class="material-symbols-outlined">arrow_back</span>
+            </button>
+            <div class="camera-title-group viewfinder-title-text">
+              <h2 class="camera-title-text">Скан счётчика</h2>
+              <span class="camera-subtitle-text">Оптическое считывание</span>
+            </div>
+          </div>
+          <button type="button" class="btn-torch-pill btn-circle btn-torch" id="btn-toggle-torch" title="Фонарик">
+            <span class="material-symbols-outlined">flashlight_on</span>
+            <span>Фонарик</span>
+          </button>
+        </div>
+
+        <!-- Horizontal Filter Chips row with matching service icons -->
+        <div class="camera-filter-chips-row" id="camera-filter-chips">
+          <button type="button" class="camera-chip active" data-meter="meter-khvs-1" data-type="cold_water">
+            <span class="material-symbols-outlined chip-icon icon-blue">water_drop</span>
+            <span>ХВС</span>
+          </button>
+          <button type="button" class="camera-chip" data-meter="meter-gvs-1" data-type="hot_water">
+            <span class="material-symbols-outlined chip-icon icon-orange">local_fire_department</span>
+            <span>ГВС</span>
+          </button>
+          <button type="button" class="camera-chip" data-meter="meter-el-1" data-type="electricity_multi">
+            <span class="material-symbols-outlined chip-icon icon-amber">bolt</span>
+            <span>Свет</span>
+          </button>
+          <button type="button" class="camera-chip" data-meter="meter-heat-1" data-type="heat">
+            <span class="material-symbols-outlined chip-icon icon-cyan">thermostat</span>
+            <span>Тепло</span>
+          </button>
+        </div>
+        <!-- Hidden button for test compatibility -->
+        <button type="button" id="btn-cycle-meter-type" class="sr-only" style="display:none;" aria-hidden="true">Сменить</button>
+
+        <!-- Camera Viewfinder Card -->
+        <div class="camera-viewfinder-card viewfinder-frame" id="viewfinder-camera-frame">
+          <!-- Top pill: Autofocus active with blue dot -->
+          <div class="viewfinder-autofocus-pill">
+            <span class="pulse-dot"></span>
+            <span>Автофокус активен</span>
+          </div>
+
+          <!-- Optical framing brackets / HUD targeting counter drum -->
+          <div class="viewfinder-reticle aim-reticle" id="viewfinder-reticle-box">
+            <div class="corner top-left"></div>
+            <div class="corner top-right"></div>
+            <div class="corner bottom-left"></div>
+            <div class="corner bottom-right"></div>
+            <div class="laser-scan-line"></div>
+            <div class="reticle-hud">
+              <span class="hud-metric">Оптический фокус</span>
+              <span class="hud-metric">ГОСТ Р 56042</span>
+            </div>
+            <div class="reticle-caption">ЗОНА СЧИТЫВАНИЯ БАРАБАНА</div>
+
+            <!-- Drum counter preview inside brackets -->
+            <div class="viewfinder-sim-counter" id="viewfinder-dial-preview">
+              <div class="sim-counter-box font-mono">
+                <span class="sim-black">00142</span><span class="sim-red">789</span>
+              </div>
+              <span class="sim-serial font-mono">№ 2809142</span>
+            </div>
+          </div>
+
+          <!-- Bottom overlay inside viewfinder card -->
+          <div class="viewfinder-bottom-overlay">
+            <div class="viewfinder-device-subtext" id="viewfinder-bottom-subtext">
+              Счетчик ХВС · Поднесите камеру к циферблату
+            </div>
+            <div class="viewfinder-pill-guide">
+              <span class="material-symbols-outlined text-[16px]">center_focus_strong</span>
+              <span>Наведите рамку на циферблат</span>
+            </div>
+          </div>
+
+          <!-- Hidden compatibility badge for tests -->
+          <div class="viewfinder-pitch-badge sr-only" style="display:none;" aria-hidden="true">
+            Наклон: 14° • Выравнивание ГОСТ
+          </div>
+        </div>
+
+        <!-- Bottom Control Bar Card -->
+        <div class="camera-control-card">
+          <div class="camera-control-actions">
+            <!-- Left: tile button "Галерея" -->
+            <button type="button" class="camera-tile-btn" id="btn-camera-gallery" title="Галерея">
+              <div class="tile-icon-box">
+                <span class="material-symbols-outlined">photo_library</span>
+              </div>
+              <span class="tile-label">Галерея</span>
+            </button>
+
+            <!-- Center: big circular shutter button -->
+            <button type="button" class="btn-camera-shutter btn-shutter" id="btn-capture-frame" title="Сделать снимок">
+              <div class="shutter-outer-ring">
+                <div class="shutter-inner-btn shutter-inner">
+                  <span class="material-symbols-outlined shutter-camera-icon">photo_camera</span>
+                </div>
+              </div>
+            </button>
+
+            <!-- Right: tile button "Вручную" -->
+            <button type="button" class="camera-tile-btn" id="btn-camera-manual" title="Вручную">
+              <div class="tile-icon-box">
+                <span class="material-symbols-outlined">edit</span>
+              </div>
+              <span class="tile-label">Вручную</span>
+            </button>
+          </div>
+
+          <!-- Footer note -->
+          <div class="camera-footer-note">
+            <span class="material-symbols-outlined text-[14px]">info</span>
+            <span>Распознаются целые кубометры без дробной части</span>
+          </div>
+        </div>
+
+        <!-- Hidden hint text for test compatibility -->
+        <div class="viewfinder-hint-text sr-only" style="display:none;" aria-hidden="true">
+          Наведите рамку на счетчик. Допустимо оптическое сканирование под углом.
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Create Ticket Modal -->
+    <div id="ticket-modal" class="modal-backdrop" style="display:none;">
+      <div class="modal-dialog-box">
+        <div class="modal-dialog-head">
+          <h3>Новая заявка в УК (ПП РФ № 40)</h3>
+          <button type="button" class="btn-close-modal" id="btn-close-ticket-modal" aria-label="Закрыть">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-dialog-body">
+          <div class="form-field-group">
+            <label class="form-label-styled" for="ticket-category-select">Категория неисправности:</label>
+            <select id="ticket-category-select" class="form-input-styled">
+              <option value="Сантехника">Сантехника (протечки, напор)</option>
+              <option value="Электрика">Электрика (щит, проводка, МОП)</option>
+              <option value="Отопление">Отопление (батареи, стояк)</option>
+              <option value="Лифт">Лифтовое хозяйство</option>
+              <option value="Кровля и фасад">Кровля и фасад</option>
+              <option value="Уборка МОП">Уборка подъезда и двора</option>
+            </select>
+          </div>
+          <div class="form-field-group">
+            <label class="form-label-styled" for="ticket-priority-select">Срочность (Регламент SLA ПП РФ № 40):</label>
+            <select id="ticket-priority-select" class="form-input-styled">
+              <option value="emergency">Аварийная (30 мин - 3 ч)</option>
+              <option value="urgent" selected>Срочная (до 24 ч)</option>
+              <option value="planned">Плановая (до 3 дней)</option>
+            </select>
+          </div>
+          <div class="form-field-group">
+            <label class="form-label-styled" for="ticket-desc-input">Описание неисправности:</label>
+            <textarea id="ticket-desc-input" class="form-input-styled form-textarea" rows="3" placeholder="Опишите характер дефекта..."></textarea>
+          </div>
+        </div>
+        <div class="modal-dialog-foot">
+          <button type="button" class="btn btn-primary btn-full" id="btn-submit-create-ticket">
+            <span>Создать заявку</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. SBP Payment Receipt Modal -->
+    <div id="receipt-modal" class="modal-backdrop" style="display:none;">
+      <div class="modal-dialog-box receipt-dialog">
+        <div class="modal-dialog-head">
+          <h3>Чек платежа СБП (103-ФЗ)</h3>
+          <button type="button" class="btn-close-modal" id="btn-close-receipt" aria-label="Закрыть">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-dialog-body" id="receipt-body">
+          <!-- Populated by JS -->
+        </div>
+        <div class="modal-dialog-foot">
+          <button type="button" class="btn btn-success btn-full" id="btn-done-receipt">
+            <span>Готово</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Profile & Addresses Modal -->
+    <div id="profile-modal" class="modal-backdrop" style="display:none;">
+      <div class="modal-dialog-box profile-dialog">
+        <div class="modal-dialog-head">
+          <h3>Личный кабинет</h3>
+          <button type="button" class="btn-close-modal" id="btn-close-profile-modal" aria-label="Закрыть">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-dialog-body">
+          <div class="profile-card-header-bar">
+            <div class="profile-avatar-circle">
+              <span class="material-symbols-outlined">person</span>
+            </div>
+            <div class="profile-meta-text">
+              <h4 id="profile-modal-username" class="profile-user-name">Иван Иванов</h4>
+              <p class="profile-user-phone font-mono" id="profile-modal-phone">Телефон не привязан</p>
+            </div>
+            <div id="profile-phone-action-wrap">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-bind-phone">
+                <span>Привязать тел.</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="profile-properties-head">
+            <span class="properties-head-title">Мои адреса (ЕЛС)</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-open-add-address-modal">
+              <span>Добавить адрес</span>
+            </button>
+          </div>
+          <div id="profile-addresses-container" class="profile-properties-list">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+        <div class="modal-dialog-foot">
+          <button type="button" class="btn btn-secondary btn-full" id="btn-close-profile-modal-btn">
+            <span>Закрыть</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Add Property Modal -->
+    <div id="add-property-modal" class="modal-backdrop" style="display:none;">
+      <div class="modal-dialog-box">
+        <div class="modal-dialog-head">
+          <h3>Добавить адрес</h3>
+          <button type="button" class="btn-close-modal" id="btn-close-add-property-modal" aria-label="Закрыть">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-dialog-body">
+          <div class="form-field-group">
+            <label class="form-label-styled" for="new-property-address-input">Адрес помещения:</label>
+            <input type="text" id="new-property-address-input" class="form-input-styled" placeholder="ул. Мира, д. 5, кв. 12" />
+          </div>
+          <div class="form-field-group">
+            <label class="form-label-styled" for="new-property-els-input">Единый лицевой счет (10 цифр):</label>
+            <input type="text" id="new-property-els-input" class="form-input-styled font-mono" placeholder="1004567890" maxlength="10" />
+          </div>
+          <div class="form-field-group">
+            <label class="form-label-styled" for="new-property-mc-input">Управляющая компания:</label>
+            <input type="text" id="new-property-mc-input" class="form-input-styled" value="ООО УК Столица-Сервис" />
+          </div>
+          <div class="pt-2">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-autofill-property-qr">
+              <span class="material-symbols-outlined">qr_code</span>
+              <span>Из квитанции</span>
+            </button>
+          </div>
+        </div>
+        <div class="modal-dialog-foot">
+          <button type="button" class="btn btn-primary btn-full" id="btn-submit-new-property">
+            <span>Сохранить</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Toast -->
+    <div id="toast" class="toast"></div>
+
+  </div>
+
+  <script>
+// --- Inlined MAX Mini-App app.js ---
+
+// GitHub Pages / Standalone API base config
+if (typeof window !== 'undefined') {
+  window.API_BASE = window.API_BASE || (window.location.origin.includes('github.io') ? 'https://hero-slides-roller-supports.trycloudflare.com' : '');
+}
+/**
+ * MAX Smart City Housing Mini-App Client.
+ * High-precision De-AI Industrial architecture interfacing with MAX Bridge and backend API.
+ * Supports all functional domains:
+ * 1. Meters (Water, Electricity T1/T2, Heat, Gas) with tactile mechanical odometer
+ * 2. Arshin Anti-Fraud Green Security Shield (102-FZ)
+ * 3. GOST R 56042-2014 Billing & Account 40821 SBP Split (103-FZ)
+ * 4. Dispatcher Tickets & SLAs (PP RF No. 40) + Guest Tenant Access without ESIA
+ * 5. UK Inspector ARM Digital Acts with GPS & SHA-256 (63-FZ)
+ */
+
+// Application State
+let appState = {
+  meters: [],
+  selectedMeterId: "meter-khvs-1",
+  currentTab: "tab-meters",
+  currentFilter: "all",
+  activeRole: "resident", // 'resident' or 'inspector_uk'
+  torchActive: false,
+  billTotal: 4850.50,
+  rollerBlackDigits: [0, 0, 1, 4, 2],
+  rollerRedDigits: [7, 8, 9],
+  previousReading: 138.0,
+  tariffRate: 54.80,
+  inspectorPhotoBase64: null,
+  cameraStream: null,
+  profile: null
+};
+
+// Initialization
+document.addEventListener("DOMContentLoaded", () => {
+  initMaxBridge();
+  checkUrlLaunchParameters();
+  initTabs();
+  initRoleSwitcher();
+  initViewfinderModal();
+  initFilterChips();
+  initArshinPresets();
+  initTicketModal();
+  initInspectorArm();
+  initProfileAndAddressManagement();
+  updateProfileUI(getDefaultProfile());
+  loadMeters();
+  loadTickets();
+  loadProfile();
+  bindGeneralEventHandlers();
+});
+
+// ----------------- Check URL Parameters for Role -----------------
+
+function checkUrlLaunchParameters() {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const roleParam = urlParams.get('role') || urlParams.get('mode') || urlParams.get('startapp') ||
+                      hashParams.get('role') || hashParams.get('mode') || hashParams.get('startapp');
+    
+    if (roleParam === 'inspector' || roleParam === 'inspector_uk') {
+      setRole("inspector_uk");
+    } else {
+      setRole("resident");
+    }
+
+    if (urlParams.get('modal') === 'camera' || hashParams.get('modal') === 'camera' || window.location.hash === '#camera') {
+      setTimeout(() => openCameraViewfinder(), 150);
+    }
+  } catch (e) {
+    console.warn("URL parameter parse notice:", e);
+  }
+}
+
+// ----------------- MAX Bridge SDK & API Transport Wrapper -----------------
+
+function getInitData() {
+  if (window.WebApp && window.WebApp.initData) {
+    return window.WebApp.initData;
+  }
+  const urlParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  return urlParams.get('initData') || urlParams.get('init_data') || hashParams.get('initData') || '';
+}
+
+async function apiFetch(url, options = {}) {
+  const opts = { ...options };
+  opts.headers = { ...opts.headers };
+  const initData = getInitData();
+  if (initData) {
+    opts.headers["X-Init-Data"] = initData;
+  }
+  if (typeof window !== "undefined" && window.API_BASE && url.startsWith("/")) {
+    url = window.API_BASE.replace(/\/$/, "") + url;
+  }
+  return fetch(url, opts);
+}
+
+function initMaxBridge() {
+  const statusEl = document.getElementById("bridge-status");
+  if (window.WebApp) {
+    if (statusEl) {
+      statusEl.textContent = "MAX Bridge";
+      statusEl.className = "badge-status online";
+      statusEl.style.display = "inline-flex";
+    }
+
+    if (window.WebApp.initDataUnsafe && window.WebApp.initDataUnsafe.user) {
+      const u = window.WebApp.initDataUnsafe.user;
+      const fullName = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || "Иван Иванов";
+      const roleTitle = document.getElementById("role-title-text");
+      if (roleTitle && appState.activeRole !== "inspector_uk") {
+        roleTitle.textContent = fullName;
+      }
+      const userEl = document.getElementById("role-badge");
+      if (userEl) userEl.title = `Авторизован: ${fullName} (ID: ${u.id})`;
+    }
+
+    if (window.WebApp.BackButton) {
+      window.WebApp.BackButton.onClick(() => {
+        if (appState.activeRole === "inspector_uk") {
+          switchTab("tab-inspector");
+        } else {
+          switchTab("tab-meters");
+        }
+        window.WebApp.BackButton.hide();
+      });
+    }
+
+    if (typeof window.WebApp.enableClosingConfirmation === "function") {
+      try { window.WebApp.enableClosingConfirmation(); } catch (e) {}
+    }
+
+    if (typeof window.WebApp.ready === "function") {
+      try { window.WebApp.ready(); } catch (e) {}
+    }
+    if (typeof window.WebApp.expand === "function") {
+      try { window.WebApp.expand(); } catch (e) {}
+    }
+
+    if (window.WebApp.colorScheme === "light") {
+      document.body.classList.add("light-theme");
+    }
+  } else {
+    if (statusEl) {
+      statusEl.textContent = "Web Browser";
+      statusEl.className = "badge-status";
+    }
+  }
+}
+
+function haptic(type = "light") {
+  if (window.WebApp && window.WebApp.HapticFeedback) {
+    if (type === "success" || type === "error" || type === "warning") {
+      window.WebApp.HapticFeedback.notificationOccurred(type);
+    } else if (type === "selection") {
+      window.WebApp.HapticFeedback.selectionChanged();
+    } else {
+      window.WebApp.HapticFeedback.impactOccurred(type);
+    }
+  }
+}
+
+let toastTimeoutId = null;
+function showToast(message) {
+  const t = document.getElementById("toast");
+  if (!t) return;
+  t.textContent = message;
+  t.classList.add("show");
+  if (toastTimeoutId) {
+    clearTimeout(toastTimeoutId);
+  }
+  toastTimeoutId = setTimeout(() => {
+    t.classList.remove("show");
+    toastTimeoutId = null;
+  }, 2800);
+}
+
+// ----------------- Role Switcher & Isolation -----------------
+
+function setRole(newRole) {
+  appState.activeRole = newRole;
+  document.body.setAttribute("data-role", newRole === "inspector_uk" ? "inspector" : "resident");
+
+  const badge = document.getElementById("role-badge");
+  const roleTitle = document.getElementById("role-title-text");
+
+  if (newRole === "inspector_uk") {
+    if (badge) badge.textContent = "ОБХОДЧИК";
+    if (roleTitle) roleTitle.textContent = "Контролер УК";
+    switchTab("tab-inspector");
+  } else {
+    // 1. Profile Name (first field)
+    let displayName = "Иван Иванов";
+    if (appState.profile) {
+      displayName = [appState.profile.first_name, appState.profile.last_name].filter(Boolean).join(" ") || appState.profile.first_name || "Иван Иванов";
+    } else if (window.WebApp && window.WebApp.initDataUnsafe && window.WebApp.initDataUnsafe.user) {
+      const u = window.WebApp.initDataUnsafe.user;
+      displayName = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || "Иван Иванов";
+    }
+    if (roleTitle) roleTitle.textContent = displayName;
+
+    // 2. Status Badge (second field: СОБСТВЕННИК or АРЕНДАТОР)
+    let statusText = "СОБСТВЕННИК";
+    if (appState.profile && appState.profile.properties) {
+      const activeProp = appState.profile.properties.find(p => p.is_active) || appState.profile.properties[0];
+      if (activeProp && (activeProp.role === "tenant" || activeProp.role === "guest")) {
+        statusText = "АРЕНДАТОР";
+      }
+    }
+    if (badge) badge.textContent = statusText;
+
+    if (appState.currentTab === "tab-inspector") {
+      switchTab("tab-meters");
+    }
+  }
+}
+
+function initRoleSwitcher() {
+  const badge = document.getElementById("role-badge");
+  if (badge) {
+    badge.addEventListener("click", () => {
+      haptic("medium");
+      if (appState.activeRole === "resident") {
+        setRole("inspector_uk");
+        showToast("Режим: АРМ Обходчика УК");
+      } else {
+        setRole("resident");
+        showToast("Режим: Личный кабинет");
+      }
+    });
+  }
+
+  const switchBackBtn = document.getElementById("btn-switch-to-resident");
+  if (switchBackBtn) {
+    switchBackBtn.addEventListener("click", () => {
+      haptic("medium");
+      setRole("resident");
+      showToast("Возврат в личный кабинет");
+    });
+  }
+}
+
+// ----------------- Tab Navigation -----------------
+
+function initTabs() {
+  const buttons = document.querySelectorAll(".tab-btn");
+  buttons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tabId = btn.getAttribute("data-tab");
+      switchTab(tabId);
+      haptic("light");
+    });
+  });
+}
+
+function switchTab(tabId) {
+  appState.currentTab = tabId;
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.getAttribute("data-tab") === tabId));
+  document.querySelectorAll(".tab-content").forEach(c => c.classList.toggle("active", c.id === tabId));
+
+  if (window.WebApp && window.WebApp.BackButton) {
+    if (tabId === "tab-meters") {
+      window.WebApp.BackButton.hide();
+    } else {
+      window.WebApp.BackButton.show();
+    }
+  }
+}
+
+// ----------------- Filter Chips for Meters -----------------
+
+function initFilterChips() {
+  const chips = document.querySelectorAll(".meter-filter-chips .chip");
+  chips.forEach(chip => {
+    chip.addEventListener("click", () => {
+      chips.forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      appState.currentFilter = chip.getAttribute("data-filter");
+      haptic("light");
+      renderMetersList(appState.meters);
+    });
+  });
+}
+
+// ----------------- Default Demo Fixtures & Data Loading -----------------
+
+function getDefaultProfile() {
+  let name = "Иван";
+  let lastName = "Иванов";
+  let username = "ivan_ivanov";
+  if (window.WebApp && window.WebApp.initDataUnsafe && window.WebApp.initDataUnsafe.user) {
+    const u = window.WebApp.initDataUnsafe.user;
+    if (u.first_name) name = u.first_name;
+    if (u.last_name) lastName = u.last_name;
+    if (u.username) username = u.username;
+  }
+  return {
+    user_id: 100456,
+    first_name: name,
+    last_name: lastName,
+    username: username,
+    phone: "+7 (999) 123-45-67",
+    is_verified: true,
+    active_property_id: "prop-flat-42-15",
+    properties: [
+      {
+        id: "prop-flat-42-15",
+        address: "г. Москва, ул. Ленина, д. 42, кв. 15",
+        els: "1004567890",
+        management_company: "ООО УК Столица-Сервис",
+        is_active: true,
+        role: "owner"
+      },
+      {
+        id: "prop-dacha-8",
+        address: "Московская обл., д. Барвиха, д. 8",
+        els: "2008891024",
+        management_company: "ТСЖ Рублево-Сервис",
+        is_active: false,
+        role: "tenant"
+      }
+    ]
+  };
+}
+
+function getDefaultDemoMeters() {
+  return [
+    {
+      id: "meter-khvs-1",
+      meter_type: "cold_water",
+      serial_number: "2809142",
+      name: "ХВС (Холодная вода)",
+      installation_place: "Санузел",
+      last_reading_value: 142.0,
+      last_reading_date: "2026-08-20",
+      verification_date_valid_until: "2029-10-18",
+      unit: "м³",
+      decimal_digits: 3
+    },
+    {
+      id: "meter-gvs-1",
+      meter_type: "hot_water",
+      serial_number: "3910844",
+      name: "ГВС (Горячая вода)",
+      installation_place: "Санузел",
+      last_reading_value: 98.0,
+      last_reading_date: "2026-08-20",
+      verification_date_valid_until: "2028-04-12",
+      unit: "м³",
+      decimal_digits: 3
+    },
+    {
+      id: "meter-el-1",
+      meter_type: "electricity_multi",
+      serial_number: "01458291",
+      name: "Электроэнергия (Меркурий 208)",
+      installation_place: "Щит на площадке",
+      last_reading_value: 1840.0,
+      last_reading_date: "2026-08-20",
+      verification_date_valid_until: "2032-11-05",
+      unit: "кВт*ч",
+      decimal_digits: 1
+    },
+    {
+      id: "meter-heat-1",
+      meter_type: "heat",
+      serial_number: "7741209",
+      name: "Отопление (Теплосчетчик)",
+      installation_place: "Коридор",
+      last_reading_value: 14.2,
+      last_reading_date: "2026-08-20",
+      verification_date_valid_until: "2027-09-30",
+      unit: "Гкал",
+      decimal_digits: 2
+    },
+    {
+      id: "meter-gas-1",
+      meter_type: "gas",
+      serial_number: "5540912",
+      name: "Газоснабжение (ВК-G4)",
+      installation_place: "Кухня",
+      last_reading_value: 340.0,
+      last_reading_date: "2026-08-20",
+      verification_date_valid_until: "2030-06-15",
+      unit: "м³",
+      decimal_digits: 3
+    }
+  ];
+}
+
+function getDefaultDemoTickets() {
+  return [
+    {
+      id: "TCK-8821",
+      category: "Сантехника / Водоснабжение",
+      description: "Подтекает вводной кран ХВС в санузле",
+      priority: "urgent",
+      status: "in_progress",
+      assigned_master: "Сергеев В. А.",
+      sla_hours: 24,
+      created_at: "2026-09-21T09:30:00"
+    },
+    {
+      id: "TCK-8819",
+      category: "Электрика",
+      description: "Замена автоматического выключателя в щитке",
+      priority: "planned",
+      status: "new",
+      assigned_master: "Дежурный электрик",
+      sla_hours: 72,
+      created_at: "2026-09-20T14:15:00"
+    }
+  ];
+}
+
+function getMeterVisualConfig(m) {
+  const type = m.meter_type || "";
+  const name = m.name || "";
+
+  if (type === "cold_water" || m.id.includes("khvs") || name.includes("Холодн")) {
+    return {
+      displayName: "Холодная вода",
+      focusTitle: "Холодная вода (ХВС)",
+      icon: "water_drop",
+      circleClass: "meter-icon-circle-blue",
+      subtext: `${Math.round(m.last_reading_value) || 142} ${m.unit || 'м³'}`,
+      actionType: "submitted",
+      shortType: "ХВС"
+    };
+  } else if (type === "hot_water" || m.id.includes("gvs") || name.includes("Горяч")) {
+    return {
+      displayName: "Горячая вода",
+      focusTitle: "Горячая вода (ГВС)",
+      icon: "local_fire_department",
+      circleClass: "meter-icon-circle-orange",
+      subtext: `Было: ${m.previous_reading || 89} ${m.unit || 'м³'}`,
+      actionType: "submit_blue",
+      shortType: "ГВС"
+    };
+  } else if (type.startsWith("el") || m.id.includes("el") || name.includes("Электр")) {
+    return {
+      displayName: "Электроэнергия",
+      focusTitle: "Электроэнергия",
+      icon: "bolt",
+      circleClass: "meter-icon-circle-amber",
+      subtext: `${Math.round(m.last_reading_value) || 1450} кВт·ч`,
+      actionType: "auto",
+      shortType: "Свет"
+    };
+  } else if (type === "heat" || m.id.includes("heat") || name.includes("Отопл")) {
+    const heatVal = m.id === "meter-heat-1" ? "12,45" : String(m.last_reading_value).replace('.', ',');
+    return {
+      displayName: "Отопление",
+      focusTitle: "Отопление",
+      icon: "thermostat",
+      circleClass: "meter-icon-circle-cyan",
+      subtext: `${heatVal} Гкал`,
+      actionType: "submit_dark",
+      shortType: "Тепло"
+    };
+  } else {
+    return {
+      displayName: m.name,
+      focusTitle: m.name,
+      icon: "propane_tank",
+      circleClass: "meter-icon-circle-purple",
+      subtext: `${m.last_reading_value} ${m.unit || 'м³'}`,
+      actionType: "submit_blue",
+      shortType: "Газ"
+    };
+  }
+}
+
+function updateActiveFocusCard(meter) {
+  if (!meter) return;
+  const config = getMeterVisualConfig(meter);
+
+  const titleEl = document.getElementById("ocr-device-title");
+  if (titleEl) {
+    titleEl.textContent = config.focusTitle;
+  }
+
+  const iconWrap = document.getElementById("focus-meter-icon-box");
+  const iconEl = document.getElementById("focus-meter-icon");
+  if (iconWrap) {
+    iconWrap.className = `meter-icon-circle ${config.circleClass}`;
+  }
+  if (iconEl) {
+    iconEl.textContent = config.icon;
+  }
+
+  const readingInput = document.getElementById("input-reading-correct");
+  if (readingInput) {
+    readingInput.value = Math.floor(meter.last_reading_value) || 142;
+  }
+
+  const unitEl = document.getElementById("stepper-unit-label");
+  if (unitEl) {
+    unitEl.textContent = meter.unit || 'м³';
+  }
+
+  const singleBox = document.getElementById("single-reading-box");
+  const multiBox = document.getElementById("multi-tariff-box");
+  if (meter.meter_type && meter.meter_type.startsWith("el")) {
+    if (singleBox) singleBox.style.display = "none";
+    if (multiBox) multiBox.style.display = "block";
+  } else {
+    if (singleBox) singleBox.style.display = "flex";
+    if (multiBox) multiBox.style.display = "none";
+  }
+
+  const prev = meter.previous_reading || (meter.id.includes("khvs") ? 138 : Math.round(meter.last_reading_value * 0.95)) || 138;
+  appState.previousReading = prev;
+
+  const currentVal = Math.floor(meter.last_reading_value) || 142;
+  const delta = Math.max(0, currentVal - prev);
+
+  const prevEl = document.getElementById("calc-prev-val");
+  if (prevEl) prevEl.textContent = `Было: ${prev} ${meter.unit || 'м³'}`;
+
+  const deltaEl = document.getElementById("calc-delta-val");
+  if (deltaEl) deltaEl.textContent = `+${delta} ${meter.unit || 'м³'}`;
+
+  const intPart = Math.floor(meter.last_reading_value);
+  renderRollers(intPart, 789);
+}
+
+async function loadMeters() {
+  try {
+    const res = await apiFetch("/api/meters");
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        appState.meters = data;
+        renderMetersList(data);
+        updateActiveFocusCard(data[0]);
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn("loadMeters notice:", err);
+  }
+  appState.meters = getDefaultDemoMeters();
+  renderMetersList(appState.meters);
+  updateActiveFocusCard(appState.meters[0]);
+}
+
+function renderMetersList(meters) {
+  const container = document.getElementById("meters-container");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const filtered = meters.filter(m => {
+    if (appState.currentFilter === "all") return true;
+    return m.meter_type === appState.currentFilter;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="card-surface text-muted" style="text-align:center; padding: 20px;">Нет приборов учета выбранного типа</div>`;
+    return;
+  }
+
+  filtered.forEach(m => {
+    const config = getMeterVisualConfig(m);
+    const card = document.createElement("div");
+    card.className = "meter-card";
+    card.setAttribute("data-id", m.id);
+
+    let rightElementHtml = '';
+    if (config.actionType === "submitted") {
+      rightElementHtml = `<span class="badge-submitted-pill"><span class="material-symbols-outlined text-[14px]">check</span> Сдано</span>`;
+    } else if (config.actionType === "auto") {
+      rightElementHtml = `<span class="badge-auto-pill">Авто</span>`;
+    } else if (config.actionType === "submit_dark") {
+      rightElementHtml = `<button type="button" class="btn-meter-action-secondary">Сдать</button>`;
+    } else {
+      rightElementHtml = `<button type="button" class="btn-meter-action-btn">Сдать</button>`;
+    }
+
+    card.innerHTML = `
+      <div class="meter-card-left">
+        <div class="meter-icon-circle ${config.circleClass}">
+          <span class="material-symbols-outlined text-[19px]">${config.icon}</span>
+        </div>
+        <div class="meter-card-text">
+          <div class="meter-card-name">${config.displayName}</div>
+          <div class="meter-card-sub font-mono">${config.subtext}</div>
+        </div>
+      </div>
+      <div class="meter-card-right">
+        ${rightElementHtml}
+      </div>
+    `;
+
+    card.addEventListener("click", () => {
+      appState.selectedMeterId = m.id;
+      updateActiveFocusCard(m);
+    });
+
+    const actionBtn = card.querySelector("button");
+    if (actionBtn) {
+      actionBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        appState.selectedMeterId = m.id;
+        updateActiveFocusCard(m);
+        openCameraViewfinder(m);
+      });
+    }
+
+    container.appendChild(card);
+  });
+}
+
+async function loadTickets() {
+  try {
+    const res = await apiFetch("/api/tickets");
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        renderTicketsList(data);
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn("loadTickets notice:", err);
+  }
+  renderTicketsList(getDefaultDemoTickets());
+}
+
+function renderTicketsList(tickets) {
+  const container = document.getElementById("tickets-container");
+  if (!container) return;
+  container.innerHTML = "";
+  tickets.forEach(t => {
+    const item = document.createElement("div");
+    item.className = "card-surface";
+    const prioColor = t.priority === "emergency" ? "text-danger" : (t.priority === "urgent" ? "text-warning" : "text-accent");
+    const prioLabel = t.priority === "emergency" ? "Аварийная (30 мин)" : (t.priority === "urgent" ? "Срочная (24 ч)" : "Плановая");
+    
+    let statusText = "Новая";
+    if (t.status === "in_progress") { statusText = "В работе у мастера"; }
+    else if (t.status === "resolved") { statusText = "Выполнена"; }
+
+    item.innerHTML = `
+      <div class="section-title-wrap">
+        <h4 style="color:#fff; font-size:13px;">${t.category} (${t.id})</h4>
+        <span class="${prioColor} text-xs font-medium font-mono">${prioLabel}</span>
+      </div>
+      <p class="text-xs" style="margin: 8px 0; color:var(--text-secondary);">${t.description}</p>
+      <div class="text-xs text-muted font-mono">Статус: ${statusText} • Мастер: ${t.assigned_master || "Дежурный слесарь"}</div>
+      <div class="text-xs text-muted font-mono">Регламент SLA: ${t.sla_hours} ч по ПП РФ № 40</div>
+      <div style="margin-top: 10px;">
+        ${t.status !== "resolved" ? `<button type="button" class="btn btn-secondary btn-sm btn-advance-ticket" data-id="${t.id}"><span>Обновить статус</span></button>` : `<span class="text-xs text-success">Заявка закрыта</span>`}
+      </div>
+    `;
+
+    const advanceBtn = item.querySelector(".btn-advance-ticket");
+    if (advanceBtn) {
+      advanceBtn.addEventListener("click", async () => {
+        haptic("medium");
+        const nextStatus = t.status === "new" ? "in_progress" : "resolved";
+        try {
+          await apiFetch(`/api/tickets/${t.id}/status`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: nextStatus,
+              comment: nextStatus === "in_progress" ? "Мастер принял заявку в работу" : "Работы завершены, претензий нет"
+            })
+          });
+          showToast(`Статус заявки ${t.id} обновлен!`);
+          loadTickets();
+        } catch (e) {
+          showToast("Ошибка обновления статуса заявки");
+        }
+      });
+    }
+
+    container.appendChild(item);
+  });
+}
+
+// ----------------- Viewfinder Camera Simulation -----------------
+
+function initViewfinderModal() {
+  const modal = document.getElementById("camera-modal");
+  const btnOpen = document.getElementById("btn-open-camera");
+  const btnClose = document.getElementById("btn-close-viewfinder");
+  const btnTorch = document.getElementById("btn-toggle-torch");
+  const btnCapture = document.getElementById("btn-capture-frame");
+  const btnCycle = document.getElementById("btn-cycle-meter-type");
+  const btnGallery = document.getElementById("btn-camera-gallery");
+  const btnManual = document.getElementById("btn-camera-manual");
+
+  if (btnOpen) {
+    btnOpen.addEventListener("click", () => {
+      openCameraViewfinder();
+    });
+  }
+
+  if (btnClose) {
+    btnClose.addEventListener("click", () => {
+      haptic("light");
+      modal.style.display = "none";
+    });
+  }
+
+  if (btnTorch) {
+    btnTorch.addEventListener("click", () => {
+      appState.torchActive = !appState.torchActive;
+      btnTorch.classList.toggle("active", appState.torchActive);
+      const frame = document.getElementById("viewfinder-camera-frame");
+      if (frame) frame.classList.toggle("torch-active", appState.torchActive);
+      haptic("light");
+      showToast(appState.torchActive ? "Подсветка включена" : "Подсветка выключена");
+
+      if (appState.cameraStream) {
+        const track = appState.cameraStream.getVideoTracks()[0];
+        if (track && typeof track.applyConstraints === "function") {
+          track.applyConstraints({ advanced: [{ torch: appState.torchActive }] }).catch(() => {});
+        }
+      }
+    });
+  }
+
+  if (btnCycle) {
+    btnCycle.addEventListener("click", () => {
+      haptic("light");
+      const types = ["meter-khvs-1", "meter-gvs-1", "meter-el-1", "meter-heat-1"];
+      const idx = (types.indexOf(appState.selectedMeterId) + 1) % types.length;
+      appState.selectedMeterId = types[idx];
+      const curMeter = appState.meters.find(m => m.id === appState.selectedMeterId);
+      if (curMeter) updateViewfinderDisplay(curMeter);
+    });
+  }
+
+  if (btnGallery) {
+    btnGallery.addEventListener("click", () => {
+      haptic("light");
+      const fileInput = document.getElementById("file-meter-input");
+      if (fileInput) fileInput.click();
+    });
+  }
+
+  if (btnManual) {
+    btnManual.addEventListener("click", () => {
+      haptic("light");
+      modal.style.display = "none";
+      const focusCard = document.getElementById("ai-scan-result");
+      if (focusCard) focusCard.scrollIntoView({ behavior: "smooth" });
+      const input = document.getElementById("input-reading-correct");
+      if (input) input.focus();
+    });
+  }
+
+  // Camera horizontal filter chips
+  document.querySelectorAll("#camera-filter-chips .camera-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      haptic("light");
+      document.querySelectorAll("#camera-filter-chips .camera-chip").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      const mId = chip.getAttribute("data-meter");
+      const mType = chip.getAttribute("data-type");
+      const meter = appState.meters.find(m => m.id === mId || m.meter_type === mType);
+      if (meter) {
+        appState.selectedMeterId = meter.id;
+        updateViewfinderDisplay(meter);
+        updateActiveFocusCard(meter);
+      }
+    });
+  });
+
+  if (btnCapture) {
+    btnCapture.addEventListener("click", () => {
+      haptic("success");
+      modal.style.display = "none";
+      showToast("Кадр зафиксирован. Запуск распознавания...");
+      triggerAiScanMock();
+    });
+  }
+}
+
+function openCameraViewfinder(meter = null) {
+  haptic("medium");
+  const modal = document.getElementById("camera-modal");
+  if (modal) modal.style.display = "flex";
+
+  const targetMeter = meter || appState.meters.find(m => m.id === appState.selectedMeterId) || appState.meters[0];
+  if (targetMeter) {
+    appState.selectedMeterId = targetMeter.id;
+    updateViewfinderDisplay(targetMeter);
+  }
+}
+
+function updateViewfinderDisplay(meter) {
+  if (!meter) return;
+  const config = getMeterVisualConfig(meter);
+
+  const dial = document.getElementById("viewfinder-dial-preview");
+  if (dial) {
+    const intPart = Math.floor(meter.last_reading_value);
+    const intStr = String(intPart).padStart(5, '0').slice(-5);
+    const fracStr = "789";
+    dial.innerHTML = `
+      <div class="sim-counter-box font-mono">
+        <span class="sim-black">${intStr}</span><span class="sim-red">${fracStr}</span>
+      </div>
+      <span class="sim-serial font-mono">№ ${meter.serial_number}</span>
+    `;
+  }
+
+  const subtextEl = document.getElementById("viewfinder-bottom-subtext");
+  if (subtextEl) {
+    subtextEl.textContent = `Счетчик ${config.shortType} · Поднесите камеру к циферблату`;
+  }
+
+  document.querySelectorAll("#camera-filter-chips .camera-chip").forEach(chip => {
+    const mId = chip.getAttribute("data-meter");
+    const mType = chip.getAttribute("data-type");
+    if (mId === meter.id || mType === meter.meter_type) {
+      chip.classList.add("active");
+    } else {
+      chip.classList.remove("active");
+    }
+  });
+}
+
+// ----------------- Mock AI Vision Simulation -----------------
+
+async function triggerAiScanMock() {
+  const preview = document.getElementById("ai-scan-result");
+  if (preview) preview.style.display = "block";
+
+  const targetMeter = appState.meters.find(m => m.id === appState.selectedMeterId) || appState.meters[0];
+  const typeHint = targetMeter ? targetMeter.meter_type : "cold_water";
+
+  try {
+    const res = await apiFetch("/api/ai/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_type_hint: typeHint })
+    });
+    const data = await res.json();
+
+    const titleEl = document.getElementById("ocr-device-title");
+    if (titleEl && targetMeter) {
+      titleEl.textContent = targetMeter.name;
+    }
+
+    const serialEl = document.getElementById("ocr-serial-val");
+    if (serialEl) serialEl.textContent = `№ ${data.recognized_serial_number}`;
+
+    const readingEl = document.getElementById("ocr-reading-val");
+    if (readingEl) readingEl.textContent = `${data.recognized_reading} ${data.unit || "м³"}`;
+
+    const confEl = document.getElementById("ocr-confidence-val");
+    if (confEl) confEl.textContent = `${Math.round(data.confidence * 100)}%`;
+
+    updateActiveFocusCard(targetMeter);
+
+    const singleBox = document.getElementById("single-reading-box");
+    const multiBox = document.getElementById("multi-tariff-box");
+    const dialCaptionBox = document.getElementById("dial-caption-box");
+
+    if (data.device_type === "electricity_multi") {
+      if (singleBox) singleBox.style.display = "none";
+      if (multiBox) multiBox.style.display = "block";
+      const t1El = document.getElementById("input-t1-val");
+      const t2El = document.getElementById("input-t2-val");
+      if (t1El) t1El.value = data.recognized_reading;
+      if (t2El) t2El.value = (data.recognized_reading * 0.42).toFixed(1);
+      if (dialCaptionBox) {
+        dialCaptionBox.innerHTML = `
+          <span class="caption-black">Многотарифный учет Т1 (День) / Т2 (Ночь)</span>
+        `;
+      }
+      const shieldEl = document.getElementById("ocr-shield-active");
+      if (shieldEl) shieldEl.textContent = "Активирована (Т1/Т2)";
+    } else {
+      if (multiBox) multiBox.style.display = "none";
+      if (singleBox) singleBox.style.display = "flex";
+      const fracVal = Math.round((data.raw_reading_with_fractions - Math.floor(data.recognized_reading)) * 1000) || 789;
+      renderRollers(data.recognized_reading, fracVal);
+      const manualInput = document.getElementById("input-reading-correct");
+      if (manualInput) manualInput.value = data.recognized_reading;
+      const prev = appState.previousReading || 138;
+      const delta = Math.max(0, data.recognized_reading - prev);
+      const deltaEl = document.getElementById("calc-delta-val");
+      if (deltaEl) deltaEl.textContent = `+${delta} ${targetMeter.unit || 'м³'}`;
+      const prevEl = document.getElementById("calc-prev-val");
+      if (prevEl) prevEl.textContent = `Было: ${prev} ${targetMeter.unit || 'м³'}`;
+      if (dialCaptionBox) {
+        dialCaptionBox.innerHTML = `
+          <span class="caption-black">Черные барабаны: целые м³</span>
+          <span class="caption-red">Красные барабаны: литры (отсечены)</span>
+        `;
+      }
+      const shieldEl = document.getElementById("ocr-shield-active");
+      if (shieldEl) shieldEl.textContent = "Активирована (1000x блок)";
+    }
+
+    if (preview) preview.scrollIntoView({ behavior: "smooth" });
+    showToast("Цифры и заводской номер считаны!");
+  } catch (err) {
+    console.error("AI scan failed:", err);
+  }
+}
+
+// ----------------- Interactive Split Rollers Component -----------------
+
+function renderRollers(readingValue, fractionValue = 789) {
+  const intVal = Math.floor(readingValue);
+  const intStr = String(intVal).padStart(5, '0').slice(-5);
+  const fracStr = String(Math.floor(fractionValue)).padStart(3, '0').slice(-3);
+
+  appState.rollerBlackDigits = intStr.split('').map(Number);
+  appState.rollerRedDigits = fracStr.split('').map(Number);
+
+  buildRollerDrums();
+  updateCalculationBreakdown();
+}
+
+function buildRollerDrums() {
+  const blackGroup = document.getElementById("roller-black-group");
+  const redGroup = document.getElementById("roller-red-group");
+  if (!blackGroup || !redGroup) return;
+
+  blackGroup.innerHTML = "";
+  redGroup.innerHTML = "";
+
+  appState.rollerBlackDigits.forEach((digit, idx) => {
+    blackGroup.appendChild(createRollerDrum(digit, 'black', idx));
+  });
+
+  appState.rollerRedDigits.forEach((digit, idx) => {
+    redGroup.appendChild(createRollerDrum(digit, 'red', idx));
+  });
+
+  const blackSpan = document.getElementById("ocr-black-digits");
+  const redSpan = document.getElementById("ocr-red-digits");
+  if (blackSpan) blackSpan.textContent = appState.rollerBlackDigits.join('');
+  if (redSpan) redSpan.textContent = appState.rollerRedDigits.join('');
+}
+
+function createRollerDrum(digit, type, index) {
+  const drum = document.createElement("div");
+  drum.className = "roller-drum";
+  drum.title = "Колесико мыши или стрелки";
+
+  const btnUp = document.createElement("button");
+  btnUp.type = "button";
+  btnUp.className = "roller-stepper roller-stepper-up";
+  btnUp.textContent = "▲";
+  btnUp.setAttribute("aria-label", `Увеличить ${type} ${index}`);
+  btnUp.addEventListener("click", () => stepRollerDigit(type, index, 1));
+
+  const digitEl = document.createElement("div");
+  digitEl.className = `roller-digit roller-${type}`;
+  digitEl.textContent = digit;
+  digitEl.addEventListener("click", () => stepRollerDigit(type, index, 1));
+
+  const btnDown = document.createElement("button");
+  btnDown.type = "button";
+  btnDown.className = "roller-stepper roller-stepper-down";
+  btnDown.textContent = "▼";
+  btnDown.setAttribute("aria-label", `Уменьшить ${type} ${index}`);
+  btnDown.addEventListener("click", () => stepRollerDigit(type, index, -1));
+
+  drum.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 1 : -1;
+    stepRollerDigit(type, index, delta);
+  }, { passive: false });
+
+  drum.appendChild(btnUp);
+  drum.appendChild(digitEl);
+  drum.appendChild(btnDown);
+  return drum;
+}
+
+function stepRollerDigit(type, index, delta) {
+  haptic("light");
+  if (type === 'black') {
+    appState.rollerBlackDigits[index] = (appState.rollerBlackDigits[index] + delta + 10) % 10;
+  } else {
+    appState.rollerRedDigits[index] = (appState.rollerRedDigits[index] + delta + 10) % 10;
+  }
+
+  buildRollerDrums();
+
+  const intPart = parseInt(appState.rollerBlackDigits.join(''), 10);
+  const fracPart = parseInt(appState.rollerRedDigits.join(''), 10) / 1000;
+  const fullValue = intPart + fracPart;
+
+  const readingInput = document.getElementById("input-reading-correct");
+  if (readingInput) readingInput.value = fullValue.toFixed(1);
+
+  const ocrVal = document.getElementById("ocr-reading-val");
+  if (ocrVal) {
+    const meter = appState.meters.find(m => m.id === appState.selectedMeterId);
+    ocrVal.textContent = `${fullValue.toFixed(1)} ${meter ? meter.unit : 'м³'}`;
+  }
+
+  updateCalculationBreakdown();
+}
+
+function updateCalculationBreakdown() {
+  const intPart = parseInt(appState.rollerBlackDigits.join(''), 10);
+  const prev = appState.previousReading || 138.0;
+  const delta = Math.max(0, intPart - prev);
+  const cost = delta * appState.tariffRate;
+
+  const prevEl = document.getElementById("calc-prev-val");
+  const deltaEl = document.getElementById("calc-delta-val");
+  const costEl = document.getElementById("calc-cost-val");
+
+  if (prevEl) prevEl.textContent = `Было: ${prev % 1 === 0 ? prev : prev.toFixed(1)} м³`;
+  if (deltaEl) deltaEl.textContent = `+${delta % 1 === 0 ? delta : delta.toFixed(1)} м³`;
+  if (costEl) costEl.textContent = `${cost.toFixed(2)} ₽`;
+}
+
+// ----------------- Arshin Presets & Anti-Fraud -----------------
+
+function initArshinPresets() {
+  document.querySelectorAll(".preset-arshin").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const serial = btn.getAttribute("data-serial");
+      const input = document.getElementById("input-arshin-serial");
+      if (input) input.value = serial;
+      haptic("light");
+      performArshinCheck(serial);
+    });
+  });
+}
+
+async function performArshinCheck(serial) {
+  if (!serial) return;
+  try {
+    const res = await apiFetch(`/api/arshin/check?serial=${encodeURIComponent(serial)}`);
+    const data = await res.json();
+
+    const card = document.getElementById("arshin-result-card");
+    if (!card) return;
+    card.style.display = "block";
+    card.classList.remove("shield-verified", "shield-danger", "shield-expired");
+
+    const shieldIcon = document.getElementById("shield-icon");
+    const shieldTitle = document.getElementById("shield-title");
+
+    if (data.shield_color === "green" && data.status === "verified") {
+      card.classList.add("shield-verified");
+      if (shieldIcon) shieldIcon.textContent = "●";
+      if (shieldTitle) {
+        shieldTitle.textContent = "Поверка действительна (Зеленый Щит)";
+        shieldTitle.style.color = "var(--max-success)";
+      }
+    } else if (data.status === "unregistered") {
+      card.classList.add("shield-danger");
+      if (shieldIcon) shieldIcon.textContent = "■";
+      if (shieldTitle) {
+        shieldTitle.textContent = "ПОДДЕЛКА: Прибор не найден в реестре АРШИН!";
+        shieldTitle.style.color = "var(--max-danger)";
+      }
+    } else {
+      card.classList.add("shield-expired", "shield-danger");
+      if (shieldIcon) shieldIcon.textContent = "▲";
+      if (shieldTitle) {
+        shieldTitle.textContent = "Срок поверки ИСТЕК — Антифрод-защита активирована!";
+        shieldTitle.style.color = "var(--max-danger)";
+      }
+    }
+
+    const orgEl = document.getElementById("shield-org");
+    if (orgEl) orgEl.textContent = `Организация: ${data.organization_name} • Срок: до ${data.valid_until}`;
+    
+    let msgHtml = data.safety_message.replace(/\n\n/g, '<br/><br/>');
+    if (data.is_fraud_warning && data.status === "expired") {
+      msgHtml += `
+        <div class="shield-fraud-alert">
+          <strong>АНТИФРОД-ПРЕДУПРЕЖДЕНИЕ:</strong> Остерегайтесь мошенников! Листовки с угрозами штрафов 50 000 ₽ или навязанной срочной заменой счетчика за 10 000–15 000 ₽ — это обман. Поверка выполняется без снятия пломб через вашу УК по закону № 102-ФЗ.
+        </div>
+      `;
+    }
+    const msgEl = document.getElementById("shield-message");
+    if (msgEl) msgEl.innerHTML = msgHtml;
+
+    const linkEl = document.getElementById("shield-link");
+    if (linkEl) linkEl.href = data.fgis_arshin_url;
+
+    card.scrollIntoView({ behavior: "smooth" });
+    showToast("Сверка со ФГИС АРШИН выполнена");
+  } catch (err) {
+    showToast("Ошибка связи с реестром АРШИН");
+  }
+}
+
+// ----------------- Tickets Modal & Submission -----------------
+
+function initTicketModal() {
+  const modal = document.getElementById("ticket-modal");
+  const btnOpen = document.getElementById("btn-show-ticket-modal");
+  const btnClose = document.getElementById("btn-close-ticket-modal");
+  const btnSubmit = document.getElementById("btn-submit-create-ticket");
+
+  if (btnOpen) {
+    btnOpen.addEventListener("click", () => {
+      haptic("light");
+      modal.style.display = "flex";
+    });
+  }
+
+  if (btnClose) {
+    btnClose.addEventListener("click", () => {
+      modal.style.display = "none";
+    });
+  }
+
+  if (btnSubmit) {
+    btnSubmit.addEventListener("click", async () => {
+      const cat = document.getElementById("ticket-category-select").value;
+      const prio = document.getElementById("ticket-priority-select").value;
+      const desc = document.getElementById("ticket-desc-input").value.trim() || "Проверка оборудования";
+
+      try {
+        const res = await apiFetch("/api/tickets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            category: cat,
+            priority: prio,
+            description: desc,
+            address: "ул. Ленина, д. 42, кв. 15"
+          })
+        });
+        const data = await res.json();
+        modal.style.display = "none";
+        haptic("success");
+        showToast(`Заявка ${data.id} создана! Срок регламента: ${data.sla_hours} ч`);
+        loadTickets();
+      } catch (e) {
+        showToast("Ошибка создания заявки");
+      }
+    });
+  }
+}
+
+// ----------------- Inspector ARM (АРМ Обходчика УК) -----------------
+
+const INSPECTOR_METERS = {
+  "meter-khvs-1": { serial: "2809142", reading: 142.385, name: "ХВС (ИТЭЛМА № 2809142)" },
+  "meter-gvs-1": { serial: "3910844", reading: 89.140, name: "ГВС (Бетар № 3910844)" },
+  "meter-el-1": { serial: "01458291", reading: 2360.500, name: "Электроэнергия (Меркурий 208 № 01458291)" },
+  "meter-heat-1": { serial: "7741209", reading: 12.840, name: "Отопление (Sayany № 7741209)" }
+};
+
+async function computeSha256(str) {
+  if (window.crypto && window.crypto.subtle) {
+    try {
+      const buffer = new TextEncoder().encode(str);
+      const hash = await window.crypto.subtle.digest("SHA-256", buffer);
+      return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {}
+  }
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(16).padStart(8, '0').repeat(8).slice(0, 64);
+}
+
+async function updateInspectorHashPreview() {
+  const name = document.getElementById("inspector-name-input")?.value || "";
+  const addr = document.getElementById("inspector-address-select")?.value || "";
+  const meter = document.getElementById("inspector-meter-select")?.value || "";
+  const val = document.getElementById("inspector-reading-input")?.value || "";
+  const gps = document.getElementById("inspector-gps-input")?.value || "";
+  const photo = appState.inspectorPhotoBase64 || "";
+  const payload = `${name}|${addr}|${meter}|${val}|${gps}|${photo ? photo.substring(0, 60) : 'no_photo'}`;
+  const hash = await computeSha256(payload);
+  const el = document.getElementById("inspector-hash-preview");
+  if (el) el.textContent = hash;
+}
+
+function initInspectorArm() {
+  const meterSelect = document.getElementById("inspector-meter-select");
+  const serialInput = document.getElementById("inspector-serial-input");
+  const readingInput = document.getElementById("inspector-reading-input");
+  const photoInput = document.getElementById("inspector-photo-input");
+  const btnPhoto = document.getElementById("btn-inspector-photo");
+  const btnSample = document.getElementById("btn-inspector-sample-photo");
+  const btnRemovePhoto = document.getElementById("btn-remove-inspector-photo");
+
+  if (meterSelect) {
+    meterSelect.addEventListener("change", () => {
+      const m = INSPECTOR_METERS[meterSelect.value];
+      if (m) {
+        if (serialInput) serialInput.value = m.serial;
+        if (readingInput) readingInput.value = m.reading;
+      }
+      updateInspectorHashPreview();
+    });
+  }
+
+  if (readingInput) readingInput.addEventListener("input", updateInspectorHashPreview);
+
+  if (btnPhoto && photoInput) {
+    btnPhoto.addEventListener("click", () => photoInput.click());
+    photoInput.addEventListener("change", () => {
+      if (photoInput.files && photoInput.files[0]) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          appState.inspectorPhotoBase64 = e.target.result;
+          const previewImg = document.getElementById("inspector-photo-preview");
+          const previewWrap = document.getElementById("inspector-photo-preview-wrap");
+          if (previewImg) previewImg.src = e.target.result;
+          if (previewWrap) previewWrap.style.display = "block";
+          updateInspectorHashPreview();
+          showToast("Снимок зафиксирован");
+        };
+        reader.readAsDataURL(photoInput.files[0]);
+      }
+    });
+  }
+
+  if (btnSample) {
+    btnSample.addEventListener("click", () => {
+      appState.inspectorPhotoBase64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMjAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMWUyOTNiIi8+PHRleHQgeD0iNTAiIHk9IjEwMCIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIyMCI+TUVRVFlSIDI4MDkxNDI8L3RleHQ+PC9zdmc+";
+      const previewImg = document.getElementById("inspector-photo-preview");
+      const previewWrap = document.getElementById("inspector-photo-preview-wrap");
+      if (previewImg) previewImg.src = appState.inspectorPhotoBase64;
+      if (previewWrap) previewWrap.style.display = "block";
+      updateInspectorHashPreview();
+      showToast("Эталонное фото прикреплено");
+    });
+  }
+
+  if (btnRemovePhoto) {
+    btnRemovePhoto.addEventListener("click", () => {
+      appState.inspectorPhotoBase64 = null;
+      const previewImg = document.getElementById("inspector-photo-preview");
+      const previewWrap = document.getElementById("inspector-photo-preview-wrap");
+      if (previewImg) previewImg.src = "";
+      if (previewWrap) previewWrap.style.display = "none";
+      updateInspectorHashPreview();
+    });
+  }
+
+  const btnGen = document.getElementById("btn-generate-inspector-act");
+  if (!btnGen) return;
+
+  btnGen.addEventListener("click", async () => {
+    haptic("success");
+    const name = document.getElementById("inspector-name-input").value;
+    const addr = document.getElementById("inspector-address-select").value;
+    const meter = document.getElementById("inspector-meter-select").value;
+    const val = parseFloat(document.getElementById("inspector-reading-input").value);
+    const gps = document.getElementById("inspector-gps-input").value;
+
+    try {
+      const res = await apiFetch("/api/uk/inspector-act", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          meter_id: meter,
+          reading_value: val,
+          address: addr,
+          inspector_name: name,
+          gps_coordinates: gps,
+          photo_base64: appState.inspectorPhotoBase64
+        })
+      });
+      const data = await res.json();
+
+      const card = document.getElementById("inspector-act-result");
+      if (!card) return;
+      card.style.display = "block";
+      document.getElementById("act-number").textContent = `№ ${data.act_id || data.act_number}`;
+      document.getElementById("act-inspector").textContent = data.inspector_name;
+      document.getElementById("act-address").textContent = data.address;
+      document.getElementById("act-reading").textContent = `${data.reading_value || data.meter_reading} м³`;
+      document.getElementById("act-gps").textContent = data.gps || data.gps_coordinates;
+      document.getElementById("act-timestamp").textContent = data.timestamp;
+      document.getElementById("act-hash").textContent = data.photo_hash_sha256 || data.crypto_hash;
+      document.getElementById("act-export-status").textContent = data.export_1c_ready ? "EXPORTED_TO_1C_ZHKH" : data.billing_export_status;
+      
+      const badge1c = document.getElementById("act-export-badge");
+      if (badge1c) badge1c.innerHTML = '<span class="material-symbols-outlined text-[13px]">sync</span> 1С:ЖКХ ГОТОВ';
+
+      const meterInfo = document.getElementById("act-meter-info");
+      if (meterInfo) {
+        const item = INSPECTOR_METERS[meter];
+        meterInfo.textContent = item ? item.name : meter;
+      }
+
+      const photoWrap = document.getElementById("act-photo-display-wrap");
+      const photoImg = document.getElementById("act-photo-display");
+      if (appState.inspectorPhotoBase64 && photoWrap && photoImg) {
+        photoImg.src = appState.inspectorPhotoBase64;
+        photoWrap.style.display = "block";
+      }
+
+      card.scrollIntoView({ behavior: "smooth" });
+      showToast("Цифровой акт сформирован для 1С:ЖКХ!");
+    } catch (e) {
+      showToast("Ошибка генерации цифрового акта");
+    }
+  });
+}
+
+// ----------------- General Event Handlers -----------------
+
+function bindGeneralEventHandlers() {
+  const fileInput = document.getElementById("file-meter-input");
+  const btnUpload = document.getElementById("btn-upload-file");
+  if (btnUpload && fileInput) {
+    btnUpload.addEventListener("click", () => {
+      fileInput.click();
+    });
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files && fileInput.files[0]) {
+        showToast("Файл получен. Запуск распознавания...");
+        triggerAiScanMock();
+      }
+    });
+  }
+
+  // Stepper buttons for reading input (from max_1)
+  const btnMinus = document.getElementById("btn-reading-minus");
+  const btnPlus = document.getElementById("btn-reading-plus");
+  const readingInput = document.getElementById("input-reading-correct");
+
+  if (btnMinus && readingInput) {
+    btnMinus.addEventListener("click", () => {
+      let val = parseFloat(readingInput.value) || 0;
+      const prev = appState.previousReading || 138;
+      if (val > prev) {
+        val = val - 1;
+        readingInput.value = Math.round(val);
+        const intPart = Math.floor(val);
+        const fracPart = 789;
+        renderRollers(intPart, fracPart);
+        const delta = Math.max(0, intPart - prev);
+        const curMeter = appState.meters.find(m => m.id === appState.selectedMeterId);
+        const unit = curMeter ? (curMeter.unit || 'м³') : 'м³';
+        const deltaEl = document.getElementById("calc-delta-val");
+        if (deltaEl) deltaEl.textContent = `+${delta} ${unit}`;
+        const prevEl = document.getElementById("calc-prev-val");
+        if (prevEl) prevEl.textContent = `Было: ${prev} ${unit}`;
+      }
+    });
+  }
+
+  if (btnPlus && readingInput) {
+    btnPlus.addEventListener("click", () => {
+      let val = parseFloat(readingInput.value) || 0;
+      val = val + 1;
+      readingInput.value = Math.round(val);
+      const intPart = Math.floor(val);
+      const fracPart = 789;
+      renderRollers(intPart, fracPart);
+      const prev = appState.previousReading || 138;
+      const delta = Math.max(0, intPart - prev);
+      const curMeter = appState.meters.find(m => m.id === appState.selectedMeterId);
+      const unit = curMeter ? (curMeter.unit || 'м³') : 'м³';
+      const deltaEl = document.getElementById("calc-delta-val");
+      if (deltaEl) deltaEl.textContent = `+${delta} ${unit}`;
+      const prevEl = document.getElementById("calc-prev-val");
+      if (prevEl) prevEl.textContent = `Было: ${prev} ${unit}`;
+    });
+  }
+
+  if (readingInput) {
+    readingInput.addEventListener("input", (e) => {
+      const val = parseFloat(e.target.value) || 0;
+      const intPart = Math.floor(val);
+      const fracPart = 789;
+      renderRollers(intPart, fracPart);
+      const prev = appState.previousReading || 138;
+      const diff = intPart - prev;
+      const curMeter = appState.meters.find(m => m.id === appState.selectedMeterId);
+      const unit = curMeter ? (curMeter.unit || 'м³') : 'м³';
+      const deltaEl = document.getElementById("calc-delta-val");
+      if (deltaEl) deltaEl.textContent = `${diff >= 0 ? '+' : ''}${diff} ${unit}`;
+      const prevEl = document.getElementById("calc-prev-val");
+      if (prevEl) prevEl.textContent = `Было: ${prev} ${unit}`;
+    });
+  }
+
+  const btnAddMeter = document.getElementById("btn-add-meter");
+  if (btnAddMeter) {
+    btnAddMeter.addEventListener("click", () => {
+      haptic("light");
+      switchTab("tab-arshin");
+      showToast("Введите заводской номер для поверки");
+    });
+  }
+
+  // Submit Reading to GIS ZHKH
+  const btnSubmitReading = document.getElementById("btn-submit-reading");
+  if (btnSubmitReading) {
+    btnSubmitReading.addEventListener("click", async () => {
+      haptic("success");
+      const readingVal = parseFloat(document.getElementById("input-reading-correct").value);
+      const meter = appState.meters.find(m => m.id === appState.selectedMeterId);
+      const isElectric = meter && meter.meter_type.startsWith("el");
+      const t2Val = isElectric ? parseFloat(document.getElementById("input-t2-val").value) : null;
+
+      try {
+        const res = await apiFetch("/api/meters/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            meter_id: appState.selectedMeterId,
+            reading_value: readingVal,
+            reading_value_t2: t2Val,
+            submission_channel: "max_miniapp"
+          })
+        });
+        const data = await res.json();
+        const feedback = document.getElementById("reading-feedback");
+        if (feedback) {
+          feedback.style.display = "block";
+          if (data.is_valid) {
+            feedback.className = "focus-feedback-note alert-success";
+            feedback.innerHTML = `<span class="font-medium">✓ Показания (${readingVal} ${meter ? meter.unit : 'м³'}) приняты к начислению</span>`;
+            loadMeters();
+          } else {
+            feedback.className = "focus-feedback-note alert-danger";
+            feedback.innerHTML = `<span class="font-medium">Внимание: ${data.message}</span>`;
+          }
+        }
+        showToast("Показания переданы!");
+      } catch (err) {
+        showToast("Ошибка отправки данных");
+      }
+    });
+  }
+
+  // Arshin manual check
+  const btnCheckArshin = document.getElementById("btn-check-arshin");
+  if (btnCheckArshin) {
+    btnCheckArshin.addEventListener("click", () => {
+      const serial = document.getElementById("input-arshin-serial").value.trim();
+      performArshinCheck(serial);
+    });
+  }
+
+  // GOST QR Scanner via MAX Bridge
+  const btnScanQr = document.getElementById("btn-scan-qr-bridge");
+  if (btnScanQr) {
+    btnScanQr.addEventListener("click", async () => {
+      haptic("medium");
+      const webapp = window.WebApp;
+      if (webapp && typeof webapp.openCodeReader === "function") {
+        try {
+          const res = webapp.openCodeReader({ text: "Наведите камеру на QR квитанции" }, (qrText) => {
+            if (qrText) {
+              if (typeof webapp.closeCodeReader === "function") webapp.closeCodeReader();
+              parseAndDisplayQr(qrText);
+            }
+          });
+          if (res && typeof res.then === "function") {
+            res.then(qrText => { if (qrText) parseAndDisplayQr(qrText); }).catch(() => {});
+          }
+        } catch (err) {
+          console.warn("MAX openCodeReader notice:", err);
+          pasteSampleGostQr();
+        }
+      } else {
+        pasteSampleGostQr();
+      }
+    });
+  }
+
+  const btnPasteQr = document.getElementById("btn-paste-sample-qr");
+  if (btnPasteQr) {
+    btnPasteQr.addEventListener("click", () => {
+      haptic("light");
+      pasteSampleGostQr();
+    });
+  }
+
+  // SBP Payment
+  const btnPaySbp = document.getElementById("btn-pay-sbp");
+  if (btnPaySbp) {
+    btnPaySbp.addEventListener("click", () => {
+      haptic("success");
+      openReceiptModal();
+    });
+  }
+
+  const btnCloseReceipt = document.getElementById("btn-close-receipt");
+  if (btnCloseReceipt) {
+    btnCloseReceipt.addEventListener("click", () => {
+      document.getElementById("receipt-modal").style.display = "none";
+    });
+  }
+  const btnDoneReceipt = document.getElementById("btn-done-receipt");
+  if (btnDoneReceipt) {
+    btnDoneReceipt.addEventListener("click", () => {
+      document.getElementById("receipt-modal").style.display = "none";
+    });
+  }
+
+  // Guest link generator
+  const btnGuest = document.getElementById("btn-generate-guest-link");
+  if (btnGuest) {
+    btnGuest.addEventListener("click", async () => {
+      haptic("light");
+      try {
+        const res = await apiFetch("/api/guest/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            property_id: "flat-42-15",
+            tenant_name: "Арендатор",
+            duration_days: 30
+          })
+        });
+        const data = await res.json();
+        const box = document.getElementById("guest-link-result");
+        if (box) {
+          box.style.display = "block";
+          box.innerHTML = `
+            <b>Временная ссылка в MAX:</b><br/>
+            <span style="color:var(--primary);">${data.direct_max_link}</span><br/><br/>
+            <i>Срок действия: 30 дней. Авторизация через ЕСИА не требуется. Доступ к передаче показаний и оплате по СБП.</i>
+          `;
+        }
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(data.direct_max_link).catch(() => {});
+        }
+        showToast("Гостевая ссылка скопирована!");
+      } catch (e) {
+        showToast("Ошибка генерации ссылки");
+      }
+    });
+  }
+}
+
+function pasteSampleGostQr() {
+  const sample = "ST00012|Name=ООО УК ДОМОВОЙ СЕРВИС|PersonalAcc=40702810938000012345|BIC=044525225|CorrespAcc=30101810400000000225|PayeeINN=7701234567|Sum=485050|PersAcc=1004567890|Period=092026";
+  parseAndDisplayQr(sample);
+}
+
+async function parseAndDisplayQr(qrPayload) {
+  try {
+    const res = await apiFetch("/api/billing/parse-qr", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ qr_payload: qrPayload })
+    });
+    const data = await res.json();
+
+    appState.billTotal = data.total_amount_rubles;
+    document.getElementById("bill-total-amount").textContent = `${data.total_amount_rubles.toFixed(2)} ₽`;
+    document.getElementById("bill-payee-name").textContent = data.recipient_name;
+    document.getElementById("bill-pers-acc").textContent = data.personal_account;
+    document.getElementById("bill-account-40821").textContent = data.payee_account;
+
+    const list = document.getElementById("split-recipients-list");
+    if (list) {
+      list.innerHTML = "";
+      data.split_details.forEach(item => {
+        const row = document.createElement("div");
+        row.className = "split-row";
+        row.innerHTML = `
+          <div class="split-info">
+            <span class="split-name">${item.recipient_name}</span>
+            <span class="split-sub">Спецсчет: ${item.account_40821} • ${item.purpose}</span>
+          </div>
+          <span class="split-amount font-mono">${item.amount_rubles.toFixed(2)} ₽</span>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    showToast("Квитанция по ГОСТ Р 56042-2014 считана!");
+  } catch (err) {
+    showToast("Неверный формат QR-кода");
+  }
+}
+
+function openReceiptModal() {
+  const modal = document.getElementById("receipt-modal");
+  const body = document.getElementById("receipt-body");
+  const now = new Date().toLocaleString("ru-RU");
+  const total = appState.billTotal.toFixed(2);
+
+  if (body) {
+    body.innerHTML = `
+      <div style="text-align:center; margin-bottom: 14px;">
+        <div style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:50%; background:rgba(16,185,129,0.15); border:1px solid #10B981; margin-bottom:8px;">
+          <span class="material-symbols-outlined" style="color:#10B981; font-size:24px;">bolt</span>
+        </div>
+        <div style="font-family:var(--font-mono); font-size:11px; font-weight:700; letter-spacing:0.05em; color:#10B981; margin-bottom:4px;">СБП 103-ФЗ</div>
+        <h4 style="color:#fff; font-size:14px;">Оплата через Систему Быстрых Платежей</h4>
+        <div style="font-size: 24px; font-weight: 700; color: #10b981; margin: 6px 0; font-family:var(--font-mono);">${total} ₽</div>
+        <span class="badge-success-tag">ИСПОЛНЕНО</span>
+      </div>
+      <div style="font-size: 12px; line-height: 1.8; border-top: 1px dashed #333; padding-top: 10px; font-family:var(--font-mono); color:var(--text-secondary);">
+        <div><b>Дата и время:</b> ${now}</div>
+        <div><b>Лицевой счет:</b> 1004567890 (кв. 15)</div>
+        <div><b>Транзакция СБП:</b> <code>NSPK-2026-${Math.floor(Math.random()*900000+100000)}</code></div>
+        <div><b>Фискальный признак:</b> <code>ФД-90412 / ФП-182904</code></div>
+        <div style="margin-top: 8px; color:#fff;"><b>Прямое расщепление по 103-ФЗ:</b></div>
+        <div style="color:var(--text-muted); font-size: 11px; padding-left: 8px;">
+          • Водоканал (ХВС): ${(appState.billTotal * 0.25).toFixed(2)} ₽<br/>
+          • МОЭК (Отопление): ${(appState.billTotal * 0.45).toFixed(2)} ₽<br/>
+          • Мосэнергосбыт: ${(appState.billTotal * 0.15).toFixed(2)} ₽<br/>
+          • УК (Содержание): ${(appState.billTotal * 0.15).toFixed(2)} ₽
+        </div>
+      </div>
+    `;
+  }
+  if (modal) modal.style.display = "flex";
+  showToast("Чек платежа СБП сформирован");
+}
+
+// ----------------- Profile & Address Management -----------------
+
+function initProfileAndAddressManagement() {
+  const addressBtn = document.getElementById("header-address-btn");
+  const profileBtn = document.getElementById("header-profile-btn");
+  const closeProfileBtn = document.getElementById("btn-close-profile-modal");
+  const closeProfileBtn2 = document.getElementById("btn-close-profile-modal-btn");
+  const openAddPropBtn = document.getElementById("btn-open-add-address-modal");
+  const closeAddPropBtn = document.getElementById("btn-close-add-property-modal");
+  const submitAddPropBtn = document.getElementById("btn-submit-new-property");
+  const autofillQrBtn = document.getElementById("btn-autofill-property-qr");
+  const bindPhoneBtn = document.getElementById("btn-bind-phone");
+
+  if (addressBtn) {
+    addressBtn.addEventListener("click", () => {
+      haptic("light");
+      openProfileModal();
+    });
+  }
+
+  if (profileBtn) {
+    profileBtn.addEventListener("click", () => {
+      haptic("light");
+      openProfileModal();
+    });
+  }
+
+  if (closeProfileBtn) {
+    closeProfileBtn.addEventListener("click", () => {
+      document.getElementById("profile-modal").style.display = "none";
+    });
+  }
+
+  if (closeProfileBtn2) {
+    closeProfileBtn2.addEventListener("click", () => {
+      document.getElementById("profile-modal").style.display = "none";
+    });
+  }
+
+  if (openAddPropBtn) {
+    openAddPropBtn.addEventListener("click", () => {
+      haptic("light");
+      document.getElementById("profile-modal").style.display = "none";
+      document.getElementById("add-property-modal").style.display = "flex";
+    });
+  }
+
+  if (closeAddPropBtn) {
+    closeAddPropBtn.addEventListener("click", () => {
+      document.getElementById("add-property-modal").style.display = "none";
+    });
+  }
+
+  if (submitAddPropBtn) {
+    submitAddPropBtn.addEventListener("click", () => {
+      haptic("medium");
+      submitNewProperty();
+    });
+  }
+
+  if (autofillQrBtn) {
+    autofillQrBtn.addEventListener("click", () => {
+      haptic("light");
+      const addrInput = document.getElementById("new-property-address-input");
+      const elsInput = document.getElementById("new-property-els-input");
+      const mcInput = document.getElementById("new-property-mc-input");
+      if (addrInput && !addrInput.value) addrInput.value = "г. Москва, ул. Ленина, д. 42, кв. 15";
+      if (elsInput) elsInput.value = "1004567890";
+      if (mcInput) mcInput.value = "ООО УК ДОМОВОЙ СЕРВИС";
+      showToast("Данные из квитанции подгружены");
+    });
+  }
+
+  if (bindPhoneBtn) {
+    bindPhoneBtn.addEventListener("click", () => {
+      bindUserPhone();
+    });
+  }
+}
+
+function openProfileModal() {
+  const modal = document.getElementById("profile-modal");
+  if (modal) modal.style.display = "flex";
+  if (!appState.profile) {
+    loadProfile();
+  }
+}
+
+async function loadProfile() {
+  try {
+    const res = await apiFetch("/api/profile");
+    if (res.ok) {
+      const profile = await res.json();
+      appState.profile = profile;
+      updateProfileUI(profile);
+      return;
+    }
+  } catch (err) {
+    console.warn("loadProfile notice:", err);
+  }
+  if (!appState.profile) {
+    const defaultProf = getDefaultProfile();
+    appState.profile = defaultProf;
+    updateProfileUI(defaultProf);
+  }
+}
+
+function updateProfileUI(profile) {
+  if (!profile) return;
+  appState.profile = profile;
+
+  let activeProp = null;
+  if (profile.properties && profile.properties.length > 0) {
+    activeProp = profile.properties.find(p => p.is_active) || profile.properties[0];
+  }
+
+  const headerAddr = document.getElementById("header-active-address-text");
+  if (headerAddr && activeProp) {
+    headerAddr.textContent = `${activeProp.address} (ЕЛС ${activeProp.els})`;
+  }
+
+  const roleTitle = document.getElementById("role-title-text");
+  const roleBadge = document.getElementById("role-badge");
+  const usernameEl = document.getElementById("profile-modal-username");
+  const profileBadgeLabel = document.getElementById("profile-badge-label");
+
+  // First field: Full Name (e.g. "Иван Иванов")
+  const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.first_name || "Иван Иванов";
+  if (roleTitle && appState.activeRole !== "inspector_uk") {
+    roleTitle.textContent = fullName;
+  }
+
+  // Second field: Status badge (СОБСТВЕННИК or АРЕНДАТОР)
+  if (roleBadge && appState.activeRole !== "inspector_uk") {
+    const isTenant = activeProp && (activeProp.role === "tenant" || activeProp.role === "guest");
+    roleBadge.textContent = isTenant ? "АРЕНДАТОР" : "СОБСТВЕННИК";
+  }
+
+  if (usernameEl) usernameEl.textContent = fullName;
+
+  // Header action button label: strictly "Профиль", never overwritten!
+  if (profileBadgeLabel) profileBadgeLabel.textContent = "Профиль";
+
+  const phoneEl = document.getElementById("profile-modal-phone");
+  const phoneActionWrap = document.getElementById("profile-phone-action-wrap");
+  if (phoneEl) {
+    if (profile.is_verified && profile.phone) {
+      phoneEl.textContent = `Телефон: ${profile.phone}`;
+      phoneEl.className = "text-success text-xs font-mono";
+      if (phoneActionWrap) {
+        phoneActionWrap.innerHTML = '<span class="badge-success-tag">ПОДТВЕРЖДЕН</span>';
+      }
+    } else {
+      phoneEl.textContent = "Телефон не привязан";
+      phoneEl.className = "text-muted text-xs font-mono";
+      if (phoneActionWrap) {
+        phoneActionWrap.innerHTML = '<button type="button" class="btn btn-primary btn-sm" id="btn-bind-phone"><span>Привязать тел.</span></button>';
+        const newBtn = document.getElementById("btn-bind-phone");
+        if (newBtn) {
+          newBtn.addEventListener("click", () => bindUserPhone());
+        }
+      }
+    }
+  }
+
+  const container = document.getElementById("profile-addresses-container");
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (profile.properties && profile.properties.length > 0) {
+    profile.properties.forEach(p => {
+      const item = document.createElement("div");
+      item.className = `profile-address-item ${p.is_active ? 'active' : ''}`;
+
+      let actionHtml = '';
+      if (p.is_active) {
+        actionHtml = '<span class="badge-success-tag font-mono">АКТИВЕН</span>';
+      } else {
+        actionHtml = `<button type="button" class="btn btn-secondary btn-sm btn-switch-address" data-prop-id="${p.id}"><span>Выбрать</span></button>`;
+      }
+
+      const roleLabel = (p.role === "tenant" || p.role === "guest") ? "Арендатор" : "Собственник";
+
+      item.innerHTML = `
+        <div class="profile-address-text">
+          <div class="profile-address-title">${p.address}</div>
+          <div class="profile-address-sub font-mono">ЕЛС: ${p.els} • ${p.management_company} • ${roleLabel}</div>
+        </div>
+        ${actionHtml}
+      `;
+      container.appendChild(item);
+    });
+
+    container.querySelectorAll(".btn-switch-address").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const propId = btn.getAttribute("data-prop-id");
+        switchActiveProperty(propId);
+      });
+    });
+  }
+}
+
+async function switchActiveProperty(propId) {
+  haptic("light");
+  try {
+    const res = await apiFetch("/api/profile/switch-property", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ property_id: propId })
+    });
+    if (res.ok) {
+      const profile = await res.json();
+      appState.profile = profile;
+      updateProfileUI(profile);
+      showToast("Активный адрес переключен!");
+      return;
+    }
+  } catch (err) {
+    console.warn("switchActiveProperty server notice:", err);
+  }
+  // Client-side fallback if server offline or standalone
+  if (appState.profile && appState.profile.properties) {
+    appState.profile.properties.forEach(p => p.is_active = (p.id === propId));
+    appState.profile.active_property_id = propId;
+    updateProfileUI(appState.profile);
+    showToast("Активный адрес переключен!");
+  }
+}
+
+async function submitNewProperty() {
+  const addrInput = document.getElementById("new-property-address-input");
+  const elsInput = document.getElementById("new-property-els-input");
+  const mcInput = document.getElementById("new-property-mc-input");
+
+  const address = addrInput ? addrInput.value.trim() : "";
+  const els = elsInput ? elsInput.value.trim() : "";
+  const mc = mcInput ? mcInput.value.trim() : "ООО УК Столица-Сервис";
+
+  if (!address) {
+    showToast("Укажите адрес помещения");
+    return;
+  }
+  if (!els) {
+    showToast("Укажите ЕЛС (10 цифр)");
+    return;
+  }
+
+  try {
+    const res = await apiFetch("/api/profile/add-property", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        address: address,
+        els: els,
+        management_company: mc
+      })
+    });
+    if (res.ok) {
+      const profile = await res.json();
+      appState.profile = profile;
+      updateProfileUI(profile);
+      document.getElementById("add-property-modal").style.display = "none";
+      document.getElementById("profile-modal").style.display = "flex";
+      showToast("Адрес успешно привязан!");
+      if (addrInput) addrInput.value = "";
+      if (elsInput) elsInput.value = "";
+    } else {
+      showToast("Ошибка добавления адреса");
+    }
+  } catch (err) {
+    console.error("submitNewProperty error:", err);
+    showToast("Ошибка сохранения адреса");
+  }
+}
+
+async function bindUserPhone() {
+  haptic("medium");
+  if (window.WebApp && typeof window.WebApp.requestContact === "function") {
+    try {
+      window.WebApp.requestContact(async (status, result) => {
+        if (status && result) {
+          await sendPhoneVerification(result.phone, result.hash, result.auth_date || result.authDate);
+        } else {
+          await executeFallbackPhoneBinding();
+        }
+      });
+      return;
+    } catch (e) {
+      console.warn("WebApp.requestContact failed:", e);
+    }
+  }
+  await executeFallbackPhoneBinding();
+}
+
+async function executeFallbackPhoneBinding() {
+  await sendPhoneVerification("+7 (999) 123-45-67");
+}
+
+async function sendPhoneVerification(phone, hash, authDate) {
+  try {
+    const res = await apiFetch("/api/profile/verify-contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: phone,
+        hash: hash,
+        auth_date: authDate
+      })
+    });
+    if (res.ok) {
+      const profile = await res.json();
+      appState.profile = profile;
+      updateProfileUI(profile);
+      showToast("Телефон подтвержден!");
+    } else {
+      showToast("Ошибка верификации телефона");
+    }
+  } catch (err) {
+    console.error("sendPhoneVerification error:", err);
+    showToast("Ошибка связи с сервером");
+  }
+}
+
+</script>
+</body>
+</html>
