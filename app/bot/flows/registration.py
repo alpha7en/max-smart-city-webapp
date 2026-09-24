@@ -159,6 +159,8 @@ class AddressFlow:
             await self.search(ctx, ctx.text)
 
     async def search(self, ctx: Ctx, text: str) -> None:
+        if ctx.data.get("addr"):
+            ctx.session.new_flow()  # новый поиск: «Да» под прошлыми вариантами устарело (QA-5)
         svc = address_service(ctx)
         cands = await svc.suggest(text)
         d = ctx.data["addr"] = {"raw": text}

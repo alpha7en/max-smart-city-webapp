@@ -386,7 +386,7 @@ async def test_r17_second_user_same_address_gets_no_access(router, api, repo):
     no_access = next(t for t in texts if "уже зарегистрирован собственник" in t)
     assert no_access.startswith(RT.DONE_SHORT) and "Арбат 47к1, кв 32" in no_access
     kb = next(k for t, k in api.outgoing() if t == no_access)
-    assert labels(kb) == [PT.BTN_REQUEST, PT.BTN_PROFILE, C.BTN_MENU]
+    assert labels(kb) == [PT.BTN_REQUEST, PT.BTN_DEMO_GRANT, PT.BTN_PROFILE, C.BTN_MENU]  # DEMO_MODE=true
     assert texts.index(no_access) < len(texts) - 1  # затем меню-дашборд
     assert (await session(repo, UID2)).state == S.IDLE
 

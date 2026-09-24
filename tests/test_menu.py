@@ -111,7 +111,7 @@ async def test_open_app_username_from_get_me(chat, api, repo, deps):
 async def test_menu_button_sends_new_message_and_resets_scenario(chat, api, repo):
     await make_user(repo)
     user = await repo.get_user(UID)
-    await repo.save_session(user["id"], S.SUB_AWAIT_PHOTO.value, {}, "abc123", NOW, NOW + timedelta(minutes=30))
+    await repo.save_session(user["id"], S.SUB_AWAIT_PHOTO.value, {"meter_id": 1}, "abc123", NOW, NOW + timedelta(minutes=30))
     api.clear()
     await chat.payload("g|menu|")
     assert api.named("answer")[0]["message"] is None  # не затираем сообщение с кнопкой

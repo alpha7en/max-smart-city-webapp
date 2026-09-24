@@ -122,7 +122,7 @@ async def _registered(repo: Repo, init: InitData) -> Row | None:
 
 async def _meter(repo: Repo, init: InitData, raw_id: Any) -> tuple[Row, Row]:
     """(user, счётчик из user_meters): нет счётчика → 404 not_found, нет доступа → 403 no_access."""
-    meter_id = int(raw_id) if str(raw_id or "").isdigit() else 0
+    meter_id = K.parse_id(raw_id)
     meter = await repo.get_meter(meter_id) if meter_id else None
     if not meter or not meter["active"]:
         raise api_error(404, "not_found")

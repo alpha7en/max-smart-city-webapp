@@ -144,13 +144,18 @@ def _nothing_to_cancel(state: S) -> bool:
     return state == S.SUB_VERIF_DATE
 
 
+SUB_PROGRESS_KEYS = ("photo_id", "meter_id", "draft", "values", "addr", "manual")
+
+
 async def cancel_scenario(ctx: Ctx, *, by_user: bool = False) -> None:
-    """Отмена подачи/профиля + строка об этом в следующем сообщении."""
+    """Отмена подачи/профиля + строка об этом в следующем сообщении.
+    Подачу без прогресса (только инструкция к фото) прерываем молча: терять было нечего (QA-6)."""
     st = ctx.session.state
     if not st.is_scenario:
         return
+    progress = any(ctx.session.data.get(k) for k in SUB_PROGRESS_KEYS)
     await drop_scenario(ctx)
-    if _nothing_to_cancel(st):
+    if _nothing_to_cancel(st) or (st.is_sub and not by_user and not progress):
         return
     if st.is_sub:
         ctx.note(T.SUB_CANCELLED_BY_USER if by_user else T.SUB_CANCELLED)
