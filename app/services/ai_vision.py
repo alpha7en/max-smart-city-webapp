@@ -4,6 +4,7 @@ NOTE: Marked explicitly as MOCK / STUB per hackathon requirements.
 Simulates YOLOv8 dial detection + TorchOk/EasyOCR digit reading + perspective rectification.
 """
 
+import logging
 from typing import Optional, List
 from app.models.domain import MeterType
 from app.models.schemas import (
@@ -11,6 +12,8 @@ from app.models.schemas import (
     AiVisionScanResponse,
     BoundingBox
 )
+
+logger = logging.getLogger("max_ai_vision_service")
 
 class AiVisionService:
     def scan_meter_image(self, request: AiVisionScanRequest) -> AiVisionScanResponse:
@@ -64,6 +67,15 @@ class AiVisionService:
                 BoundingBox(x=100.0, y=70.0, width=290.0, height=75.0, label="lcd_heat_gcal", confidence=0.95),
                 BoundingBox(x=140.0, y=180.0, width=200.0, height=40.0, label="serial_number_plate", confidence=0.93),
             ]
+
+        # MVP STUB: OCR_MODEL -> PASS
+        logger.info(
+            "MVP STUB: OCR_MODEL -> PASS (type=%s, reading=%.3f, serial=%s, confidence=%.3f)",
+            target_type.value if hasattr(target_type, "value") else str(target_type),
+            integer_reading,
+            serial,
+            0.968
+        )
 
         return AiVisionScanResponse(
             is_mock=True,

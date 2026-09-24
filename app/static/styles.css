@@ -323,7 +323,7 @@ html, body {
 
 .tab-nav-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   height: 56px;
   align-items: center;
   padding: 4px 6px;
@@ -381,6 +381,7 @@ body[data-role="inspector"] #app-container {
   flex: 1;
   padding: 16px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .tab-content {
@@ -393,6 +394,21 @@ body[data-role="inspector"] #app-container {
   display: flex;
 }
 
+.tab-layout-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.tab-col-primary,
+.tab-col-secondary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
 /* ================= 4. CARDS & HERO SECTIONS ================= */
 .card-surface {
   background-color: var(--bg-surface);
@@ -403,9 +419,9 @@ body[data-role="inspector"] #app-container {
 }
 
 .card-hero-scan {
-  background: linear-gradient(145deg, #1E40AF 0%, #1D4ED8 60%, #2563EB 100%);
-  border-radius: var(--radius-md);
-  padding: 18px;
+  background: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
+  border-radius: 16px;
+  padding: 20px;
   color: #fff;
   box-shadow: 0 4px 16px rgba(29, 78, 216, 0.25);
   position: relative;
@@ -510,9 +526,40 @@ body[data-role="inspector"] #app-container {
   box-shadow: var(--shadow-sm);
 }
 
-.card-hero-scan .btn-primary {
-  background-color: #fff;
-  color: #1D4ED8;
+.card-hero-scan .btn,
+.content-area .card-hero-scan .btn {
+  height: 40px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.card-hero-scan .btn .material-symbols-outlined,
+.content-area .card-hero-scan .btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.card-hero-scan .btn.btn-primary,
+.content-area .card-hero-scan .btn-primary,
+.card-hero-scan #btn-open-camera {
+  background-color: #ffffff !important;
+  color: #1D4ED8 !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.card-hero-scan .btn.btn-secondary,
+.content-area .card-hero-scan .btn-secondary,
+.card-hero-scan #btn-upload-file {
+  background-color: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
 }
 
 .content-area .btn-primary {
@@ -649,7 +696,169 @@ body[data-role="inspector"] #app-container {
   color: #F87171;
 }
 
-/* Reading Stepper Box */
+/* ================= Active Meter Focus Card & Stepper ================= */
+.active-focus-card {
+  background-color: #181B20;
+  border: 1px solid #272C35;
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.focus-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.focus-meter-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.focus-meter-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.focus-deadline-pill {
+  font-size: 11px;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+/* Big Stepper Input Box */
+.big-stepper-box {
+  background-color: #111317;
+  border: 1px solid #272C35;
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stepper-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background-color: #181B20;
+  border: 1px solid #272C35;
+  color: #CBD5E1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stepper-btn:hover {
+  background-color: #20242B;
+  color: #fff;
+}
+
+.stepper-btn:active {
+  transform: scale(0.95);
+}
+
+.stepper-center-val {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.stepper-number-input {
+  width: 100px;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+  padding: 0;
+}
+
+.stepper-unit-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: #94A3B8;
+}
+
+/* Stat row below stepper */
+.focus-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+  font-size: 12px;
+  color: #94A3B8;
+}
+
+.focus-stat-left {
+  color: #94A3B8;
+}
+
+.focus-stat-left .text-accent {
+  color: #93C5FD;
+}
+
+.focus-stat-right {
+  color: #64748B;
+}
+
+.btn-primary-submit {
+  width: 100%;
+  height: 44px;
+  background-color: #2563EB;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.btn-primary-submit:hover {
+  background-color: #1D4ED8;
+}
+
+.btn-primary-submit:active {
+  transform: scale(0.98);
+}
+
+.focus-feedback-note {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-height: 18px;
+}
+
+.focus-feedback-note.alert-success {
+  color: #34D399;
+}
+
+.focus-feedback-note.alert-danger {
+  color: #F87171;
+}
+
+/* Reading Stepper Box (Compatibility) */
 .reading-stepper-box {
   background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
@@ -689,25 +898,6 @@ body[data-role="inspector"] #app-container {
   align-items: baseline;
   justify-content: center;
   gap: 4px;
-}
-
-.stepper-number-input {
-  width: 110px;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-family: var(--font-mono);
-  font-size: 26px;
-  font-weight: 700;
-  color: #fff;
-  text-align: center;
-  padding: 0;
-}
-
-.stepper-unit-label {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-muted);
 }
 
 /* Calculation Breakdown Card */
@@ -792,9 +982,10 @@ body[data-role="inspector"] #app-container {
 /* ================= 7. METERS REGISTRY & CHIPS ================= */
 .section-header-row {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 12px;
+  padding: 0 2px;
 }
 
 .section-title-wrap {
@@ -805,14 +996,31 @@ body[data-role="inspector"] #app-container {
 
 .section-heading-text {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: #fff;
+  letter-spacing: -0.01em;
 }
 
-.section-meta-text {
-  font-size: 11px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
+.btn-add-meter {
+  background: transparent;
+  border: none;
+  color: #60A5FA;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  padding: 4px 8px;
+}
+
+.btn-add-meter:hover {
+  color: #93C5FD;
+}
+
+.btn-add-meter:active {
+  transform: scale(0.96);
 }
 
 .meter-filter-chips {
@@ -820,7 +1028,6 @@ body[data-role="inspector"] #app-container {
   gap: 6px;
   overflow-x: auto;
   padding-bottom: 2px;
-  no-scrollbar: true;
 }
 
 .chip {
@@ -847,6 +1054,43 @@ body[data-role="inspector"] #app-container {
   font-weight: 600;
 }
 
+/* Colored Icon Circles for Meters */
+.meter-icon-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.meter-icon-circle-blue {
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #3B82F6;
+}
+
+.meter-icon-circle-orange {
+  background-color: rgba(249, 115, 22, 0.12);
+  color: #F97316;
+}
+
+.meter-icon-circle-amber {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #F59E0B;
+}
+
+.meter-icon-circle-cyan {
+  background-color: rgba(6, 182, 212, 0.12);
+  color: #06B6D4;
+}
+
+.meter-icon-circle-purple {
+  background-color: rgba(168, 85, 247, 0.12);
+  color: #A855F7;
+}
+
+/* Meter Cards List */
 .meters-cards-list {
   display: flex;
   flex-direction: column;
@@ -854,9 +1098,9 @@ body[data-role="inspector"] #app-container {
 }
 
 .meter-card {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  background-color: #181B20;
+  border: 1px solid #272C35;
+  border-radius: 12px;
   padding: 12px 14px;
   display: flex;
   align-items: center;
@@ -867,8 +1111,106 @@ body[data-role="inspector"] #app-container {
 }
 
 .meter-card:hover {
-  background-color: var(--bg-surface-elevated);
-  border-color: var(--border-strong);
+  background-color: #20242B;
+  border-color: #374151;
+}
+
+.meter-card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.meter-card-text {
+  min-width: 0;
+}
+
+.meter-card-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meter-card-sub {
+  font-size: 12px;
+  color: #94A3B8;
+  margin-top: 2px;
+}
+
+.meter-card-right {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.badge-submitted-pill {
+  font-size: 12px;
+  font-weight: 500;
+  color: #34D399;
+  background-color: rgba(6, 78, 59, 0.4);
+  border: 1px solid rgba(6, 95, 70, 0.4);
+  padding: 4px 10px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-auto-pill {
+  font-size: 12px;
+  font-weight: 500;
+  color: #94A3B8;
+  background-color: #20242B;
+  border: 1px solid #272C35;
+  padding: 4px 10px;
+  border-radius: 9999px;
+}
+
+.btn-meter-action-btn {
+  height: 32px;
+  padding: 0 14px;
+  background-color: #2563EB;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-meter-action-btn:hover {
+  background-color: #1D4ED8;
+}
+
+.btn-meter-action-btn:active {
+  transform: scale(0.95);
+}
+
+.btn-meter-action-secondary {
+  height: 32px;
+  padding: 0 14px;
+  background-color: #20242B;
+  border: 1px solid #272C35;
+  color: #E2E8F0;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-meter-action-secondary:hover {
+  background-color: #272C35;
+  color: #fff;
+}
+
+.btn-meter-action-secondary:active {
+  transform: scale(0.95);
 }
 
 .meter-info-col h4 {
@@ -1642,33 +1984,168 @@ details[open] .spoiler-chevron {
   padding: 16px;
 }
 
-.modal-viewfinder-box {
+.modal-viewfinder-box,
+.camera-screen-box {
   width: 100%;
   max-width: 440px;
-  background-color: #0E1015;
+  background-color: #111317;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: 20px;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8);
 }
 
-.viewfinder-header-bar {
+.modal-camera-viewfinder {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-color: #111317;
+  border: 1px solid #272C35;
+  border-radius: 20px;
+  max-width: 440px;
+  width: 100%;
+}
+
+.camera-modal-header,
+.viewfinder-header-bar,
+.camera-header-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
 }
 
-.viewfinder-title-text {
+.camera-header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
+  gap: 10px;
+}
+
+.btn-camera-back {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background-color: #181B20;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-camera-back:hover {
+  background-color: #20242B;
   color: #fff;
 }
+
+.camera-title-group,
+.viewfinder-title-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.camera-title-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.camera-subtitle-text {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.btn-torch-pill,
+.btn-torch-pill.btn-circle {
+  width: auto;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  background-color: #181B20;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.btn-torch-pill .material-symbols-outlined {
+  font-size: 17px;
+}
+
+.btn-torch-pill:hover {
+  background-color: #20242B;
+  color: #fff;
+}
+
+.btn-torch-pill.active,
+.btn-circle.btn-torch.active {
+  background-color: #F59E0B;
+  color: #000;
+  border-color: #F59E0B;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.5);
+}
+
+/* Horizontal Service Filter Chips Row */
+.camera-filter-chips-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+}
+
+.camera-chip {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border-radius: var(--radius-full);
+  background-color: #181B20;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.camera-chip:hover {
+  color: #fff;
+  border-color: var(--border-strong);
+}
+
+.camera-chip.active {
+  background-color: rgba(59, 130, 246, 0.15);
+  border-color: #3B82F6;
+  color: #60A5FA;
+  font-weight: 600;
+}
+
+.camera-chip .chip-icon {
+  font-size: 16px;
+}
+
+.icon-blue { color: #3B82F6; }
+.icon-orange { color: #F97316; }
+.icon-amber { color: #F59E0B; }
+.icon-cyan { color: #06B6D4; }
 
 .btn-close-modal {
   background: transparent;
@@ -1684,27 +2161,55 @@ details[open] .spoiler-chevron {
   color: #fff;
 }
 
+/* Camera Viewfinder Card & Reticle */
+.camera-viewfinder-card,
 .viewfinder-frame {
-  height: 240px;
+  height: 270px;
   background-color: #08090C;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  border-radius: 16px;
   position: relative;
   overflow: hidden;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  padding: 12px;
   transition: box-shadow 0.3s ease;
 }
 
-.viewfinder-frame.torch-active {
-  box-shadow: inset 0 0 35px rgba(255, 230, 150, 0.35);
+.viewfinder-frame.torch-active,
+.camera-viewfinder-card.torch-active {
+  box-shadow: inset 0 0 45px rgba(255, 230, 150, 0.35);
+}
+
+.viewfinder-autofocus-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background-color: rgba(17, 19, 23, 0.85);
+  border: 1px solid var(--border-color);
+  font-size: 11px;
+  color: var(--text-primary);
+  z-index: 10;
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #3B82F6;
+  box-shadow: 0 0 6px #3B82F6;
 }
 
 .viewfinder-reticle {
   position: absolute;
-  width: 200px;
-  height: 80px;
+  top: calc(50% - 15px);
+  transform: translateY(-50%);
+  width: 210px;
+  height: 85px;
   border: 1px dashed rgba(255, 255, 255, 0.25);
   border-radius: 6px;
   display: flex;
@@ -1780,12 +2285,161 @@ details[open] .spoiler-chevron {
 .sim-red { color: #EF4444; }
 .sim-serial { font-size: 10px; color: var(--text-muted); }
 
+.viewfinder-bottom-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  z-index: 10;
+}
+
+.viewfinder-device-subtext {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.viewfinder-pill-guide {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  background-color: rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #93C5FD;
+  font-size: 11px;
+  font-weight: 500;
+}
+
 .viewfinder-pitch-badge {
   position: absolute;
   bottom: 8px;
   left: 10px;
   font-size: 10px;
   color: var(--text-muted);
+}
+
+/* Bottom Control Bar Card */
+.camera-control-card {
+  background-color: #181B20;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.camera-control-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+}
+
+.camera-tile-btn {
+  background: transparent;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.camera-tile-btn:hover {
+  color: #fff;
+}
+
+.tile-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background-color: #20242B;
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #CBD5E1;
+  transition: all 0.15s ease;
+}
+
+.camera-tile-btn:hover .tile-icon-box {
+  background-color: #282E37;
+  color: #fff;
+  border-color: var(--border-strong);
+}
+
+.tile-label {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.camera-control-card .btn-camera-shutter,
+.camera-control-card .btn-camera-shutter.btn-shutter {
+  width: 68px;
+  height: 68px;
+  min-width: 68px;
+  min-height: 68px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.camera-control-card .btn-camera-shutter:active,
+.camera-control-card .btn-camera-shutter.btn-shutter:active {
+  transform: scale(0.92);
+}
+
+.camera-control-card .shutter-outer-ring {
+  width: 68px;
+  height: 68px;
+  min-width: 68px;
+  min-height: 68px;
+  border-radius: 50%;
+  border: 3px solid #3B82F6;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.camera-control-card .shutter-inner-btn,
+.camera-control-card .shutter-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: #3B82F6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.6);
+}
+
+.shutter-camera-icon {
+  font-size: 26px;
+}
+
+.camera-footer-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #64748B;
+  text-align: center;
 }
 
 .viewfinder-controls {
@@ -1813,13 +2467,6 @@ details[open] .spoiler-chevron {
 .btn-circle:hover {
   background-color: var(--bg-surface-elevated);
   color: #fff;
-}
-
-.btn-circle.btn-torch.active {
-  background-color: #F59E0B;
-  color: #000;
-  border-color: #F59E0B;
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.5);
 }
 
 .btn-shutter {

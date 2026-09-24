@@ -1,6 +1,6 @@
 """
 MAX Bot event and message handlers.
-Refactored using max_bot_sdk.
+Integrated with AsyncUpdateDispatcher and Finite State Machine (FSM).
 Core Scenarios:
 1. Instant meter photo recognition & red roller filtering
 2. Green Security Shield (FGIS Arshin anti-fraud)
@@ -8,13 +8,26 @@ Core Scenarios:
 4. Tenant guest access links (no ESIA required)
 5. UK Emergency tickets under PP RF No. 40
 6. UK Inspector mobile tool (digital act with GPS and SHA-256)
+
+Zero emoji policy strictly enforced.
+Button text length <= 18 characters strictly enforced.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 import logging
 import re
+import inspect
+import asyncio
 
-from max_bot_sdk import MaxBotClient, Button, KeyboardBuilder, Update
+from max_bot_sdk import (
+    MaxBotClient,
+    Button,
+    KeyboardBuilder,
+    Update,
+    AsyncUpdateDispatcher,
+    UserState,
+    FSMContext,
+)
 from app.config import settings
 from app.services.meter_service import meter_service
 from app.services.arshin import arshin_service
@@ -28,56 +41,161 @@ from app.models.schemas import (
     AiVisionScanRequest,
     MeterReadingSubmitRequest,
     GuestAccessGenerateRequest,
-    InspectorActCreateRequest
+    InspectorActCreateRequest,
+    TicketCreateRequest,
 )
 from app.models.domain import MeterType, TicketPriority
 
-logger = logging.getLogger("max_bot_handlers")
+# Re-export keyboard builder functions for backward compatibility
+from app.bot.keyboards import (
+    get_main_menu_keyboard,
+    get_meters_keyboard,
+    get_services_keyboard,
+    get_help_keyboard,
+    get_address_switch_keyboard,
+    get_guest_keyboard,
+    get_meter_confirmation_keyboard,
+    get_ticket_categories_keyboard,
+    get_inspector_keyboard,
+    get_payment_keyboard,
+)
 
-def get_main_menu_keyboard() -> Dict[str, Any]:
-    """
-    Лаконичное меню жителя по гайдлайнам MAX UI.
-    Все лейблы короче 18 символов — строгий ФинTech стиль без лишнего шума.
-    Кнопка 'open_app' строго передает web_app=BOT_USERNAME для нативного открытия внутри MAX WebView.
-    """
-    return KeyboardBuilder.inline([
-        [
-            Button.open_app("Мини-приложение", settings.BOT_USERNAME)
-        ],
-        [
-            Button.callback("Сдать показания", "cmd_meters"),
-            Button.callback("Проверка АРШИН", "cmd_arshin")
-        ],
-        [
-            Button.callback("Оплата ЖКУ", "cmd_pay"),
-            Button.callback("Арендатор", "cmd_guest")
-        ],
-        [
-            Button.callback("Мой профиль", "cmd_profile"),
-            Button.callback("Мои адреса", "cmd_address")
-        ]
-    ])
+logger = logging.getLogger("max_bot_handlers")
 
 
 class BotHandler:
     def __init__(self, client: MaxBotClient):
         self.client = client
+        self.user_service = profile_service
+        self.profile_service = profile_service
         self._pending_scans: Dict[Any, float] = {}
+        self.dispatcher = AsyncUpdateDispatcher(client=client)
+        self._setup_routes()
+
+    def _setup_routes(self) -> None:
+        """Register routes with AsyncUpdateDispatcher."""
+        dp = self.dispatcher
+
+        # 1. Start & Bot Started
+        @dp.command(["start", "старт", "меню"], state="*")
+        def route_start(client: Any, update: Update):
+            self.handle_bot_started(update)
+
+        # 2. Photos
+        @dp.on_photo(state="*")
+        def route_photo(client: Any, update: Update):
+            hint = self._detect_meter_type_from_hint(update.text)
+            self._process_incoming_photo(
+                update.effective_chat_id,
+                update.sender_user_id,
+                meter_type_hint=hint
+            )
+
+        # 3. Callbacks
+        @dp.callback(re.compile(r"^.*$"), state="*")
+        def route_callback(client: Any, update: Update):
+            self.handle_callback(update)
+
+        # 4. FSM State: WAITING_METER_INPUT
+        @dp.message(state=UserState.WAITING_METER_INPUT)
+        def route_state_meter_input(client: Any, update: Update, state: FSMContext):
+            text = (update.text or "").strip()
+            clean_num = text.replace(",", ".").strip()
+            matched_num = re.search(r"(\d+(?:\.\d+)?)", clean_num)
+            if matched_num:
+                self._process_text_reading(update.effective_chat_id, update.sender_user_id, text)
+                state.reset_state()
+            else:
+                self.handle_message_created(update)
+
+        # 5. FSM State: WAITING_ARSHIN_SERIAL
+        @dp.message(state=UserState.WAITING_ARSHIN_SERIAL)
+        def route_state_arshin(client: Any, update: Update, state: FSMContext):
+            text = (update.text or "").strip()
+            if text:
+                serial = text.split()[0]
+                self._process_arshin_check(update.effective_chat_id, update.sender_user_id, serial)
+                state.reset_state()
+            else:
+                self.handle_message_created(update)
+
+        # 6. FSM State: WAITING_TICKET_DESC
+        @dp.message(state=UserState.WAITING_TICKET_DESC)
+        def route_state_ticket(client: Any, update: Update, state: FSMContext):
+            text = (update.text or "").strip()
+            if text:
+                self._create_ticket_from_text(update.effective_chat_id, update.sender_user_id, text)
+                state.reset_state()
+            else:
+                self.handle_message_created(update)
+
+        # 7. FSM State: WAITING_ADDRESS
+        @dp.message(state=UserState.WAITING_ADDRESS)
+        def route_state_address(client: Any, update: Update, state: FSMContext):
+            text = (update.text or "").strip()
+            if text:
+                profile_service.add_property_manual(update.sender_user_id, text, "УК Домовой Сервис")
+                self._send(
+                    chat_id=update.effective_chat_id,
+                    user_id=update.sender_user_id,
+                    text=f"**Новый адрес успешно добавлен**\n\nАдрес: **{text}**\nЕЛС сформирован автоматически.",
+                    keyboard=get_main_menu_keyboard()
+                )
+                state.reset_state()
+            else:
+                self.handle_message_created(update)
+
+        # 8. Fallback / Default text message router
+        @dp.message(state="*")
+        def route_generic_message(client: Any, update: Update):
+            self.handle_message_created(update)
 
     def process_update(self, update: Any):
+        """
+        Processes update synchronously or asynchronously.
+        Maintains 100% backward compatibility with sync tests.
+        """
         if isinstance(update, dict):
             update = Update.from_dict(update)
         logger.info("Processing MAX update: %s", update.update_type)
 
+        # Keep client synchronized
+        self.dispatcher.client = self.client
+
+        # Direct handling for established update types ensures instant synchronous execution
         if update.update_type == "bot_started":
             self.handle_bot_started(update)
         elif update.update_type == "message_created":
             self.handle_message_created(update)
         elif update.update_type == "message_callback":
             self.handle_callback(update)
+        else:
+            self.dispatcher.dispatch(update)
+
+    async def process_update_async(self, update: Any):
+        """Asynchronous update processing method."""
+        if isinstance(update, dict):
+            update = Update.from_dict(update)
+        self.dispatcher.client = self.client
+        res = self.dispatcher.dispatch(update)
+        if inspect.isawaitable(res):
+            return await res
+        return res
+
+    def feed_update(self, update: Any) -> asyncio.Task:
+        """Schedules non-blocking update processing in the background event loop."""
+        self.dispatcher.client = self.client
+        return self.dispatcher.feed_update(update)
+
+    def get_fsm_context(self, chat_id: Optional[Union[str, int]], user_id: Optional[Union[str, int]]) -> FSMContext:
+        """Retrieve FSMContext for given chat and user."""
+        return self.dispatcher.get_fsm_context(chat_id, user_id)
 
     def _send(self, chat_id: Optional[Any], user_id: Optional[int], text: str, keyboard: Optional[Dict[str, Any]] = None):
-        # Строгая очистка: удаление любых технических скобок [..] и псевдокода
+        """
+        Send a message to user with strict sanitization of brackets and emojis.
+        """
+        # Strict cleaning: remove junk brackets [...] and pseudocode tags
         clean_text = re.sub(r"\[(MAX|ИНФО|WEB-APP|ИПУ|АРШИН|ОПЛАТА|Водоканал|ХВС|ГВС|Сервис|ГИС ЖКХ|АРМ|СБП|ST0001)[^\]]*\]\s*", "", text).strip()
         buttons = None
         if keyboard and isinstance(keyboard, dict) and "payload" in keyboard:
@@ -94,11 +212,29 @@ class BotHandler:
             logger.error("Failed to send message to chat=%s user=%s: %s", chat_id, user_id, e)
             return {}
 
+    def _extract_ids(self, update: Update) -> tuple:
+        chat_id = update.effective_chat_id
+        user_id = update.sender_user_id
+        raw = getattr(update, "raw", None)
+        if isinstance(raw, dict):
+            if not chat_id:
+                chat_id = raw.get("chat_id") or (raw.get("recipient", {}).get("chat_id") if isinstance(raw.get("recipient"), dict) else None)
+            if not user_id:
+                sender_obj = raw.get("sender")
+                if isinstance(sender_obj, dict):
+                    user_id = sender_obj.get("id") or sender_obj.get("user_id")
+                elif isinstance(raw.get("user"), dict):
+                    user_id = raw.get("user", {}).get("id")
+                elif raw.get("user_id"):
+                    user_id = raw.get("user_id")
+                elif raw.get("sender_user_id"):
+                    user_id = raw.get("sender_user_id")
+        return chat_id, user_id
+
     def handle_bot_started(self, update: Any, guest_token: Optional[str] = None):
         if isinstance(update, dict):
             update = Update.from_dict(update)
-        user_id = update.sender_user_id
-        chat_id = update.effective_chat_id
+        chat_id, user_id = self._extract_ids(update)
 
         if user_id:
             profile = profile_service.get_profile(user_id)
@@ -114,7 +250,7 @@ class BotHandler:
 
         name = (update.user.first_name if update.user and update.user.first_name else profile.first_name) or "Иван"
 
-        # Проверка гостевого токена арендатора
+        # Check tenant guest token
         if not guest_token and isinstance(getattr(update, "raw", None), dict):
             raw_payload = str(update.raw.get("payload") or "")
             if raw_payload.startswith("guest_"):
@@ -134,10 +270,7 @@ class BotHandler:
                     f"• Просмотр и оплата квитанций ЖКУ по СБП\n\n"
                     f"Откройте **Мини-приложение** для интерактивной работы:"
                 )
-                guest_kb = KeyboardBuilder.inline([
-                    [Button.open_app("Мини-приложение", settings.BOT_USERNAME, payload=f"guest_{guest_token}")],
-                    [Button.callback("Сдать показания", "cmd_meters"), Button.callback("Оплата ЖКУ", "cmd_pay")]
-                ])
+                guest_kb = get_guest_keyboard(guest_token)
                 self._send(chat_id=chat_id, user_id=user_id, text=guest_text, keyboard=guest_kb)
                 return
 
@@ -169,8 +302,7 @@ class BotHandler:
     def handle_message_created(self, update: Any):
         if isinstance(update, dict):
             update = Update.from_dict(update)
-        chat_id = update.effective_chat_id
-        user_id = update.sender_user_id
+        chat_id, user_id = self._extract_ids(update)
         text = update.text.strip()
 
         if user_id:
@@ -183,18 +315,54 @@ class BotHandler:
                 if update.user.username:
                     profile.username = update.user.username
 
-        # 1. Проверка наличия фотографии
+        # 1. Photo
         if update.has_image:
             hint = self._detect_meter_type_from_hint(text)
             self._process_incoming_photo(chat_id, user_id, meter_type_hint=hint)
             return
 
-        # 2. Проверка наличия контакта (кнопка request_contact)
+        # 2. Contact
         if update.has_contact:
             self._process_incoming_contact(chat_id, user_id, update)
             return
 
-        # 3. Роутинг текстовых команд
+        # 3. Check active conversational FSM state
+        fsm = self.get_fsm_context(chat_id, user_id)
+        current_state = self.dispatcher._sync_get_state(chat_id, user_id)
+
+        if current_state == UserState.WAITING_METER_INPUT.value:
+            clean_val = text.replace(",", ".").strip()
+            if re.search(r"(\d+(?:\.\d+)?)", clean_val):
+                self._process_text_reading(chat_id, user_id, text)
+                fsm.reset_state()
+                return
+
+        if current_state == UserState.WAITING_ARSHIN_SERIAL.value:
+            if text:
+                serial = text.split()[0]
+                self._process_arshin_check(chat_id, user_id, serial)
+                fsm.reset_state()
+                return
+
+        if current_state == UserState.WAITING_TICKET_DESC.value:
+            if text:
+                self._create_ticket_from_text(chat_id, user_id, text)
+                fsm.reset_state()
+                return
+
+        if current_state == UserState.WAITING_ADDRESS.value:
+            if text:
+                profile_service.add_property_manual(user_id, text, "УК Домовой Сервис")
+                self._send(
+                    chat_id=chat_id,
+                    user_id=user_id,
+                    text=f"**Новый адрес успешно добавлен**\n\nАдрес: **{text}**\nЕЛС сформирован автоматически.",
+                    keyboard=get_main_menu_keyboard()
+                )
+                fsm.reset_state()
+                return
+
+        # 4. Text command routing
         lower_text = text.lower()
         if lower_text.startswith("/start guest_") or lower_text.startswith("start guest_"):
             parts = text.split(maxsplit=1)
@@ -260,19 +428,22 @@ class BotHandler:
 
         cb_id = update.callback.callback_id
         payload = update.callback.payload
-        chat_id = update.effective_chat_id
-        user_id = update.sender_user_id
+        chat_id, user_id = self._extract_ids(update)
 
-        # Всегда подтверждаем callback для закрытия индикатора загрузки
+        # Always acknowledge callback
         if cb_id:
             try:
                 self.client.answer_callback(callback_id=cb_id, notification="Принято")
             except Exception as e:
                 logger.warning("Could not answer callback %s: %s", cb_id, e)
 
+        fsm = self.get_fsm_context(chat_id, user_id)
+
         if payload == "cmd_meters":
+            fsm.set_state(UserState.WAITING_METER_INPUT)
             self._send_meters_list(chat_id, user_id)
         elif payload == "cmd_arshin":
+            fsm.set_state(UserState.WAITING_ARSHIN_SERIAL)
             self._process_arshin_check(chat_id, user_id, "2809142")
         elif payload == "cmd_pay":
             self._send_payment_info(chat_id, user_id)
@@ -283,17 +454,30 @@ class BotHandler:
         elif payload == "cmd_register":
             self._send_registration_info(chat_id, user_id)
         elif payload == "cmd_add_address":
+            fsm.set_state(UserState.WAITING_ADDRESS)
             self._send_add_address_prompt(chat_id, user_id)
         elif payload.startswith("switch_prop_"):
             prop_id = payload.replace("switch_prop_", "")
             self._process_switch_property(chat_id, user_id, prop_id)
         elif payload == "cmd_ticket":
+            fsm.set_state(UserState.WAITING_TICKET_DESC)
             self._send_ticket_form(chat_id, user_id)
+        elif payload.startswith("ticket_cat_"):
+            category = payload.replace("ticket_cat_", "")
+            fsm.set_state(UserState.WAITING_TICKET_DESC)
+            fsm.update_data(category=category)
+            self._send(
+                chat_id=chat_id,
+                user_id=user_id,
+                text=f"Выбрана категория: **{category}**.\n\nОпишите проблему кратким сообщением в чат:",
+                keyboard=KeyboardBuilder.inline([[Button.callback("Отмена", "cmd_menu")]])
+            )
         elif payload == "cmd_guest":
             self._generate_guest_link(chat_id, user_id)
         elif payload == "cmd_inspector":
             self._process_inspector_act(chat_id, user_id)
         elif payload == "cmd_menu":
+            fsm.reset_state()
             self.handle_bot_started(update)
         elif payload.startswith("submit_meter_"):
             rest = payload.replace("submit_meter_", "")
@@ -307,6 +491,7 @@ class BotHandler:
                     reading_val = None
             if reading_val is None:
                 reading_val = self._pending_scans.pop(user_id, None) or self._pending_scans.pop(chat_id, None)
+            fsm.reset_state()
             self._simulate_meter_photo_flow(chat_id, user_id, meter_id, reading_value=reading_val)
         elif payload in ("rescan_hvs", "rescan_meter_cold_water"):
             self._process_incoming_photo(chat_id, user_id, meter_type_hint=MeterType.COLD_WATER)
@@ -325,7 +510,6 @@ class BotHandler:
                 text="Действие выполнено.",
                 keyboard=get_main_menu_keyboard()
             )
-
 
     # ----------------- Scenario Handlers -----------------
 
@@ -526,6 +710,38 @@ class BotHandler:
         ]
         self._send(chat_id=chat_id, user_id=user_id, text=text, keyboard=KeyboardBuilder.inline(buttons))
 
+    def _create_ticket_from_text(self, chat_id, user_id, text: str):
+        fsm = self.get_fsm_context(chat_id, user_id)
+        data = fsm.get_data() if hasattr(fsm, "get_data") else {}
+        category = data.get("category", "other") if isinstance(data, dict) else "other"
+        ticket = ticket_service.create_ticket(
+            TicketCreateRequest(
+                title="Заявка от жителя",
+                description=text,
+                category=category,
+                priority=TicketPriority.URGENT,
+                address="ул. Ленина, д. 42, кв. 15"
+            )
+        )
+        t_id = getattr(ticket, "ticket_number", getattr(ticket, "id", ""))
+        reply = (
+            f"**Заявка в УК зарегистрирована**\n\n"
+            f"• Номер заявки: **{t_id}**\n"
+            f"• Категория: {ticket.category}\n"
+            f"• Приоритет: **Срочная (до 24 ч)**\n"
+            f"• Описание: {ticket.description}\n"
+            f"• Норматив (ПП РФ № 40): до 24 часов\n\n"
+            f"Мастер управляющей компании назначен."
+        )
+        self._send(
+            chat_id=chat_id,
+            user_id=user_id,
+            text=reply,
+            keyboard=get_main_menu_keyboard()
+        )
+        if hasattr(fsm, "reset_state"):
+            fsm.reset_state()
+
     def _generate_guest_link(self, chat_id, user_id):
         res = guest_service.generate_guest_token(
             GuestAccessGenerateRequest(property_id="flat-42-15", tenant_name="Арендатор")
@@ -580,6 +796,8 @@ class BotHandler:
             meter_id = "meter-el-1"
         elif "тепл" in lower or "отопл" in lower:
             meter_id = "meter-heat-1"
+        elif "газ" in lower:
+            meter_id = "meter-gas-1"
 
         match = re.search(r"\b\d+(?:\.\d+)?\b", lower)
         if not match:
@@ -626,35 +844,6 @@ class BotHandler:
         if len(candidate) > 16 or not candidate:
             candidate = f"Адрес {prop.els[-4:]}"
         return candidate[:17]
-
-    def _process_incoming_contact(self, chat_id: Optional[int], user_id: Optional[int], update: Update):
-        contact = update.contact or {}
-        payload = contact.get("payload") if isinstance(contact.get("payload"), dict) else {}
-        vcf_info = payload.get("vcf_info") or contact.get("vcf_info")
-        phone = payload.get("phone") or contact.get("phone")
-        hash_val = payload.get("hash") or contact.get("hash")
-
-        prof = profile_service.verify_phone_contact(
-            user_id=user_id,
-            phone=phone,
-            vcf_info=vcf_info,
-            hash_val=hash_val
-        )
-        active_prop = profile_service.get_active_property(user_id)
-
-        reply = (
-            f"**Телефон успешно подтвержден**\n\n"
-            f"• Номер телефона: **{prof.phone}**\n"
-            f"• Статус в MAX: подтвержден (без ручного ввода)\n\n"
-            f"Автоматически найдены и привязаны объекты ГИС ЖКХ:\n"
-            f"• **{active_prop.address}** (ЕЛС {active_prop.els})\n\n"
-            f"Теперь вы можете передавать показания и оплачивать квитанции в 1 клик."
-        )
-        buttons = [
-            [Button.open_app("Мини-приложение", settings.BOT_USERNAME)],
-            [Button.callback("Сдать показания", "cmd_meters"), Button.callback("Мой профиль", "cmd_profile")]
-        ]
-        self._send(chat_id=chat_id, user_id=user_id, text=reply, keyboard=KeyboardBuilder.inline(buttons))
 
     def _send_user_profile(self, chat_id: Optional[int], user_id: Optional[int]):
         prof = profile_service.get_profile(user_id)
@@ -757,6 +946,36 @@ class BotHandler:
             [Button.callback("Мои адреса", "cmd_address")]
         ]
         self._send(chat_id=chat_id, user_id=user_id, text=text, keyboard=KeyboardBuilder.inline(buttons))
+
+    def _process_incoming_contact(self, chat_id: Optional[int], user_id: Optional[int], update: Update):
+        contact = update.contact or {}
+        payload = contact.get("payload") if isinstance(contact.get("payload"), dict) else {}
+        vcf_info = payload.get("vcf_info") or contact.get("vcf_info")
+        phone = payload.get("phone") or contact.get("phone")
+        hash_val = payload.get("hash") or contact.get("hash")
+
+        prof = profile_service.verify_phone_contact(
+            user_id=user_id,
+            phone=phone,
+            vcf_info=vcf_info,
+            hash_val=hash_val
+        )
+        active_prop = profile_service.get_active_property(user_id)
+
+        reply = (
+            f"**Телефон успешно подтвержден**\n\n"
+            f"• Номер телефона: **{prof.phone}**\n"
+            f"• Статус в MAX: подтвержден (без ручного ввода)\n\n"
+            f"Автоматически найдены и привязаны объекты ГИС ЖКХ:\n"
+            f"• **{active_prop.address}** (ЕЛС {active_prop.els})\n\n"
+            f"Теперь вы можете передавать показания и оплачивать квитанции в 1 клик."
+        )
+        buttons = [
+            [Button.open_app("Мини-приложение", settings.BOT_USERNAME)],
+            [Button.callback("Сдать показания", "cmd_meters"), Button.callback("Мой профиль", "cmd_profile")]
+        ]
+        self._send(chat_id=chat_id, user_id=user_id, text=reply, keyboard=KeyboardBuilder.inline(buttons))
+
 
 # Singleton instance
 

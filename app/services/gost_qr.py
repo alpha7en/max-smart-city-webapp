@@ -4,11 +4,14 @@ Complies with Bank of Russia checksum algorithm (weights 7, 1, 3 mod 10).
 Federal laws: 103-FZ (Payment agents) & 59-FZ (Direct utility contracts).
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 from app.models.schemas import (
     GostQrParseResponse,
     SplitPaymentRecipient
 )
+
+logger = logging.getLogger("max_gost_qr_service")
 
 WEIGHTS = [7, 1, 3] * 8  # 24 weights for 20-23 characters
 
@@ -118,6 +121,14 @@ def parse_gost_qr_payload(payload: str) -> GostQrParseResponse:
                 purpose=f"Содержание и текущий ремонт общего имущества МКД за {period}"
             )
         ]
+
+    # MVP STUB: SBP_BANK -> PASS
+    logger.info(
+        "MVP STUB: SBP_BANK -> PASS (amount=%.2f, split_count=%d, account=%s)",
+        amount_rubles,
+        len(split_details),
+        payee_account
+    )
 
     return GostQrParseResponse(
         is_valid_gost=True,

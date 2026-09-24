@@ -48,6 +48,31 @@ paths:
                   $ref: '#/components/schemas/MeterBase'
                 type: array
                 title: Response Get Meters Api Meters Get
+  /api/meters/reading:
+    post:
+      tags:
+      - Smart City Housing API
+      summary: Алиас для отправки показаний
+      operationId: alias_submit_reading_api_meters_reading_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeterReadingSubmitRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterReadingValidationResult'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/meters/{meter_id}:
     get:
       tags:
@@ -178,31 +203,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/night-flow/diagnose:
-    post:
-      tags:
-      - Smart City Housing API
-      summary: Диагностика ночного небаланса ОДПУ и утечек в квартире
-      operationId: diagnose_night_flow_api_night_flow_diagnose_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NightFlowCheckRequest'
-        required: true
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NightFlowDiagnosticResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/tickets:
     get:
       tags:
@@ -243,6 +243,64 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/tickets/{ticket_id}:
+    get:
+      tags:
+      - Smart City Housing API
+      summary: Получение информации о заявке
+      operationId: get_ticket_api_tickets__ticket_id__get
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ticket Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tickets/{ticket_id}/status:
+    patch:
+      tags:
+      - Smart City Housing API
+      summary: Обновление статуса заявки диспетчером или мастером
+      operationId: update_ticket_status_api_tickets__ticket_id__status_patch
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ticket Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketStatusUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/guest/generate:
     post:
       tags:
@@ -268,6 +326,789 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/guest/{token}:
+    get:
+      tags:
+      - Smart City Housing API
+      summary: Проверка валидности гостевого токена арендатора
+      operationId: validate_guest_access_api_guest__token__get
+      parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Token
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/profile:
+    get:
+      tags:
+      - Smart City Housing API
+      summary: Получение профиля жителя и списка привязанных адресов (ЕЛС)
+      operationId: get_user_profile_api_profile_get
+      parameters:
+      - name: user_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: ID пользователя в MAX
+          title: User Id
+        description: ID пользователя в MAX
+      - name: initData
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Initdata
+      - name: init_data
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Init Data
+      - name: X-Init-Data
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Init-Data
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/profile/switch-property:
+    post:
+      tags:
+      - Smart City Housing API
+      summary: Мгновенное переключение активного адреса помещения / ЕЛС в 1 клик
+      operationId: switch_property_route_api_profile_switch_property_post
+      parameters:
+      - name: initData
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Initdata
+      - name: init_data
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Init Data
+      - name: X-Init-Data
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Init-Data
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileSwitchPropertyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/profile/add-property:
+    post:
+      tags:
+      - Smart City Housing API
+      summary: Добавление нового адреса или ЕЛС в профиль пользователя
+      operationId: add_property_route_api_profile_add_property_post
+      parameters:
+      - name: initData
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Initdata
+      - name: init_data
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Init Data
+      - name: X-Init-Data
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Init-Data
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileAddPropertyRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/profile/verify-contact:
+    post:
+      tags:
+      - Smart City Housing API
+      summary: Верификация телефона жителя (Bot API request_contact или WebApp bridge)
+      operationId: verify_contact_route_api_profile_verify_contact_post
+      parameters:
+      - name: initData
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Initdata
+      - name: init_data
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Init Data
+      - name: X-Init-Data
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Init-Data
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileVerifyContactRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/uk/inspector-act:
+    post:
+      tags:
+      - Smart City Housing API
+      summary: Формирование юридически значимого цифрового акта проверки обходчиком
+        УК
+      description: 'Генерация юридически значимого электронного акта контрольного
+        осмотра ПУ
+
+        с привязкой геолокации GPS, отметки времени ISO-8601, криптографического
+
+        хэша SHA-256 и готовностью к выгрузке в биллинг 1С:ЖКХ (63-ФЗ).'
+      operationId: create_inspector_act_api_uk_inspector_act_post
+      parameters:
+      - name: address
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Адрес объекта (для обратной совместимости с WebApp GET/POST)
+          title: Address
+        description: Адрес объекта (для обратной совместимости с WebApp GET/POST)
+      - name: meter_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: ID прибора учета
+          title: Meter Id
+        description: ID прибора учета
+      - name: reading_value
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Контрольные показания
+          title: Reading Value
+        description: Контрольные показания
+      - name: inspector_name
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: ФИО контролера УК
+          title: Inspector Name
+        description: ФИО контролера УК
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/InspectorActCreateRequest'
+              - type: 'null'
+              title: Payload
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InspectorActResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/meter/scan:
+    get:
+      tags:
+      - Smart City Housing API
+      summary: Алиас для распознавания показаний (GET)
+      operationId: alias_meter_scan_get
+      parameters:
+      - name: meter_hint
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Meter Hint
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiVisionScanResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Smart City Housing API
+      summary: Алиас для распознавания показаний (POST)
+      operationId: alias_meter_scan_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/AiVisionScanRequest'
+              - type: 'null'
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiVisionScanResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/arshin/verify:
+    get:
+      tags:
+      - Smart City Housing API
+      summary: Алиас для проверки во ФГИС АРШИН
+      operationId: alias_arshin_verify_api_arshin_verify_get
+      parameters:
+      - name: serial_number
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Serial Number
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArshinCheckResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/arshin/verify/{serial_number}:
+    get:
+      tags:
+      - Smart City Housing API
+      summary: Алиас для проверки во ФГИС АРШИН по пути
+      operationId: alias_arshin_verify_path_api_arshin_verify__serial_number__get
+      parameters:
+      - name: serial_number
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Serial Number
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArshinCheckResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/qr/parse:
+    post:
+      tags:
+      - Smart City Housing API
+      summary: Алиас для разбора QR-кода ГОСТ Р 56042-2014
+      operationId: alias_qr_parse_api_qr_parse_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GostQrParseRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GostQrParseResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/inspector/acts:
+    get:
+      tags:
+      - Smart City Housing API
+      summary: Алиас для акта обходчика (GET)
+      operationId: alias_inspector_acts_api_inspector_acts_get
+      parameters:
+      - name: address
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Address
+      - name: meter_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Meter Id
+      - name: reading_value
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Reading Value
+      - name: inspector_name
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Inspector Name
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/InspectorActCreateRequest'
+              - type: 'null'
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InspectorActResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Smart City Housing API
+      summary: Алиас для акта обходчика
+      operationId: alias_inspector_acts_api_inspector_acts_post
+      parameters:
+      - name: address
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Address
+      - name: meter_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Meter Id
+      - name: reading_value
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Reading Value
+      - name: inspector_name
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Inspector Name
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/InspectorActCreateRequest'
+              - type: 'null'
+              title: Payload
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InspectorActResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/auth/verify-init-data:
+    post:
+      tags:
+      - Smart City Housing API
+      summary: Валидация HMAC-SHA256 подписи initData из MAX WebApp
+      operationId: verify_init_data_route_api_auth_verify_init_data_post
+      parameters:
+      - name: initData
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Initdata
+      - name: init_data
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Init Data
+      - name: X-Init-Data
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Init-Data
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - Smart City Housing API
+      summary: Валидация HMAC-SHA256 подписи initData из MAX WebApp
+      operationId: verify_init_data_route_api_auth_verify_init_data_get
+      parameters:
+      - name: initData
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Initdata
+      - name: init_data
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Init Data
+      - name: X-Init-Data
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Init-Data
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/bot/webhook:
+    post:
+      tags:
+      - Smart City Housing API
+      summary: Эндпоинт приема вебхуков от платформы MAX
+      operationId: bot_webhook_endpoint_api_bot_webhook_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              description: Входящее событие или батч от MAX Bot API
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Smart City Housing API
+      summary: Удаление подписки вебхука в API MAX (DELETE /subscriptions)
+      operationId: delete_webhook_endpoint_api_bot_webhook_delete
+      parameters:
+      - name: url
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: URL вебхука для удаления (если None, удаляет все)
+          title: Url
+        description: URL вебхука для удаления (если None, удаляет все)
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/bot/webhook/register:
+    post:
+      tags:
+      - Smart City Housing API
+      summary: Регистрация вебхука в API MAX (POST /subscriptions)
+      operationId: register_webhook_endpoint_api_bot_webhook_register_post
+      parameters:
+      - name: url
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: URL вебхука (если не указан, берется из настроек)
+          title: Url
+        description: URL вебхука (если не указан, берется из настроек)
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/bot/webhook/subscriptions:
+    get:
+      tags:
+      - Smart City Housing API
+      summary: Список активных подписок в API MAX (GET /subscriptions)
+      operationId: list_subscriptions_endpoint_api_bot_webhook_subscriptions_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
 components:
   schemas:
     AiVisionScanRequest:
@@ -565,6 +1406,132 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    InspectorActCreateRequest:
+      properties:
+        meter_id:
+          type: string
+          title: Meter Id
+          description: Идентификатор прибора учета
+          default: meter-khvs-1
+        reading_value:
+          type: number
+          title: Reading Value
+          description: Контрольное показание, снятое обходчиком
+          default: 142.385
+        address:
+          type: string
+          title: Address
+          description: Адрес объекта
+          default: г. Москва, ул. Тверская, д. 7, кв. 14
+        inspector_name:
+          type: string
+          title: Inspector Name
+          description: ФИО контролера УК
+          default: Контролер Службы Учета Водоснабжения Смирнов В. И.
+        photo_base64:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Photo Base64
+          description: Фотофиксация прибора учета / пломбы
+        gps_coordinates:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Gps Coordinates
+          description: Геолокация обходчика
+          default: 55.7558° N, 37.6173° E
+      type: object
+      title: InspectorActCreateRequest
+    InspectorActResponse:
+      properties:
+        act_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Act Id
+          description: Уникальный идентификатор цифрового акта
+        timestamp:
+          type: string
+          title: Timestamp
+          description: ISO-8601 таймстемп фиксации осмотра
+        gps:
+          type: string
+          title: Gps
+          description: GPS координаты фиксации
+          default: 55.7558° N, 37.6173° E
+        photo_hash_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Photo Hash Sha256
+          description: Криптографический SHA-256 хеш фотофиксации или акта
+        meter_id:
+          type: string
+          title: Meter Id
+          description: Идентификатор прибора учета
+          default: meter-khvs-1
+        reading_value:
+          type: number
+          title: Reading Value
+          description: Зафиксированное контрольное показание
+          default: 142.385
+        status:
+          type: string
+          title: Status
+          description: Статус операции
+          default: success
+        export_1c_ready:
+          type: boolean
+          title: Export 1C Ready
+          description: Флаг готовности к автоматической выгрузке в 1С:ЖКХ
+          default: true
+        act_number:
+          type: string
+          title: Act Number
+          description: Уникальный номер цифрового акта
+        act_title:
+          type: string
+          title: Act Title
+          description: Наименование документа
+          default: Электронный акт контрольного осмотра ПУ
+        inspector_name:
+          type: string
+          title: Inspector Name
+        address:
+          type: string
+          title: Address
+        gps_coordinates:
+          type: string
+          title: Gps Coordinates
+          description: Подтвержденная геометка
+          default: 55.7558° N, 37.6173° E (Метка подтверждена)
+        meter_reading:
+          type: string
+          title: Meter Reading
+        crypto_hash:
+          type: string
+          title: Crypto Hash
+          description: SHA-256 криптографический хеш акта
+        billing_export_status:
+          type: string
+          title: Billing Export Status
+          description: Статус синхронизации с 1С:ЖКХ
+          default: EXPORTED_TO_1C_ZHKH
+        legal_significance:
+          type: string
+          title: Legal Significance
+          description: Юридическая сила документа
+          default: Заверен усиленной квалифицированной ЭЦП УК (63-ФЗ)
+      type: object
+      required:
+      - timestamp
+      - act_number
+      - inspector_name
+      - address
+      - meter_reading
+      - crypto_hash
+      title: InspectorActResponse
     MeterBase:
       properties:
         id:
@@ -715,73 +1682,99 @@ components:
       - gas
       - heat
       title: MeterType
-    NightFlowCheckRequest:
+    ProfileAddPropertyRequest:
       properties:
-        entrance_id:
-          type: integer
-          title: Entrance Id
-          description: Номер подъезда
-          default: 1
-        night_reading_before_bed:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Night Reading Before Bed
-          description: Показания счетчика перед сном (ХВС)
-        morning_reading:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Morning Reading
-          description: Показания счетчика после пробуждения
-        napkin_test_result:
+        address:
           anyOf:
           - type: string
           - type: 'null'
-          title: Napkin Test Result
-          description: '''wet'' если салфетка намокла, ''dry'' если сухая'
+          title: Address
+          description: Адрес нового помещения (опционально при передаче gost_qr_payload)
+        els:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Els
+          description: Единый лицевой счет (10 цифр) или номер ЛС (опционально при
+            передаче gost_qr_payload)
+        management_company:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Management Company
+          description: Управляющая компания
+          default: ООО УК Столица-Сервис
+        role:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Role
+          description: 'Роль: resident или tenant'
+          default: resident
+        user_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: User Id
+          description: ID пользователя MAX
+        gost_qr_payload:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Gost Qr Payload
+          description: Опциональный сырой ГОСТ QR-код для автозаполнения
       type: object
-      title: NightFlowCheckRequest
-    NightFlowDiagnosticResponse:
+      title: ProfileAddPropertyRequest
+    ProfileSwitchPropertyRequest:
       properties:
-        entrance_odpu_flow_liters_per_hour:
-          type: number
-          title: Entrance Odpu Flow Liters Per Hour
-          description: Ночной расход на вводе в дом (02:30 - 04:30)
-        normal_threshold_liters_per_hour:
-          type: number
-          title: Normal Threshold Liters Per Hour
-          description: Норма ночного фона
-          default: 100.0
-        leak_detected_in_building:
-          type: boolean
-          title: Leak Detected In Building
-        apartment_leak_detected:
-          type: boolean
-          title: Apartment Leak Detected
-        apartment_difference_liters:
-          type: number
-          title: Apartment Difference Liters
-        diagnosis_verdict:
+        property_id:
           type: string
-          title: Diagnosis Verdict
-        reward_eligible:
-          type: boolean
-          title: Reward Eligible
-          description: Право на скидку 10% на услуги УК за найденную утечку
-          default: false
-        recommendation:
-          type: string
-          title: Recommendation
+          title: Property Id
+          description: ID объекта для активации
+        user_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: User Id
+          description: ID пользователя MAX (опционально)
       type: object
       required:
-      - entrance_odpu_flow_liters_per_hour
-      - leak_detected_in_building
-      - apartment_leak_detected
-      - apartment_difference_liters
-      - diagnosis_verdict
-      - recommendation
-      title: NightFlowDiagnosticResponse
+      - property_id
+      title: ProfileSwitchPropertyRequest
+    ProfileVerifyContactRequest:
+      properties:
+        phone:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Phone
+          description: Номер телефона пользователя
+        vcf_info:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Vcf Info
+          description: VCF контакт из MAX Bot API
+        hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Hash
+          description: Криптографическая подпись HMAC-SHA256
+        auth_date:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Auth Date
+          description: Отметка времени auth_date
+        user_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: User Id
+          description: ID пользователя MAX
+      type: object
+      title: ProfileVerifyContactRequest
     SplitPaymentRecipient:
       properties:
         recipient_name:
@@ -902,8 +1895,119 @@ components:
       - accepted
       - in_progress
       - resolved
+      - completed
       - confirmed
       title: TicketStatus
+    TicketStatusUpdateRequest:
+      properties:
+        status:
+          $ref: '#/components/schemas/TicketStatus'
+          description: Новый статус заявки
+        comment:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Comment
+          description: Комментарий диспетчера или мастера
+        assigned_master:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Assigned Master
+          description: Назначенный мастер
+      type: object
+      required:
+      - status
+      title: TicketStatusUpdateRequest
+    UserProfile:
+      properties:
+        user_id:
+          type: integer
+          title: User Id
+          description: Идентификатор пользователя в MAX
+        phone:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Phone
+          description: Номер телефона пользователя
+        first_name:
+          type: string
+          title: First Name
+          description: Имя пользователя
+          default: Житель
+        last_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Name
+          description: Фамилия пользователя
+        username:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Username
+          description: Никнейм в MAX
+        is_verified:
+          type: boolean
+          title: Is Verified
+          description: Подтвержден ли номер через MAX request_contact
+          default: false
+        active_property_id:
+          type: string
+          title: Active Property Id
+          description: ID текущего выбранного объекта
+        properties:
+          items:
+            $ref: '#/components/schemas/UserProperty'
+          type: array
+          title: Properties
+          description: Список привязанных объектов
+      type: object
+      required:
+      - user_id
+      - active_property_id
+      title: UserProfile
+    UserProperty:
+      properties:
+        id:
+          type: string
+          title: Id
+          description: Уникальный идентификатор объекта недвижимости
+        address:
+          type: string
+          title: Address
+          description: Адрес помещения
+        els:
+          type: string
+          title: Els
+          description: Единый лицевой счет (ЕЛС) ГИС ЖКХ / Лицевой счет
+        management_company:
+          type: string
+          title: Management Company
+          description: Управляющая организация
+          default: ООО УК Столица-Сервис
+        is_active:
+          type: boolean
+          title: Is Active
+          description: 'Флаг: является ли объект активным в данный момент'
+          default: false
+        role:
+          type: string
+          title: Role
+          description: 'Роль пользователя: resident или tenant'
+          default: resident
+        linked_at:
+          type: string
+          format: date-time
+          title: Linked At
+          description: Дата и время привязки объекта
+      type: object
+      required:
+      - id
+      - address
+      - els
+      title: UserProperty
     ValidationError:
       properties:
         loc:
@@ -936,5 +2040,6 @@ components:
       - verified
       - expiring
       - expired
+      - unregistered
       - fraud_alert
       title: VerificationStatus

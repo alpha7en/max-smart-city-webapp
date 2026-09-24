@@ -4,10 +4,13 @@ Complies with 102-FZ (Metrology): electronic record in ARSHIN is the only legal 
 Shields residents against mail fraud scams ("urgent verification notice 50,000 rub fine").
 """
 
+import logging
 from datetime import date
 from typing import Optional, Dict
 from app.models.domain import VerificationStatus, MeterType
 from app.models.schemas import ArshinCheckResponse
+
+logger = logging.getLogger("max_arshin_service")
 
 # Known database of verified meters in FGIS ARSHIN
 ARSHIN_MOCK_DATABASE: Dict[str, Dict] = {
@@ -81,6 +84,8 @@ class ArshinService:
 
         # Check explicit fake or completely unregistered serial numbers
         if clean_serial in ["000000", "00000000", "FAKE", "FAKE01"] or clean_serial.startswith("FAKE"):
+            # MVP STUB: FGIS_ARSHIN -> PASS
+            logger.info("MVP STUB: FGIS_ARSHIN -> PASS (serial=%s, status=%s, shield=%s)", clean_serial, VerificationStatus.UNREGISTERED.value, "red")
             return ArshinCheckResponse(
                 serial_number=clean_serial,
                 organization_name="Реестр ФГИС «АРШИН»",
@@ -156,6 +161,14 @@ class ArshinService:
                 )
 
         fgis_url = f"https://fgis.gost.ru/fundmetrology/eapi/vri?search={clean_serial}"
+
+        # MVP STUB: FGIS_ARSHIN -> PASS
+        logger.info(
+            "MVP STUB: FGIS_ARSHIN -> PASS (serial=%s, status=%s, shield=%s)",
+            clean_serial,
+            status.value if hasattr(status, "value") else str(status),
+            color
+        )
 
         return ArshinCheckResponse(
             serial_number=clean_serial,

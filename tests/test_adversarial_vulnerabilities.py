@@ -131,5 +131,5 @@ class TestAdversarialVulnerabilities:
                     priority=TicketPriority.PLANNED
                 )
             )
-            assert len(t.id) == 13  # 'TCK-2026-XXXX'
+            assert len(t.id) == 17  # 'TCK-2026-XXXXXXXX' (32 bits of entropy)
             assert t.id.startswith("TCK-2026-")

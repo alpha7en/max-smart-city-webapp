@@ -200,3 +200,52 @@ mandatory_checks:
         - "direct_max_link"
         - "expires_at"
         - "allowed_actions"
+
+  - id: "check_inspector_act"
+    name: "Формирование юридически значимого цифрового акта обходчика УК с GPS и SHA-256"
+    method: "POST"
+    path: "/api/uk/inspector-act"
+    user_role: "inspector_uk"
+    parameters:
+      headers:
+        Content-Type: "application/json"
+      body:
+        meter_id: "meter-khvs-1"
+        reading_value: 142.385
+        address: "г. Москва, ул. Ленина, д. 42, кв. 15"
+        inspector_name: "Смирнов А. В. (Служба учета)"
+        gps_coordinates: "55.7558° N, 37.6173° E"
+    expected_status: [201]
+    expected_response:
+      content_type: "application/json"
+      required_fields:
+        - "status"
+        - "act_number"
+        - "act_title"
+        - "inspector_name"
+        - "gps_coordinates"
+        - "crypto_hash"
+        - "billing_export_status"
+        - "legal_significance"
+
+  - id: "check_ticket_status_update"
+    name: "Обновление статуса заявки диспетчером АДС по ПП РФ № 40"
+    method: "PATCH"
+    path: "/api/tickets/TCK-2026-0819/status"
+    user_role: "dispatcher_uk"
+    parameters:
+      headers:
+        Content-Type: "application/json"
+      body:
+        status: "in_progress"
+        comment: "Мастер выехал на объект"
+        assigned_master: "Иванов С. М."
+    expected_status: [200]
+    expected_response:
+      content_type: "application/json"
+      required_fields:
+        - "id"
+        - "status"
+        - "assigned_master"
+        - "status_history"
+

@@ -60,6 +60,10 @@ function checkUrlLaunchParameters() {
     } else {
       setRole("resident");
     }
+
+    if (urlParams.get('modal') === 'camera' || hashParams.get('modal') === 'camera' || window.location.hash === '#camera') {
+      setTimeout(() => openCameraViewfinder(), 150);
+    }
   } catch (e) {
     console.warn("URL parameter parse notice:", e);
   }
@@ -407,6 +411,118 @@ function getDefaultDemoTickets() {
   ];
 }
 
+function getMeterVisualConfig(m) {
+  const type = m.meter_type || "";
+  const name = m.name || "";
+
+  if (type === "cold_water" || m.id.includes("khvs") || name.includes("Холодн")) {
+    return {
+      displayName: "Холодная вода",
+      focusTitle: "Холодная вода (ХВС)",
+      icon: "water_drop",
+      circleClass: "meter-icon-circle-blue",
+      subtext: `${Math.round(m.last_reading_value) || 142} ${m.unit || 'м³'}`,
+      actionType: "submitted",
+      shortType: "ХВС"
+    };
+  } else if (type === "hot_water" || m.id.includes("gvs") || name.includes("Горяч")) {
+    return {
+      displayName: "Горячая вода",
+      focusTitle: "Горячая вода (ГВС)",
+      icon: "local_fire_department",
+      circleClass: "meter-icon-circle-orange",
+      subtext: `Было: ${m.previous_reading || 89} ${m.unit || 'м³'}`,
+      actionType: "submit_blue",
+      shortType: "ГВС"
+    };
+  } else if (type.startsWith("el") || m.id.includes("el") || name.includes("Электр")) {
+    return {
+      displayName: "Электроэнергия",
+      focusTitle: "Электроэнергия",
+      icon: "bolt",
+      circleClass: "meter-icon-circle-amber",
+      subtext: `${Math.round(m.last_reading_value) || 1450} кВт·ч`,
+      actionType: "auto",
+      shortType: "Свет"
+    };
+  } else if (type === "heat" || m.id.includes("heat") || name.includes("Отопл")) {
+    const heatVal = m.id === "meter-heat-1" ? "12,45" : String(m.last_reading_value).replace('.', ',');
+    return {
+      displayName: "Отопление",
+      focusTitle: "Отопление",
+      icon: "thermostat",
+      circleClass: "meter-icon-circle-cyan",
+      subtext: `${heatVal} Гкал`,
+      actionType: "submit_dark",
+      shortType: "Тепло"
+    };
+  } else {
+    return {
+      displayName: m.name,
+      focusTitle: m.name,
+      icon: "propane_tank",
+      circleClass: "meter-icon-circle-purple",
+      subtext: `${m.last_reading_value} ${m.unit || 'м³'}`,
+      actionType: "submit_blue",
+      shortType: "Газ"
+    };
+  }
+}
+
+function updateActiveFocusCard(meter) {
+  if (!meter) return;
+  const config = getMeterVisualConfig(meter);
+
+  const titleEl = document.getElementById("ocr-device-title");
+  if (titleEl) {
+    titleEl.textContent = config.focusTitle;
+  }
+
+  const iconWrap = document.getElementById("focus-meter-icon-box");
+  const iconEl = document.getElementById("focus-meter-icon");
+  if (iconWrap) {
+    iconWrap.className = `meter-icon-circle ${config.circleClass}`;
+  }
+  if (iconEl) {
+    iconEl.textContent = config.icon;
+  }
+
+  const readingInput = document.getElementById("input-reading-correct");
+  if (readingInput) {
+    readingInput.value = Math.floor(meter.last_reading_value) || 142;
+  }
+
+  const unitEl = document.getElementById("stepper-unit-label");
+  if (unitEl) {
+    unitEl.textContent = meter.unit || 'м³';
+  }
+
+  const singleBox = document.getElementById("single-reading-box");
+  const multiBox = document.getElementById("multi-tariff-box");
+  if (meter.meter_type && meter.meter_type.startsWith("el")) {
+    if (singleBox) singleBox.style.display = "none";
+    if (multiBox) multiBox.style.display = "block";
+  } else {
+    if (singleBox) singleBox.style.display = "flex";
+    if (multiBox) multiBox.style.display = "none";
+  }
+
+  const prev = meter.previous_reading || (meter.id.includes("khvs") ? 138 : Math.round(meter.last_reading_value * 0.95)) || 138;
+  appState.previousReading = prev;
+
+  const currentVal = Math.floor(meter.last_reading_value) || 142;
+  const delta = Math.max(0, currentVal - prev);
+
+  const prevEl = document.getElementById("calc-prev-val");
+  if (prevEl) prevEl.textContent = `Было: ${prev} ${meter.unit || 'м³'}`;
+
+  const deltaEl = document.getElementById("calc-delta-val");
+  if (deltaEl) deltaEl.textContent = `+${delta} ${meter.unit || 'м³'}`;
+
+  const intPart = Math.floor(meter.last_reading_value);
+  renderRollers(intPart, 789);
+}
+
 async function loadMeters() {
   try {
     const res = await apiFetch("/api/meters");
@@ -415,6 +531,7 @@ async function loadMeters() {
       if (Array.isArray(data) && data.length > 0) {
         appState.meters = data;
         renderMetersList(data);
+        updateActiveFocusCard(data[0]);
         return;
       }
     }
@@ -423,6 +540,7 @@ async function loadMeters() {
   }
   appState.meters = getDefaultDemoMeters();
   renderMetersList(appState.meters);
+  updateActiveFocusCard(appState.meters[0]);
 }
 
 function renderMetersList(meters) {
@@ -441,23 +559,52 @@ function renderMetersList(meters) {
   }
 
   filtered.forEach(m => {
+    const config = getMeterVisualConfig(m);
     const card = document.createElement("div");
     card.className = "meter-card";
+    card.setAttribute("data-id", m.id);
+
+    let rightElementHtml = '';
+    if (config.actionType === "submitted") {
+      rightElementHtml = `<span class="badge-submitted-pill"><span class="material-symbols-outlined text-[14px]">check</span> Сдано</span>`;
+    } else if (config.actionType === "auto") {
+      rightElementHtml = `<span class="badge-auto-pill">Авто</span>`;
+    } else if (config.actionType === "submit_dark") {
+      rightElementHtml = `<button type="button" class="btn-meter-action-secondary">Сдать</button>`;
+    } else {
+      rightElementHtml = `<button type="button" class="btn-meter-action-btn">Сдать</button>`;
+    }
+
     card.innerHTML = `
-      <div class="meter-info-col">
-        <h4>${m.name}</h4>
-        <div class="meter-sub-info font-mono">№ ${m.serial_number} • ${m.installation_place}</div>
-        <div class="meter-sub-info text-success font-mono">Поверка до: ${m.verification_date_valid_until}</div>
+      <div class="meter-card-left">
+        <div class="meter-icon-circle ${config.circleClass}">
+          <span class="material-symbols-outlined text-[19px]">${config.icon}</span>
+        </div>
+        <div class="meter-card-text">
+          <div class="meter-card-name">${config.displayName}</div>
+          <div class="meter-card-sub font-mono">${config.subtext}</div>
+        </div>
       </div>
-      <div class="meter-reading-col">
-        <span class="meter-val-num font-mono">${m.last_reading_value}</span>
-        <span class="text-muted text-xs font-mono">${m.unit}</span>
+      <div class="meter-card-right">
+        ${rightElementHtml}
       </div>
     `;
+
     card.addEventListener("click", () => {
       appState.selectedMeterId = m.id;
-      openCameraViewfinder(m);
+      updateActiveFocusCard(m);
     });
+
+    const actionBtn = card.querySelector("button");
+    if (actionBtn) {
+      actionBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        appState.selectedMeterId = m.id;
+        updateActiveFocusCard(m);
+        openCameraViewfinder(m);
+      });
+    }
+
     container.appendChild(card);
   });
 }
@@ -540,6 +687,8 @@ function initViewfinderModal() {
   const btnTorch = document.getElementById("btn-toggle-torch");
   const btnCapture = document.getElementById("btn-capture-frame");
   const btnCycle = document.getElementById("btn-cycle-meter-type");
+  const btnGallery = document.getElementById("btn-camera-gallery");
+  const btnManual = document.getElementById("btn-camera-manual");
 
   if (btnOpen) {
     btnOpen.addEventListener("click", () => {
@@ -583,6 +732,42 @@ function initViewfinderModal() {
     });
   }
 
+  if (btnGallery) {
+    btnGallery.addEventListener("click", () => {
+      haptic("light");
+      const fileInput = document.getElementById("file-meter-input");
+      if (fileInput) fileInput.click();
+    });
+  }
+
+  if (btnManual) {
+    btnManual.addEventListener("click", () => {
+      haptic("light");
+      modal.style.display = "none";
+      const focusCard = document.getElementById("ai-scan-result");
+      if (focusCard) focusCard.scrollIntoView({ behavior: "smooth" });
+      const input = document.getElementById("input-reading-correct");
+      if (input) input.focus();
+    });
+  }
+
+  // Camera horizontal filter chips
+  document.querySelectorAll("#camera-filter-chips .camera-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      haptic("light");
+      document.querySelectorAll("#camera-filter-chips .camera-chip").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      const mId = chip.getAttribute("data-meter");
+      const mType = chip.getAttribute("data-type");
+      const meter = appState.meters.find(m => m.id === mId || m.meter_type === mType);
+      if (meter) {
+        appState.selectedMeterId = meter.id;
+        updateViewfinderDisplay(meter);
+        updateActiveFocusCard(meter);
+      }
+    });
+  });
+
   if (btnCapture) {
     btnCapture.addEventListener("click", () => {
       haptic("success");
@@ -598,18 +783,19 @@ function openCameraViewfinder(meter = null) {
   const modal = document.getElementById("camera-modal");
   if (modal) modal.style.display = "flex";
 
-  if (meter) {
-    appState.selectedMeterId = meter.id;
-    updateViewfinderDisplay(meter);
-  } else {
-    const cur = appState.meters.find(m => m.id === appState.selectedMeterId) || appState.meters[0];
-    if (cur) updateViewfinderDisplay(cur);
+  const targetMeter = meter || appState.meters.find(m => m.id === appState.selectedMeterId) || appState.meters[0];
+  if (targetMeter) {
+    appState.selectedMeterId = targetMeter.id;
+    updateViewfinderDisplay(targetMeter);
   }
 }
 
 function updateViewfinderDisplay(meter) {
+  if (!meter) return;
+  const config = getMeterVisualConfig(meter);
+
   const dial = document.getElementById("viewfinder-dial-preview");
-  if (dial && meter) {
+  if (dial) {
     const intPart = Math.floor(meter.last_reading_value);
     const intStr = String(intPart).padStart(5, '0').slice(-5);
     const fracStr = "789";
@@ -620,6 +806,21 @@ function updateViewfinderDisplay(meter) {
       <span class="sim-serial font-mono">№ ${meter.serial_number}</span>
     `;
   }
+
+  const subtextEl = document.getElementById("viewfinder-bottom-subtext");
+  if (subtextEl) {
+    subtextEl.textContent = `Счетчик ${config.shortType} · Поднесите камеру к циферблату`;
+  }
+
+  document.querySelectorAll("#camera-filter-chips .camera-chip").forEach(chip => {
+    const mId = chip.getAttribute("data-meter");
+    const mType = chip.getAttribute("data-type");
+    if (mId === meter.id || mType === meter.meter_type) {
+      chip.classList.add("active");
+    } else {
+      chip.classList.remove("active");
+    }
+  });
 }
 
 // ----------------- Mock AI Vision Simulation -----------------
@@ -653,6 +854,8 @@ async function triggerAiScanMock() {
     const confEl = document.getElementById("ocr-confidence-val");
     if (confEl) confEl.textContent = `${Math.round(data.confidence * 100)}%`;
 
+    updateActiveFocusCard(targetMeter);
+
     const singleBox = document.getElementById("single-reading-box");
     const multiBox = document.getElementById("multi-tariff-box");
     const dialCaptionBox = document.getElementById("dial-caption-box");
@@ -678,6 +881,12 @@ async function triggerAiScanMock() {
       renderRollers(data.recognized_reading, fracVal);
       const manualInput = document.getElementById("input-reading-correct");
       if (manualInput) manualInput.value = data.recognized_reading;
+      const prev = appState.previousReading || 138;
+      const delta = Math.max(0, data.recognized_reading - prev);
+      const deltaEl = document.getElementById("calc-delta-val");
+      if (deltaEl) deltaEl.textContent = `+${delta} ${targetMeter.unit || 'м³'}`;
+      const prevEl = document.getElementById("calc-prev-val");
+      if (prevEl) prevEl.textContent = `Было: ${prev} ${targetMeter.unit || 'м³'}`;
       if (dialCaptionBox) {
         dialCaptionBox.innerHTML = `
           <span class="caption-black">Черные барабаны: целые м³</span>
@@ -803,8 +1012,8 @@ function updateCalculationBreakdown() {
   const deltaEl = document.getElementById("calc-delta-val");
   const costEl = document.getElementById("calc-cost-val");
 
-  if (prevEl) prevEl.textContent = `${prev.toFixed(3)} м³`;
-  if (deltaEl) deltaEl.textContent = `+${delta.toFixed(3)} м³`;
+  if (prevEl) prevEl.textContent = `Было: ${prev % 1 === 0 ? prev : prev.toFixed(1)} м³`;
+  if (deltaEl) deltaEl.textContent = `+${delta % 1 === 0 ? delta : delta.toFixed(1)} м³`;
   if (costEl) costEl.textContent = `${cost.toFixed(2)} ₽`;
 }
 
@@ -1122,11 +1331,20 @@ function bindGeneralEventHandlers() {
   if (btnMinus && readingInput) {
     btnMinus.addEventListener("click", () => {
       let val = parseFloat(readingInput.value) || 0;
-      if (val > 1) {
-        readingInput.value = (val - 1).toFixed(1);
-        const intPart = Math.floor(val - 1);
-        const fracPart = Math.round(((val - 1) - intPart) * 1000);
+      const prev = appState.previousReading || 138;
+      if (val > prev) {
+        val = val - 1;
+        readingInput.value = Math.round(val);
+        const intPart = Math.floor(val);
+        const fracPart = 789;
         renderRollers(intPart, fracPart);
+        const delta = Math.max(0, intPart - prev);
+        const curMeter = appState.meters.find(m => m.id === appState.selectedMeterId);
+        const unit = curMeter ? (curMeter.unit || 'м³') : 'м³';
+        const deltaEl = document.getElementById("calc-delta-val");
+        if (deltaEl) deltaEl.textContent = `+${delta} ${unit}`;
+        const prevEl = document.getElementById("calc-prev-val");
+        if (prevEl) prevEl.textContent = `Было: ${prev} ${unit}`;
       }
     });
   }
@@ -1134,10 +1352,19 @@ function bindGeneralEventHandlers() {
   if (btnPlus && readingInput) {
     btnPlus.addEventListener("click", () => {
       let val = parseFloat(readingInput.value) || 0;
-      readingInput.value = (val + 1).toFixed(1);
-      const intPart = Math.floor(val + 1);
-      const fracPart = Math.round(((val + 1) - intPart) * 1000);
+      val = val + 1;
+      readingInput.value = Math.round(val);
+      const intPart = Math.floor(val);
+      const fracPart = 789;
       renderRollers(intPart, fracPart);
+      const prev = appState.previousReading || 138;
+      const delta = Math.max(0, intPart - prev);
+      const curMeter = appState.meters.find(m => m.id === appState.selectedMeterId);
+      const unit = curMeter ? (curMeter.unit || 'м³') : 'м³';
+      const deltaEl = document.getElementById("calc-delta-val");
+      if (deltaEl) deltaEl.textContent = `+${delta} ${unit}`;
+      const prevEl = document.getElementById("calc-prev-val");
+      if (prevEl) prevEl.textContent = `Было: ${prev} ${unit}`;
     });
   }
 
@@ -1145,8 +1372,25 @@ function bindGeneralEventHandlers() {
     readingInput.addEventListener("input", (e) => {
       const val = parseFloat(e.target.value) || 0;
       const intPart = Math.floor(val);
-      const fracPart = Math.round((val - intPart) * 1000);
+      const fracPart = 789;
       renderRollers(intPart, fracPart);
+      const prev = appState.previousReading || 138;
+      const diff = intPart - prev;
+      const curMeter = appState.meters.find(m => m.id === appState.selectedMeterId);
+      const unit = curMeter ? (curMeter.unit || 'м³') : 'м³';
+      const deltaEl = document.getElementById("calc-delta-val");
+      if (deltaEl) deltaEl.textContent = `${diff >= 0 ? '+' : ''}${diff} ${unit}`;
+      const prevEl = document.getElementById("calc-prev-val");
+      if (prevEl) prevEl.textContent = `Было: ${prev} ${unit}`;
+    });
+  }
+
+  const btnAddMeter = document.getElementById("btn-add-meter");
+  if (btnAddMeter) {
+    btnAddMeter.addEventListener("click", () => {
+      haptic("light");
+      switchTab("tab-arshin");
+      showToast("Введите заводской номер для поверки");
     });
   }
 
@@ -1176,12 +1420,12 @@ function bindGeneralEventHandlers() {
         if (feedback) {
           feedback.style.display = "block";
           if (data.is_valid) {
-            feedback.className = "feedback-notification-box alert-success";
-            feedback.innerHTML = `<b>Успешно!</b> ${data.message} (Расход: +${data.consumption} ${meter ? meter.unit : 'м³'}). Передано в ГИС ЖКХ.`;
+            feedback.className = "focus-feedback-note alert-success";
+            feedback.innerHTML = `<span class="font-medium">✓ Показания (${readingVal} ${meter ? meter.unit : 'м³'}) приняты к начислению</span>`;
             loadMeters();
           } else {
-            feedback.className = "feedback-notification-box alert-danger";
-            feedback.innerHTML = `<b>Внимание:</b> ${data.message}`;
+            feedback.className = "focus-feedback-note alert-danger";
+            feedback.innerHTML = `<span class="font-medium">Внимание: ${data.message}</span>`;
           }
         }
         showToast("Показания переданы!");

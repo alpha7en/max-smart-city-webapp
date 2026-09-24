@@ -10,3 +10,18 @@ __pycache__
 .DS_Store
 token.env
 .env
+.agents/
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+logs/
+*.log
+*.png
+*.jpg
+*.jpeg
+dist_gh_pages/
+/редизайн ии/
+/тз raw/

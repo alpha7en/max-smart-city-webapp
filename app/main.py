@@ -19,6 +19,7 @@ from app.config import settings
 from app.api.routes import router as api_router
 from app.bot.client import MaxBotClient
 from app.bot.handlers import BotHandler
+from app.bot.worker import bot_worker
 
 # Setup logging
 logging.basicConfig(
@@ -32,58 +33,9 @@ bot_task: asyncio.Task = None
 async def run_bot_polling_loop():
     """
     Background asynchronous loop for MAX Bot long polling updates.
+    Delegates to modular BotWorker.
     """
-    if not settings.BOT_TOKEN:
-        logger.warning("BOT_TOKEN is not configured. Bot polling will not start.")
-        return
-
-    client = MaxBotClient(settings.BOT_TOKEN, settings.MAX_API_BASE)
-    handler = BotHandler(client)
-
-    try:
-        me_info = client.get_me()
-        logger.info(
-            "Connected to MAX Bot API! Bot: %s (@%s), ID: %s",
-            me_info.get("first_name") or me_info.get("name"),
-            me_info.get("username"),
-            me_info.get("id") or me_info.get("user_id")
-        )
-    except Exception as e:
-        logger.error("Failed to verify bot credentials with MAX platform: %s", e)
-        return
-
-    marker = None
-    logger.info("Starting MAX Bot Long Polling listener loop...")
-
-    while True:
-        try:
-            # Non-blocking long polling request via asyncio executor
-            loop = asyncio.get_event_loop()
-            data = await loop.run_in_executor(None, lambda: client.get_updates(marker=marker, timeout=25))
-            
-            marker = data.get("marker", marker)
-            updates = data.get("updates", [])
-
-            for upd in updates:
-                upd_type = upd.get("update_type")
-                logger.info("Received MAX update: %s", upd_type)
-
-                if upd_type == "bot_started":
-                    handler.handle_bot_started(upd)
-                elif upd_type == "message_created":
-                    handler.handle_message_created(upd)
-                elif upd_type == "message_callback":
-                    handler.handle_callback(upd)
-
-        except asyncio.CancelledError:
-            logger.info("Bot polling loop cancelled.")
-            break
-        except Exception as e:
-            err_str = str(e).lower()
-            if "timed out" in err_str:
-                continue
-            logger.warning("Error in bot polling loop: %s", e)
-            await asyncio.sleep(2)
+    return await bot_worker.start()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -91,16 +43,11 @@ async def lifespan(app: FastAPI):
     logger.info("Launching MAX Smart City Platform v%s...", settings.VERSION)
     global bot_task
     if settings.BOT_TOKEN:
-        bot_task = asyncio.create_task(run_bot_polling_loop())
+        bot_task = await bot_worker.start()
     yield
     # Shutdown
     logger.info("Shutting down MAX Smart City Platform...")
-    if bot_task and not bot_task.done():
-        bot_task.cancel()
-        try:
-            await bot_task
-        except asyncio.CancelledError:
-            pass
+    await bot_worker.stop()
 
 app = FastAPI(
     title="MAX Умный Дом — Платформа ЖКХ и Счетчиков",

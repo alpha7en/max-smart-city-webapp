@@ -8,6 +8,9 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# Create persistent data directory for SQLite
+RUN mkdir -p /app/data
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -19,10 +22,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source
 COPY app/ app/
+COPY max_bot_sdk/ max_bot_sdk/
 COPY docs/ docs/
-COPY openapi.yaml .
-COPY DATA-API.yaml .
+COPY scripts/ scripts/
 COPY tests/ tests/
+COPY openapi.yaml .
+COPY openapi.json .
+COPY DATA-API.yaml .
+COPY .env.example .
+COPY conftest.py .
 
 EXPOSE 8080
 

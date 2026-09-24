@@ -9,13 +9,37 @@ __pycache__/
 *$py.class
 venv/
 .venv/
+.pytest_cache/
 
-# Node
+# Databases and data volumes
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+data/
+
+# Node & Frontend
 node_modules/
 dist/
 build/
 .next/
 
-# OS
+# Logs and runtime artifacts
+logs/
+*.log
+
+# Screenshots, audit images, and design dumps
+*.png
+*.jpg
+*.jpeg
+/редизайн ии/
+/тз raw/
+
+# Operating System
 .DS_Store
 Thumbs.db
+
+# Agent subagent logs and build artifacts
+.agents/
+dist_gh_pages/

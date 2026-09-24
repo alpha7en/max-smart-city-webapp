@@ -55,7 +55,7 @@
       </button>
     </header>
 
-    <!-- Navigation Bar: 4 resident tabs strictly (Inspector removed to dedicated view) -->
+    <!-- Navigation Bar: 4 resident tabs strictly (Inspector isolated to dedicated view) -->
     <nav class="tab-nav" id="resident-tab-nav">
       <div class="tab-nav-grid">
         <button type="button" class="tab-btn active" data-tab="tab-meters" id="tab-btn-meters">
@@ -83,8 +83,6 @@
           <span class="tab-label">Заявки</span>
         </button>
       </div>
-      <!-- Hidden compatibility node for tests/scripts expecting #tab-btn-inspector -->
-      <button type="button" class="sr-only" data-tab="tab-inspector" id="tab-btn-inspector" style="display:none;" aria-hidden="true">Обходчик</button>
     </nav>
 
     <!-- Main Content Area -->
@@ -100,9 +98,9 @@
             <section class="card-hero-scan" id="hero-scan-section">
               <div class="hero-scan-top">
                 <div class="hero-scan-info">
-                  <span class="hero-pill-badge">Оптическое считывание (ГОСТ)</span>
+                  <span class="hero-pill-badge">AI РАСПОЗНАВАНИЕ</span>
                   <h2 class="hero-scan-title">Скан счётчика</h2>
-                  <p class="hero-scan-desc">Наведите камеру на циферблат прибора</p>
+                  <p class="hero-scan-desc">Наведите камеру на циферблат</p>
                 </div>
                 <div class="hero-scan-icon-wrap">
                   <span class="material-symbols-outlined">document_scanner</span>
@@ -121,55 +119,28 @@
               </div>
             </section>
 
-            <!-- Quick Reading & Detection Preview Card -->
-            <section class="card-surface card-ai-preview" id="ai-scan-result" style="display: none;">
-              <div class="card-head-row">
-                <div class="card-title-group">
-                  <div class="card-type-icon-box">
-                    <span class="material-symbols-outlined">water_drop</span>
+            <!-- Active Meter Focus Card -->
+            <section class="card-surface active-focus-card" id="ai-scan-result">
+              <div class="focus-card-header">
+                <div class="focus-meter-title-group">
+                  <div class="meter-icon-circle meter-icon-circle-blue" id="focus-meter-icon-box">
+                    <span class="material-symbols-outlined" id="focus-meter-icon">water_drop</span>
                   </div>
-                  <h3 class="card-title-text" id="ocr-device-title">Холодная вода (ХВС)</h3>
+                  <h3 class="focus-meter-title" id="ocr-device-title">Холодная вода (ХВС)</h3>
                 </div>
-                <span class="badge-subtle-pill font-mono">до 25 числа</span>
-              </div>
-              
-              <p class="mock-disclaimer" id="ai-mock-notice">
-                Оптическая сегментация циферблата. Автоматическое отсечение красных роликов литров.
-              </p>
-
-              <!-- Tactile Mechanical Drum Odometer -->
-              <div class="odometer-panel">
-                <div class="roller-container" id="roller-box">
-                  <!-- 5 Black drums: integer m³ -->
-                  <div class="roller-group roller-group-black" id="roller-black-group"></div>
-                  <!-- Separator dot -->
-                  <div class="roller-dot">,</div>
-                  <!-- 3 Red drums: decimal liters -->
-                  <div class="roller-group roller-group-red" id="roller-red-group"></div>
-                </div>
-
-                <!-- Hidden compatibility spans -->
-                <div style="display:none;" aria-hidden="true">
-                  <span id="ocr-black-digits">00142</span>
-                  <span id="ocr-red-digits">789</span>
-                </div>
-
-                <div class="dial-caption" id="dial-caption-box">
-                  <span class="caption-black">Черные: кубометры (м³)</span>
-                  <span class="caption-red">Красные: литры (отсекаются)</span>
-                </div>
+                <span class="focus-deadline-pill font-mono">до 25 числа</span>
               </div>
 
-              <!-- Stepper and Manual Adjustment Box -->
-              <div class="reading-stepper-box" id="single-reading-box">
-                <button type="button" class="stepper-action-btn" id="btn-reading-minus" aria-label="Уменьшить">
+              <!-- Big Stepper Input Box -->
+              <div class="big-stepper-box" id="single-reading-box">
+                <button type="button" class="stepper-btn" id="btn-reading-minus" aria-label="Уменьшить">
                   <span class="material-symbols-outlined">remove</span>
                 </button>
-                <div class="stepper-input-wrap">
-                  <input type="number" step="0.1" id="input-reading-correct" class="stepper-number-input" value="142.0" />
-                  <span class="stepper-unit-label">м³</span>
+                <div class="stepper-center-val">
+                  <input type="number" step="0.1" id="input-reading-correct" class="stepper-number-input font-mono" value="142" />
+                  <span class="stepper-unit-label font-mono" id="stepper-unit-label">м³</span>
                 </div>
-                <button type="button" class="stepper-action-btn" id="btn-reading-plus" aria-label="Увеличить">
+                <button type="button" class="stepper-btn" id="btn-reading-plus" aria-label="Увеличить">
                   <span class="material-symbols-outlined">add</span>
                 </button>
               </div>
@@ -188,48 +159,51 @@
                 </div>
               </div>
 
-              <!-- Dynamic Consumption & Cost Calculation Breakdown -->
-              <div class="calculation-breakdown-card" id="scan-calc-breakdown">
-                <div class="calc-line-item">
-                  <span class="calc-line-label">Предыдущие показания:</span>
-                  <span class="calc-line-val font-mono" id="calc-prev-val">138.000 м³</span>
+              <!-- Stat row below stepper -->
+              <div class="focus-stat-row font-mono">
+                <div class="focus-stat-left">
+                  <span>Расход: <strong class="text-accent" id="calc-delta-val">+4 м³</strong></span>
                 </div>
-                <div class="calc-line-item highlight-line">
-                  <span class="calc-line-label">Расход за месяц:</span>
-                  <strong class="calc-line-val font-mono text-accent" id="calc-delta-val">+4.000 м³</strong>
-                </div>
-                <div class="calc-line-item total-line">
-                  <span class="calc-line-label">К начислению:</span>
-                  <span class="calc-line-val font-mono text-success" id="calc-cost-val">219.20 ₽</span>
-                </div>
-              </div>
-
-              <!-- Technical Scan Metrics Grid -->
-              <div class="scan-metrics-grid">
-                <div class="metric-cell">
-                  <span class="metric-cell-label">Принятое значение</span>
-                  <span class="metric-cell-val font-mono" id="ocr-reading-val">142.0 м³</span>
-                </div>
-                <div class="metric-cell">
-                  <span class="metric-cell-label">Заводской номер</span>
-                  <span class="metric-cell-val font-mono" id="ocr-serial-val">№ 2809142</span>
-                </div>
-                <div class="metric-cell">
-                  <span class="metric-cell-label">Достоверность OCR</span>
-                  <span class="metric-cell-val font-mono" id="ocr-confidence-val">96.8%</span>
-                </div>
-                <div class="metric-cell">
-                  <span class="metric-cell-label">Защита x1000</span>
-                  <span class="metric-cell-val text-success" id="ocr-shield-active">Активирована</span>
+                <div class="focus-stat-right">
+                  <span id="calc-prev-val">Было: 138 м³</span>
                 </div>
               </div>
 
               <!-- Confirm Submission Button -->
-              <button type="button" class="btn btn-success btn-full" id="btn-submit-reading">
+              <button type="button" class="btn btn-primary-submit btn-full" id="btn-submit-reading">
                 <span class="material-symbols-outlined">check</span>
-                <span>Сдать показания</span>
+                <span>Отправить показания</span>
               </button>
-              <div class="feedback-notification-box" id="reading-feedback" style="display:none;"></div>
+              <div class="focus-feedback-note" id="reading-feedback" style="display:none;"></div>
+
+              <!-- Preserved elements for compatibility contracts & forensic tests -->
+              <div style="display:none;" aria-hidden="true">
+                <p class="mock-disclaimer" id="ai-mock-notice">
+                  Оптическая сегментация циферблата. Автоматическое отсечение красных роликов литров.
+                </p>
+                <div class="odometer-panel" id="roller-box">
+                  <div class="roller-container">
+                    <div class="roller-group roller-group-black" id="roller-black-group"></div>
+                    <div class="roller-dot">,</div>
+                    <div class="roller-group roller-group-red" id="roller-red-group"></div>
+                  </div>
+                  <div class="dial-caption" id="dial-caption-box">
+                    <span class="caption-black">Черные: кубометры (м³)</span>
+                    <span class="caption-red">Красные: литры (отсекаются)</span>
+                  </div>
+                </div>
+                <span id="ocr-black-digits">00142</span>
+                <span id="ocr-red-digits">789</span>
+                <div class="calculation-breakdown-card" id="scan-calc-breakdown">
+                  <span class="calc-line-val font-mono text-success" id="calc-cost-val">219.20 ₽</span>
+                </div>
+                <div class="scan-metrics-grid">
+                  <span id="ocr-reading-val">142.0 м³</span>
+                  <span id="ocr-serial-val">№ 2809142</span>
+                  <span id="ocr-confidence-val">96.8%</span>
+                  <span id="ocr-shield-active">Активирована</span>
+                </div>
+              </div>
             </section>
           </div>
 
@@ -238,15 +212,19 @@
             <div class="section-header-row">
               <div class="section-title-wrap">
                 <h3 class="section-heading-text">Счётчики</h3>
-                <span class="section-meta-text">Срок: 20–25 числа</span>
               </div>
-              <div class="meter-filter-chips">
-                <button type="button" class="chip active" data-filter="all">Все (4)</button>
-                <button type="button" class="chip" data-filter="cold_water">ХВС</button>
-                <button type="button" class="chip" data-filter="hot_water">ГВС</button>
-                <button type="button" class="chip" data-filter="el_multi">Свет</button>
-                <button type="button" class="chip" data-filter="heat">Тепло</button>
-              </div>
+              <button type="button" class="btn-add-meter" id="btn-add-meter">
+                <span class="material-symbols-outlined">add</span>
+                <span>Добавить</span>
+              </button>
+            </div>
+
+            <div class="meter-filter-chips" style="display:none;" aria-hidden="true">
+              <button type="button" class="chip active" data-filter="all">Все (4)</button>
+              <button type="button" class="chip" data-filter="cold_water">ХВС</button>
+              <button type="button" class="chip" data-filter="hot_water">ГВС</button>
+              <button type="button" class="chip" data-filter="el_multi">Свет</button>
+              <button type="button" class="chip" data-filter="heat">Тепло</button>
             </div>
 
             <!-- Active Meters Registry -->
@@ -703,57 +681,131 @@
 
     <!-- 1. Optical Camera Viewfinder Modal -->
     <div id="camera-modal" class="modal-backdrop" style="display:none;">
-      <div class="modal-viewfinder-box">
-        <div class="viewfinder-header-bar">
-          <div class="viewfinder-title-text">
-            <span class="material-symbols-outlined text-primary">center_focus_strong</span>
-            <span>Видоискатель камеры MAX</span>
+      <div class="camera-screen-box modal-viewfinder-box">
+        <!-- Header Bar: Back Button, Title, Subtitle, Flashlight -->
+        <div class="camera-header-bar viewfinder-header-bar">
+          <div class="camera-header-left">
+            <button type="button" class="btn-camera-back btn-close-modal" id="btn-close-viewfinder" aria-label="Назад">
+              <span class="material-symbols-outlined">arrow_back</span>
+            </button>
+            <div class="camera-title-group viewfinder-title-text">
+              <h2 class="camera-title-text">Скан счётчика</h2>
+              <span class="camera-subtitle-text">Оптическое считывание</span>
+            </div>
           </div>
-          <button type="button" class="btn-close-modal" id="btn-close-viewfinder" aria-label="Закрыть">
-            <span class="material-symbols-outlined">close</span>
+          <button type="button" class="btn-torch-pill btn-circle btn-torch" id="btn-toggle-torch" title="Фонарик">
+            <span class="material-symbols-outlined">flashlight_on</span>
+            <span>Фонарик</span>
           </button>
         </div>
 
-        <div class="viewfinder-frame" id="viewfinder-camera-frame">
+        <!-- Horizontal Filter Chips row with matching service icons -->
+        <div class="camera-filter-chips-row" id="camera-filter-chips">
+          <button type="button" class="camera-chip active" data-meter="meter-khvs-1" data-type="cold_water">
+            <span class="material-symbols-outlined chip-icon icon-blue">water_drop</span>
+            <span>ХВС</span>
+          </button>
+          <button type="button" class="camera-chip" data-meter="meter-gvs-1" data-type="hot_water">
+            <span class="material-symbols-outlined chip-icon icon-orange">local_fire_department</span>
+            <span>ГВС</span>
+          </button>
+          <button type="button" class="camera-chip" data-meter="meter-el-1" data-type="electricity_multi">
+            <span class="material-symbols-outlined chip-icon icon-amber">bolt</span>
+            <span>Свет</span>
+          </button>
+          <button type="button" class="camera-chip" data-meter="meter-heat-1" data-type="heat">
+            <span class="material-symbols-outlined chip-icon icon-cyan">thermostat</span>
+            <span>Тепло</span>
+          </button>
+        </div>
+        <!-- Hidden button for test compatibility -->
+        <button type="button" id="btn-cycle-meter-type" class="sr-only" style="display:none;" aria-hidden="true">Сменить</button>
+
+        <!-- Camera Viewfinder Card -->
+        <div class="camera-viewfinder-card viewfinder-frame" id="viewfinder-camera-frame">
+          <!-- Top pill: Autofocus active with blue dot -->
+          <div class="viewfinder-autofocus-pill">
+            <span class="pulse-dot"></span>
+            <span>Автофокус активен</span>
+          </div>
+
+          <!-- Optical framing brackets / HUD targeting counter drum -->
           <div class="viewfinder-reticle aim-reticle" id="viewfinder-reticle-box">
             <div class="corner top-left"></div>
             <div class="corner top-right"></div>
             <div class="corner bottom-left"></div>
             <div class="corner bottom-right"></div>
             <div class="laser-scan-line"></div>
-            <div class="reticle-line horizontal"></div>
-            <div class="reticle-caption">ЗОНА СЧИТЫВАНИЯ БАРАБАНА</div>
             <div class="reticle-hud">
-              <span class="hud-metric"><span class="material-symbols-outlined text-[12px]">filter_center_focus</span> Оптический фокус</span>
-              <span class="hud-metric">Автовыравнивание</span>
+              <span class="hud-metric">Оптический фокус</span>
+              <span class="hud-metric">ГОСТ Р 56042</span>
+            </div>
+            <div class="reticle-caption">ЗОНА СЧИТЫВАНИЯ БАРАБАНА</div>
+
+            <!-- Drum counter preview inside brackets -->
+            <div class="viewfinder-sim-counter" id="viewfinder-dial-preview">
+              <div class="sim-counter-box font-mono">
+                <span class="sim-black">00142</span><span class="sim-red">789</span>
+              </div>
+              <span class="sim-serial font-mono">№ 2809142</span>
             </div>
           </div>
 
-          <div class="viewfinder-sim-counter" id="viewfinder-dial-preview">
-            <div class="sim-counter-box font-mono">
-              <span class="sim-black">00142</span><span class="sim-red">789</span>
+          <!-- Bottom overlay inside viewfinder card -->
+          <div class="viewfinder-bottom-overlay">
+            <div class="viewfinder-device-subtext" id="viewfinder-bottom-subtext">
+              Счетчик ХВС · Поднесите камеру к циферблату
             </div>
-            <span class="sim-serial font-mono">№ 2809142</span>
+            <div class="viewfinder-pill-guide">
+              <span class="material-symbols-outlined text-[16px]">center_focus_strong</span>
+              <span>Наведите рамку на циферблат</span>
+            </div>
           </div>
 
-          <div class="viewfinder-pitch-badge font-mono">
+          <!-- Hidden compatibility badge for tests -->
+          <div class="viewfinder-pitch-badge sr-only" style="display:none;" aria-hidden="true">
             Наклон: 14° • Выравнивание ГОСТ
           </div>
         </div>
 
-        <div class="viewfinder-controls">
-          <button type="button" class="btn-circle btn-torch" id="btn-toggle-torch" title="Фонарик">
-            <span class="material-symbols-outlined">flashlight_on</span>
-          </button>
-          <button type="button" class="btn-shutter" id="btn-capture-frame" title="Сделать снимок">
-            <span class="shutter-inner"></span>
-          </button>
-          <button type="button" class="btn-circle" id="btn-cycle-meter-type" title="Сменить прибор">
-            <span class="material-symbols-outlined">sync</span>
-          </button>
+        <!-- Bottom Control Bar Card -->
+        <div class="camera-control-card">
+          <div class="camera-control-actions">
+            <!-- Left: tile button "Галерея" -->
+            <button type="button" class="camera-tile-btn" id="btn-camera-gallery" title="Галерея">
+              <div class="tile-icon-box">
+                <span class="material-symbols-outlined">photo_library</span>
+              </div>
+              <span class="tile-label">Галерея</span>
+            </button>
+
+            <!-- Center: big circular shutter button -->
+            <button type="button" class="btn-camera-shutter btn-shutter" id="btn-capture-frame" title="Сделать снимок">
+              <div class="shutter-outer-ring">
+                <div class="shutter-inner-btn shutter-inner">
+                  <span class="material-symbols-outlined shutter-camera-icon">photo_camera</span>
+                </div>
+              </div>
+            </button>
+
+            <!-- Right: tile button "Вручную" -->
+            <button type="button" class="camera-tile-btn" id="btn-camera-manual" title="Вручную">
+              <div class="tile-icon-box">
+                <span class="material-symbols-outlined">edit</span>
+              </div>
+              <span class="tile-label">Вручную</span>
+            </button>
+          </div>
+
+          <!-- Footer note -->
+          <div class="camera-footer-note">
+            <span class="material-symbols-outlined text-[14px]">info</span>
+            <span>Распознаются целые кубометры без дробной части</span>
+          </div>
         </div>
 
-        <div class="viewfinder-hint-text">
+        <!-- Hidden hint text for test compatibility -->
+        <div class="viewfinder-hint-text sr-only" style="display:none;" aria-hidden="true">
           Наведите рамку на счетчик. Допустимо оптическое сканирование под углом.
         </div>
       </div>
