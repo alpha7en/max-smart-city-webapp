@@ -62,7 +62,7 @@ from app.readings import SubmitResult, format_delta, format_months, format_value
 from app.repo import values_of
 
 log = logging.getLogger(__name__)
-RECOGNIZE_TIMEOUT = 25.0          # с; сам HTTP-клиент ограничен 20 с
+RECOGNIZE_TIMEOUT = 25.0          # с; сам HTTP-клиент ограничен 20 с (сервис отвечает за 2–5 с)
 LOW_CONFIDENCE, CHECK_CONFIDENCE = 0.5, 0.8
 PAGE_SIZE = 20                    # кнопок-вариантов на экране выбора счётчика/адреса
 DRAFT_STATES = {S.SUB_NEW_TYPE, S.SUB_NEW_TARIFF, S.SUB_NEW_ADDRESS, S.SUB_ADDR_INPUT, S.SUB_ADDR_PICK,
@@ -650,7 +650,7 @@ async def _recognize(ctx: Ctx) -> None:
     await ctx.typing()
     await ctx.reply(T.LOOKING)
     rec = await _run_recognizer(ctx, path, m, await _prev_values(ctx, m))
-    if rec.error or rec.confidence < LOW_CONFIDENCE or rec.values.get("t1") is None:
+    if rec.error or rec.confidence < LOW_CONFIDENCE or all(rec.values.get(f) is None for f in m.fields):
         await photos.delete_photo(ctx.repo, d.pop("photo_id", None))
         for key in RESET_ON_NEW_PHOTO:
             d.pop(key, None)
@@ -679,6 +679,14 @@ async def _recognize(ctx: Ctx) -> None:
     if d["serial_status"] == "mismatch" and not d.get("serial_ok"):
         ctx.session.go(S.SUB_SERIAL_MISMATCH)
         await ask_serial(ctx)
+        return
+    await _review_recognized(ctx)
+
+
+async def _review_recognized(ctx: Ctx) -> None:
+    """На проверку; многотарифный, где на фото виден один тариф, — дописать остальные вручную."""
+    if any(v is None for v in (ctx.data.get("values") or {}).values()):
+        await _start_manual_input(ctx, back="review")
         return
     ctx.session.go(S.SUB_REVIEW)
     await ask_review(ctx)
@@ -719,8 +727,7 @@ async def got_serial(ctx: Ctx) -> None:
         await _go_pick(ctx)
     elif ctx.action in ("same", "yes"):
         ctx.data.update(serial_ok=True, serial_status="ignored")
-        ctx.session.go(S.SUB_REVIEW)
-        await ask_review(ctx)
+        await _review_recognized(ctx)
     elif ctx.action == "retake":
         await _retake(ctx)
     else:

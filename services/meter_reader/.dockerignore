@@ -1,0 +1,6 @@
+.env
+.venv/
+data/
+results/
+__pycache__/
+*.pdf

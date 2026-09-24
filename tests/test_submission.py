@@ -406,6 +406,22 @@ async def test_f10_recognizer_failures_like_f9(chat, api, repo, deps, settings, 
     assert api.last_text() == T.RECOGNIZE_FAILED and photo_files(settings) == []
 
 
+
+async def test_multi_tariff_one_tariff_on_photo_rest_manual(chat, api, repo, deps, user):
+    """Сервис читает с табло один тариф (здесь Т2): его подставляем подсказкой, остальные — вручную."""
+    mid = await meter(repo, user, "electricity", 2)
+    deps.recognizer = FixedRecognizer({"t2": 505_500})
+    await to_review(chat, "Свет · Арбат 47к1, кв 32")
+    assert (await state(repo)).state == S.SUB_MANUAL
+    assert "Т1 день (1 из 2)" in api.last_text()
+    await chat.text("1010")
+    assert "Т2 ночь (2 из 2)" in api.last_text() and "На фото разобрали: 505,50 кВт·ч" in api.last_text()
+    await chat.text("505,5")
+    assert "Т2 ночь: **505,50 кВт·ч**" in api.last_text()
+    await chat.press(T.BTN_SEND)
+    assert (await readings(repo, mid))[-1] == {"t1": 1_010_000, "t2": 505_500, "t3": None,
+                                               "source": "photo_edited", "status": "accepted"}
+
 # --- F11–F12: серийные номера ---
 
 async def test_f11_serial_mismatch_three_ways(chat, api, repo, deps, settings, user):
