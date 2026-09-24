@@ -726,7 +726,7 @@ async def test_recognizer_crash_then_manual_path(repo, settings, api):
     await c.photo("https://i.oneme.ru/i?r=rc")
     await c.press(COLD)
     await c.press(ARBAT_LABEL)
-    assert api.last_text() == T.RECOGNIZE_FAILED
+    assert T.ISSUE_TEXTS["service"] in api.last_text()
     await c.press(T.BTN_MANUAL)
     await c.text("123,456")
     await c.press(T.BTN_SEND)

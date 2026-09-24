@@ -3,7 +3,7 @@
 HTTP-сервис на Python (FastAPI). Принимает фото счётчика и возвращает тип счётчика, показание (расход), производителя, модель и серийный номер.
 Распознаёт мультимодальная модель **Qwen3.6-35B-A3B** в Yandex Cloud AI Studio (внешний сервис, через OpenAI-совместимый API).
 
-Сейчас проверено распознавание **счётчиков воды** (горячей и холодной). Электричество и газ уже описаны в промпте, но на датасетах ещё не проверялись.
+Сейчас проверено распознавание **счётчиков воды** (горячей и холодной). Электричество, газ и тепло описаны в промпте, но на датасетах ещё не проверялись.
 
 Это часть репозитория бота ЖКХ в MAX: бот ходит сюда по `RECOGNIZER_URL`, клиент — `app/integrations/recognizer.py`
 (см. «Как бот использует ответ» ниже). Сервис можно запускать и отлаживать отдельно, бот для этого не нужен.
@@ -30,10 +30,13 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 ## API
 
-`POST /recognize`: multipart-форма с полем `image`.
+`POST /recognize`: multipart-форма с полем `image` и необязательными подсказками:
+`meter_type` (`cold_water` | `hot_water` | `electricity` | `gas` | `heat`) и `tariffs` (`1`..`3`).
+С подсказкой промпт собирается под тип (`build_prompt` в `meter_reader/prompts.py`: блок «Known meter type» и
+правила чтения этого типа); без неё или с неизвестным значением используется прежний универсальный промпт.
 
 ```bash
-curl -F image=@meter.jpg http://localhost:8000/recognize
+curl -F image=@meter.jpg -F meter_type=hot_water http://localhost:8000/recognize
 ```
 
 ```json
@@ -49,9 +52,21 @@ curl -F image=@meter.jpg http://localhost:8000/recognize
   "model": "СГВ-15",
   "serial_number": "123456",
   "confidence": 0.95,
-  "type_evidence": "red ring and 'СГВ' marking"
+  "type_evidence": "red ring and 'СГВ' marking",
+  "readable": true,
+  "issues": [],
+  "issue_note": null
 }
 ```
+
+Поля про качество фото (сервис никогда не отдаёт «пустой успех»):
+- `readable` — основное показание уверенно прочитано. Нет цифр → всегда `false`.
+- `issues` — коды из фиксированного набора (контракт с ботом): `no_meter`, `wrong_type` (тип не совпал с
+  переданным `meter_type`), `digits_not_visible`, `blurry`, `glare`, `too_dark`, `angle`, `partially_covered`,
+  `multiple_meters`, `serial_not_visible` (не мешает `readable=true`), `display_off`, `other`.
+  Неизвестные коды модели превращаются в `other`, без дублей. Нет цифр и нет причины → `digits_not_visible`.
+- `issue_note` — пояснение на русском для человека (≤120 символов); если модель его не дала, а показание
+  не прочитано или тип не тот, подставляется типовая фраза.
 
 Из консоли (нужны `curl` и `python3`):
 
@@ -61,14 +76,16 @@ curl -F image=@meter.jpg http://localhost:8000/recognize
 METER_API=http://host:8000 ./recognize.sh meter.jpg
 ```
 
-`meter_type`: `hot_water` | `cold_water` | `electricity` | `gas` | `unknown`.
+`meter_type`: `hot_water` | `cold_water` | `electricity` | `gas` | `heat` | `unknown`.
+`unit`: `m3` | `kWh` | `Gcal` | `MWh` | `GJ` (если модель не указала, берётся типовая для счётчика).
+`tariff`: `T1` | `T2` | `T3`, `total` (сумма) или `null`.
 Ошибки: `400` — файл не является изображением, `502` — ошибка Yandex Cloud или некорректный ответ модели.
 Документация OpenAPI: `http://localhost:8000/docs`. Проверка работоспособности: `GET /health`.
 
 ## Как бот использует ответ
 
-Бот и мини-приложение шлют `POST /recognize` с полем `image` (и полями-подсказками `meter_type`, `tariffs`,
-которые сервис пока игнорирует; их можно начать читать, не ломая бота). Клиент ждёт 20 с.
+Бот и мини-приложение шлют `POST /recognize` с полем `image` и подсказками `meter_type`, `tariffs`
+(тип пользователь уже выбрал). Клиент ждёт 20 с.
 Если поменяете формат ответа, поправьте `HttpRecognizer._parse` и `tests/test_recognizer.py` в корне.
 
 - Показание берётся из `reading_text` (строка, без ошибок float), иначе из `reading`. Нет показания → «не получилось
@@ -107,6 +124,9 @@ python scripts/eval_water.py --data data/WaterMeters --limit 400 --seed 7
 |---|---|---|---|
 | 100 фото (на них подбирался промпт) | 81% | 94% | ~2.5 с |
 | 373 отдельных фото | **74%** | **91%** | ~2.7 с |
+
+Цифры измерены до добавления типовых промптов и полей `readable`/`issues`; после этих изменений eval
+стоит перезапустить (скрипт работает без подсказки типа, то есть на универсальном промпте).
 
 Если целая часть верна, а дробная нет, ошибка в 80% случаев не больше 10 литров. Обычно это барабан, который прокручивается между цифрами (такие случаи спорны и в самой разметке).
 

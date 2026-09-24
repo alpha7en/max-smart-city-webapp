@@ -1,5 +1,8 @@
 """Тексты подачи показаний (бот) и сообщения сервиса подачи (app/readings.py, для API)."""
+import re
+
 from app.bot.texts import registration as _reg
+from app.bot.texts.fmt import TYPE_GEN, esc
 
 # Общая строка про смоделированную передачу (бот, сервис подачи, сообщение из мини-приложения).
 UK_MOCK = "В демо-версии передача в управляющую компанию смоделирована."
@@ -51,11 +54,74 @@ RECOGNIZE_FAILED = (
     "Не получилось разобрать цифры — так бывает из-за бликов или съёмки под углом.\n\n"
     "Попробуйте переснять или введите показание вручную."
 )
+FAILED_HEAD = "Не получилось распознать показание."
+FAILED_TAIL = "Переснимите или введите показание вручную."
+FAILED_TAIL_SERVICE = "Введите показание вручную или попробуйте позже."
+# Коды проблем от сервиса распознавания (app/integrations/recognizer.ISSUES) → причина и совет.
+ISSUE_TEXTS = {
+    "no_meter": "Похоже, на фото нет счётчика — снимите его табло целиком.",
+    "wrong_type": "Похоже, это не счётчик {kind} — выберите другой счётчик.",
+    "digits_not_visible": "Цифры не видны — поднесите телефон ближе, чтобы в кадр целиком попал ряд цифр.",
+    "blurry": "Фото размыто — держите телефон неподвижно и дождитесь фокуса.",
+    "glare": "Блики — снимите под небольшим углом или без вспышки.",
+    "too_dark": "Слишком темно — включите свет или фонарик.",
+    "angle": "Снято под сильным углом — держите телефон прямо напротив табло.",
+    "partially_covered": "Часть цифр закрыта — уберите то, что мешает, и переснимите.",
+    "multiple_meters": "В кадре несколько счётчиков — снимите только нужный.",
+    "display_off": "Табло не горит — нажмите кнопку на счётчике, чтобы оно включилось.",
+    "other": "Не получилось разобрать цифры на фото.",
+    "service": "Сервис распознавания сейчас не отвечает.",
+}
+MAX_ISSUES = 2
+NOTE_LIMIT = 160
+WRONG_TYPE_WARN = "Похоже, на фото счётчик другого типа — проверьте, тот ли счётчик выбран."
 SWITCHED_METER = "Этот счётчик у вас уже есть — {label}. Запишем показание для него."
 SERIAL_MISMATCH = (
-    "На фото номер {photo}, а у счётчика «{label}» записан {saved}.\n\n"
-    "Это другой счётчик или номер на фото разобрали неверно?"
+    "Номер на фото не совпадает с этим счётчиком.\n"
+    "На фото: **{photo}**\n"
+    "У счётчика «{label}»: **{saved}**\n\n"
+    "Если это другой счётчик — выберите его или добавьте новый. "
+    "Если номер распознан с ошибкой — продолжим с текущим."
 )
+SERIAL_OF_OTHER = (
+    "Номер на фото — **{photo}** — записан у другого вашего счётчика: «{other}».\n\n"
+    "Если на фото он — выберите его. Если номер распознан с ошибкой — продолжим с «{label}»."
+)
+# Мини-приложение (обычный текст, без разметки).
+API_UNREADABLE = "Не разобрали цифры. Переснимите прямо, без бликов, или введите вручную."
+API_SERIAL_MISMATCH = "Номер на фото — {photo}, у счётчика — {saved}. Проверьте, тот ли счётчик выбран."
+
+
+def _stems(text: str) -> set[str]:
+    return {w[:5] for w in re.findall(r"[а-яёa-z]{4,}", text.casefold())}
+
+
+def issue_lines(issues: list[str], note: str | None, meter_type: str, *, markup: bool = True) -> list[str]:
+    """До MAX_ISSUES причин с советом + пояснение модели, если оно не повторяет причины.
+    serial_not_visible показанию не мешает — не показываем. markup=False — для мини-приложения (без esc)."""
+    codes = [c for c in dict.fromkeys(issues) if c in ISSUE_TEXTS]
+    if note and codes != ["service"]:
+        codes = [c for c in codes if c != "other"]  # у «другого» пояснение модели точнее
+    lines = [ISSUE_TEXTS[c].format(kind=TYPE_GEN.get(meter_type, "")) for c in codes[:MAX_ISSUES]]
+    note = (note or "").strip()
+    if note and "service" not in codes:
+        if len(note) > NOTE_LIMIT:
+            note = note[:NOTE_LIMIT].rsplit(" ", 1)[0] + "…"
+        stems, seen = _stems(note), _stems(" ".join(lines))
+        if not stems or len(stems & seen) < len(stems) * 0.6:
+            note = note[0].upper() + note[1:]
+            lines.append((esc(note) if markup else note) + ("" if note[-1] in ".!?…" else "."))
+    return lines
+
+
+def recognize_failed(issues: list[str], note: str | None, meter_type: str) -> str:
+    """Экран «не получилось распознать»: что не так и что делать. Нет причин — общий текст."""
+    lines = issue_lines(issues, note, meter_type)
+    if not lines:
+        return RECOGNIZE_FAILED
+    tail = FAILED_TAIL_SERVICE if "service" in issues else FAILED_TAIL
+    return "\n".join([FAILED_HEAD, "", *lines, "", tail])
+
 
 # --- Проверка ---
 VALUE_LINE = "Показание: **{value}**"
@@ -63,6 +129,7 @@ TARIFF_LINE = "{label}: **{value}**"
 SERIAL_MATCH = "Серийный номер: {serial} — совпадает"
 SERIAL_NEW = "Серийный номер: {serial} — сохраним"
 SERIAL_IGNORED = "Серийный номер на фото: {serial} — оставили сохранённый"
+SERIAL_REJECTED = "Серийный номер на фото: {serial} — не сохраняем"
 PREV_LINE = "В прошлый раз: {value} ({delta})"
 PREV_LINE_MULTI = "В прошлый раз: {value}"
 CHECK_DIGITS = "Проверьте цифры внимательно."
@@ -128,7 +195,8 @@ BTN_SEND = "Отправить"
 BTN_EDIT = "Исправить"
 BTN_RETAKE = "Переснять"
 BTN_OTHER_METER = "Это другой счётчик"
-BTN_SAME_METER = "Это он, продолжить"
+BTN_SAME_METER = "Номер на фото неверный"
+BTN_PICK_OTHER = "Выбрать другой счётчик"
 BTN_CONFIRM_BIG = "Да, всё верно"
 BTN_REPLACE = "Заменить"
 BTN_KEEP_OLD = "Оставить старое"

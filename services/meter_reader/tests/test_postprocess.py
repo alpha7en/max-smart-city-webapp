@@ -29,3 +29,56 @@ def test_json_inside_text_and_broken_json():
     assert _extract_json('Ответ: {"meter_type": "gas"} готово') == {"meter_type": "gas"}
     with pytest.raises(LLMError):
         _extract_json("{meter_type: gas")
+
+
+def test_empty_drums_is_not_readable():
+    r = _to_reading({"meter_type": "cold_water", "drums": [], "readable": True, "issues": []}, "cold_water")
+    assert (r.readable, r.reading, r.issues) == (False, None, ["digits_not_visible"])
+    assert r.issue_note  # человеку всегда есть что показать
+
+
+def test_readable_reading_without_issues():
+    r = _to_reading({"meter_type": "gas", "drums": drums("01234", "567"), "readable": True, "issues": []}, "gas")
+    assert (r.readable, r.issues, r.issue_note, r.unit) == (True, [], None, "m3")
+
+
+def test_model_issues_kept_and_empty_drums():
+    r = _to_reading({"meter_type": "hot_water", "drums": [], "readable": False, "issues": ["glare"],
+                     "issue_note": "Блик закрывает последние цифры"}, "hot_water")
+    assert (r.readable, r.issues, r.issue_note) == (False, ["glare"], "Блик закрывает последние цифры")
+
+
+def test_wrong_type_added_when_type_differs():
+    r = _to_reading({"meter_type": "electricity", "drums": drums("012345", "6"), "unit": "kWh"}, "cold_water")
+    assert "wrong_type" in r.issues and r.issue_note
+    r = _to_reading({"meter_type": "unknown", "drums": [], "issues": ["no_meter"]}, "gas")
+    assert r.issues == ["no_meter"]
+    # без переданного типа несовпадать не с чем
+    assert _to_reading({"meter_type": "gas", "drums": drums("1", "2")}).issues == []
+
+
+def test_issues_normalized():
+    r = _to_reading({"meter_type": "gas", "drums": drums("00012", "345"), "readable": True,
+                     "issues": ["Glare", "glare", "smudge", "serial-not-visible", None, "cracked"]}, "gas")
+    assert r.issues == ["glare", "other", "serial_not_visible"]
+    assert r.readable is True
+    assert _to_reading({"meter_type": "gas", "drums": drums("1", ""), "issues": "blurry"}).issues == ["blurry"]
+
+
+def test_long_issue_note_trimmed():
+    r = _to_reading({"meter_type": "gas", "drums": [], "issues": ["blurry"], "issue_note": "а" * 300})
+    assert len(r.issue_note) <= 120
+
+
+def test_heat_units():
+    r = _to_reading({"meter_type": "heat", "drums": drums("0012", "345"), "unit": "Гкал"}, "heat")
+    assert (r.meter_type, r.unit, r.reading_text) == ("heat", "Gcal", "0012.345")
+    assert _to_reading({"meter_type": "heat", "drums": drums("5", "1"), "unit": "MWh"}).unit == "MWh"
+    assert _to_reading({"meter_type": "heat", "drums": drums("5", "1"), "unit": "ГДж"}).unit == "GJ"
+    assert _to_reading({"meter_type": "heat", "drums": drums("5", "1"), "unit": None}).unit == "Gcal"
+    assert _to_reading({"meter_type": "heat", "drums": drums("5", "1"), "unit": "parsecs"}).unit == "Gcal"
+
+
+def test_tariff_normalized():
+    r = _to_reading({"meter_type": "electricity", "drums": drums("12345", "6"), "tariff": "Т2"}, "electricity")
+    assert (r.tariff, r.unit) == ("T2", "kWh")

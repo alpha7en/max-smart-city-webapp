@@ -73,9 +73,11 @@ def hook_button(monkeypatch):
 class FixedRecognizer:
     """Распознаватель с заданным ответом (или исключением / задержкой)."""
 
-    def __init__(self, values=None, serial=None, confidence=0.95, stub=False, exc=None, delay=0.0):
+    def __init__(self, values=None, serial=None, confidence=0.95, stub=False, exc=None, delay=0.0,
+                 issues=(), note=None):
         self.values, self.serial, self.confidence, self.stub = values or {}, serial, confidence, stub
         self.exc, self.delay, self.calls = exc, delay, []
+        self.issues, self.note = list(issues), note
 
     async def recognize(self, image_path, meter_type, tariffs, *, hint=None):
         self.calls.append((meter_type, tariffs, hint))
@@ -84,7 +86,7 @@ class FixedRecognizer:
         if self.exc:
             raise self.exc
         vals = {f: self.values.get(f) for f in ("t1", "t2", "t3")}
-        return Recognition(vals, self.serial, self.confidence, self.stub)
+        return Recognition(vals, self.serial, self.confidence, self.stub, issues=self.issues, note=self.note)
 
 
 def cand(text: str) -> AddressCandidate:
@@ -377,7 +379,7 @@ async def test_f8_retake_then_new_photo_recognized_at_once(chat, api, repo, sett
 async def test_f9_recognition_error_caption(chat, api, repo, settings, cold):
     await photo_with_caption(chat, "ошибка")
     await chat.press(LABEL)
-    assert api.last_text() == T.RECOGNIZE_FAILED
+    assert api.last_text() == T.recognize_failed(["digits_not_visible"], None, "cold_water")
     assert buttons(api) == [T.BTN_RETAKE, T.BTN_MANUAL, C.BTN_CANCEL]
     assert photo_files(settings) == [] and (await state(repo)).state == S.SUB_AWAIT_PHOTO
     await chat.press(T.BTN_RETAKE)
@@ -397,13 +399,18 @@ async def test_f10_low_confidence_warns(chat, api, repo, deps, cold):
     assert deps.recognizer.calls[0][2]["prev"] == {"t1": 118_200, "t2": None, "t3": None}
 
 
-@pytest.mark.parametrize("rec", [FixedRecognizer(exc=RuntimeError("boom")), FixedRecognizer({"t1": 1}, confidence=0.3),
-                                 FixedRecognizer({}, confidence=0.9), FixedRecognizer({"t1": 1}, delay=1)])
-async def test_f10_recognizer_failures_like_f9(chat, api, repo, deps, settings, cold, monkeypatch, rec):
+SERVICE_DOWN = T.recognize_failed(["service"], None, "cold_water")
+
+
+@pytest.mark.parametrize("rec, text", [
+    (FixedRecognizer(exc=RuntimeError("boom")), SERVICE_DOWN), (FixedRecognizer({"t1": 1}, confidence=0.3), None),
+    (FixedRecognizer({}, confidence=0.9), None), (FixedRecognizer({"t1": 1}, delay=1), SERVICE_DOWN)])
+async def test_f10_recognizer_failures_like_f9(chat, api, repo, deps, settings, cold, monkeypatch, rec, text):
     monkeypatch.setattr(flow, "RECOGNIZE_TIMEOUT", 0.05)
     deps.recognizer = rec
     await to_review(chat)
-    assert api.last_text() == T.RECOGNIZE_FAILED and photo_files(settings) == []
+    assert api.last_text() == (text or T.RECOGNIZE_FAILED) and photo_files(settings) == []
+    assert buttons(api) == [T.BTN_RETAKE, T.BTN_MANUAL, C.BTN_CANCEL]
 
 
 
@@ -481,6 +488,183 @@ async def test_new_meter_serial_saved_from_photo(chat, api, repo, deps, user):
     await chat.press(T.BTN_SEND)
     (m,) = await repo.address_meters(user[1])
     assert (m["type"], m["serial"]) == ("hot_water", "HW-9")
+
+
+# --- Серийники: номер счётчика только из подтверждённого показания, несовпадение — без записи ---
+
+def mismatch_text(photo: str, saved: str, label: str = LABEL) -> str:
+    return T.SERIAL_MISMATCH.format(photo=photo, label=label, saved=saved)
+
+
+async def test_serial_new_meter_retake_other_serial_no_false_mismatch(chat, api, repo, deps, user):
+    """Баг «два одинаковых номера»: номер первого фото писался в черновик, второе фото его перезаписывало."""
+    deps.recognizer = FixedRecognizer({"t1": 7_000}, serial="18-111111")
+    await chat.photo()
+    await chat.press("Гор. вода")
+    await chat.press("Арбат 47к1, кв 32")
+    assert "18-111111 — сохраним" in api.last_text()
+    await chat.press(T.BTN_RETAKE)
+    deps.recognizer = FixedRecognizer({"t1": 7_000}, serial="18-222222")
+    await chat.photo("https://i/2")
+    assert (await state(repo)).state == S.SUB_REVIEW and "18-222222 — сохраним" in api.last_text()
+    assert "18-111111" not in api.last_text()
+    await chat.press(T.BTN_SEND)
+    (m,) = await repo.address_meters(user[1])
+    assert m["serial"] == "18-222222"
+
+
+async def test_serial_mismatch_message_and_nothing_saved_until_decision(chat, api, repo, deps, user):
+    mid = await meter(repo, user, serial="18-654321")
+    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="18-123456")
+    await to_review(chat)
+    assert api.last_text() == mismatch_text("18-123456", "18-654321")
+    assert buttons(api) == [T.BTN_OTHER_METER, T.BTN_SAME_METER, T.BTN_RETAKE, C.BTN_CANCEL]
+    assert await readings(repo, mid) == [] and (await repo.get_meter(mid))["serial"] == "18-654321"
+    await chat.text("что?")  # повтор шага — номера по-прежнему разные
+    assert api.last_text() == mismatch_text("18-123456", "18-654321")
+    await chat.press(C.BTN_CANCEL)
+    assert await readings(repo, mid) == [] and (await repo.get_meter(mid))["serial"] == "18-654321"
+
+
+async def test_serial_wrong_on_photo_then_next_submission_still_compares_saved(chat, api, repo, deps, user):
+    mid = await meter(repo, user, serial="18-654321")
+    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="18-123456")
+    await to_review(chat)
+    await chat.press(T.BTN_SAME_METER)
+    assert "18-123456 — оставили сохранённый" in api.last_text()
+    await chat.press(T.BTN_SEND)
+    row = await repo._one("SELECT recognized_json FROM readings WHERE meter_id=?", (mid,))
+    rec = json.loads(row["recognized_json"])
+    assert rec["serial"] is None and rec["photo_serial"] == "18-123456"
+    assert (await repo.get_meter(mid))["serial"] == "18-654321"
+    await to_review(chat, url="https://i/next")  # следующая подача с тем же фото — снова вопрос, номер не подменён
+    assert api.last_text() == mismatch_text("18-123456", "18-654321")
+
+
+async def test_serial_retake_after_mismatch_matches_after_normalization(chat, api, repo, deps, user):
+    mid = await meter(repo, user, serial="18-654321")
+    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="18-123456")
+    await to_review(chat)
+    await chat.press(T.BTN_RETAKE)
+    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="№ 18 654 321")
+    await chat.photo("https://i/2")
+    assert (await state(repo)).state == S.SUB_REVIEW
+    assert "Серийный номер: № 18 654 321 — совпадает" in api.last_text()
+    await chat.press(T.BTN_SEND)
+    assert (await repo.get_meter(mid))["serial"] == "18-654321"
+
+
+async def test_serial_other_meter_then_pick_it(chat, api, repo, deps, user):
+    cold_id = await meter(repo, user, serial="18-654321")
+    hot = await meter(repo, user, "hot_water", serial="18-123456")
+    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="18-123456")
+    await to_review(chat)
+    await chat.press(T.BTN_OTHER_METER)
+    assert (await state(repo)).state == S.SUB_PICK_METER
+    await chat.press("Гор. вода · Арбат 47к1, кв 32")
+    assert "18-123456 — совпадает" in api.last_text()
+    await chat.press(T.BTN_SEND)
+    assert [r["t1"] for r in await readings(repo, hot)] == [5_000] and await readings(repo, cold_id) == []
+    assert (await repo.get_meter(cold_id))["serial"] == "18-654321"
+
+
+async def test_serial_of_another_meter_for_meter_without_serial(chat, api, repo, deps, user):
+    cold_id = await meter(repo, user)
+    hot = await meter(repo, user, "hot_water", serial="18-123456")
+    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="18 123456")
+    await to_review(chat)
+    assert (await state(repo)).state == S.SUB_SERIAL_MISMATCH
+    assert api.last_text() == T.SERIAL_OF_OTHER.format(photo="18 123456", other="Гор. вода · Арбат 47к1, кв 32",
+                                                       label=LABEL)
+    await chat.press(T.BTN_SAME_METER)
+    assert "18 123456 — не сохраняем" in api.last_text()
+    await chat.press(T.BTN_SEND)
+    assert (await repo.get_meter(cold_id))["serial"] is None
+    assert (await repo.get_meter(hot))["serial"] == "18-123456" and len(await readings(repo, cold_id)) == 1
+
+
+async def test_serial_cyrillic_lookalike_matches(chat, api, repo, deps, user):
+    await meter(repo, user, serial="АВ-77")  # кириллица
+    deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="AB77")
+    await to_review(chat)
+    assert (await state(repo)).state == S.SUB_REVIEW and "AB77 — совпадает" in api.last_text()
+
+
+# --- Почему не распознали: коды проблем от сервиса ---
+
+async def test_issues_two_reasons_and_model_note(chat, api, repo, deps, settings, cold):
+    deps.recognizer = FixedRecognizer(confidence=0.0, issues=["glare", "angle", "too_dark"],
+                                      note="на табло отражается лампа")
+    await to_review(chat)
+    text = api.last_text()
+    assert text.startswith(T.FAILED_HEAD)
+    assert T.ISSUE_TEXTS["glare"] in text and T.ISSUE_TEXTS["angle"] in text and T.ISSUE_TEXTS["too_dark"] not in text
+    assert "На табло отражается лампа." in text and text.endswith(T.FAILED_TAIL)
+    assert buttons(api) == [T.BTN_RETAKE, T.BTN_MANUAL, C.BTN_CANCEL]
+    assert (await state(repo)).state == S.SUB_AWAIT_PHOTO and photo_files(settings) == []
+
+
+async def test_issues_duplicate_note_hidden_and_serial_code_not_shown(chat, api, deps, cold):
+    deps.recognizer = FixedRecognizer(confidence=0.0, issues=["serial_not_visible", "digits_not_visible"],
+                                      note="Цифры не видны")
+    await to_review(chat)
+    assert api.last_text() == "\n".join([T.FAILED_HEAD, "", T.ISSUE_TEXTS["digits_not_visible"], "", T.FAILED_TAIL])
+
+
+async def test_issue_no_meter_other_uses_note(chat, api, deps, cold):
+    deps.recognizer = FixedRecognizer(confidence=0.0, issues=["no_meter"])
+    await to_review(chat)
+    assert "Похоже, на фото нет счётчика" in api.last_text()
+    deps.recognizer = FixedRecognizer(confidence=0.0, issues=["other"], note="на фото кошка")
+    await chat.photo("https://i/2")
+    assert "На фото кошка." in api.last_text() and T.ISSUE_TEXTS["other"] not in api.last_text()
+
+
+async def test_issue_wrong_type_unreadable_pick_other_meter_keeps_photo(chat, api, repo, deps, settings, user, cold):
+    gas = await meter(repo, user, "gas")
+    deps.recognizer = FixedRecognizer(confidence=0.0, issues=["wrong_type"])
+    await to_review(chat)
+    assert "Похоже, это не счётчик холодной воды — выберите другой счётчик." in api.last_text()
+    assert buttons(api) == [T.BTN_RETAKE, T.BTN_MANUAL, T.BTN_PICK_OTHER, C.BTN_CANCEL]
+    assert len(photo_files(settings)) == 1
+    await chat.press(T.BTN_PICK_OTHER)
+    assert (await state(repo)).state == S.SUB_PICK_METER
+    deps.recognizer = FixedRecognizer({"t1": 5_000})
+    await chat.press("Газ · Арбат 47к1, кв 32")
+    assert (await state(repo)).state == S.SUB_REVIEW and deps.recognizer.calls[0][0] == "gas"
+    await chat.press(T.BTN_SEND)
+    assert (await readings(repo, gas))[-1]["t1"] == 5_000
+
+
+async def test_issue_wrong_type_manual_drops_kept_photo(chat, api, repo, deps, settings, cold):
+    deps.recognizer = FixedRecognizer(confidence=0.0, issues=["wrong_type"])
+    await to_review(chat)
+    await chat.press(T.BTN_MANUAL)
+    assert (await state(repo)).state == S.SUB_MANUAL and photo_files(settings) == []
+
+
+async def test_issue_wrong_type_readable_warns_on_review(chat, api, repo, deps, user, cold):
+    await meter(repo, user, "hot_water")
+    deps.recognizer = FixedRecognizer({"t1": 120_000}, confidence=0.6, issues=["wrong_type"])
+    await to_review(chat)
+    assert T.WRONG_TYPE_WARN in api.last_text() and "Показание: **120,000 м³**" in api.last_text()
+    assert buttons(api) == [T.BTN_SEND, T.BTN_EDIT, T.BTN_RETAKE, T.BTN_PICK_OTHER, C.BTN_CANCEL]
+    await chat.press(T.BTN_PICK_OTHER)
+    assert (await state(repo)).state == S.SUB_PICK_METER
+    deps.recognizer = FixedRecognizer({"t1": 7_000})
+    await chat.press("Гор. вода · Арбат 47к1, кв 32")
+    assert T.WRONG_TYPE_WARN not in api.last_text()
+
+
+def test_issue_lines_limits():
+    lines = T.issue_lines(["glare", "angle", "blurry"], "  ", "heat")
+    assert lines == [T.ISSUE_TEXTS["glare"], T.ISSUE_TEXTS["angle"]]
+    assert T.issue_lines(["wrong_type"], None, "heat") == ["Похоже, это не счётчик отопления — выберите другой счётчик."]
+    assert T.issue_lines([], "x" * 300, "gas")[0].endswith("…")
+    assert T.issue_lines(["glare"], "Сильные блики на стекле", "gas") == [T.ISSUE_TEXTS["glare"],
+                                                                        "Сильные блики на стекле."]
+    assert T.issue_lines(["glare"], "*жирный*", "gas", markup=False)[-1] == "*жирный*."
+    assert T.recognize_failed([], None, "gas") == T.RECOGNIZE_FAILED
 
 
 # --- F13–F16: проверки при отправке ---
