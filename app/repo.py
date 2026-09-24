@@ -568,6 +568,15 @@ class Repo:
 
     # === S2 (submission) ===
 
+    async def meter_access(self, user_id: int, meter_id: int) -> Row | None:
+        """Счётчик (поля meters) + access/role пользователя по его адресу (None, если адрес не привязан).
+        Нет такого счётчика → None."""
+        return await self._one(
+            "SELECT m.*, ua.access, ua.role, ua.label AS address_label FROM meters m "
+            "LEFT JOIN user_addresses ua ON ua.address_id=m.address_id AND ua.user_id=? WHERE m.id=?",
+            (user_id, meter_id),
+        )
+
     # === S4 (dashboard/notify) ===
 
     # === S5b (api) ===
