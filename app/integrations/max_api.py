@@ -154,7 +154,7 @@ class MaxApi:
         Больше max_bytes или не картинка → MaxApiError."""
         for attempt in range(len(RETRY_DELAYS) + 1):
             try:
-                async with self._client.stream("GET", url, timeout=timeout) as resp:
+                async with self._client.stream("GET", url, timeout=timeout, follow_redirects=True) as resp:
                     if resp.status_code >= 400:
                         if (resp.status_code == 429 or resp.status_code >= 500) and attempt < len(RETRY_DELAYS):
                             await self._sleep(RETRY_DELAYS[attempt])
