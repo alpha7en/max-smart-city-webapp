@@ -38,6 +38,12 @@ Handler = Callable[[Ctx], Awaitable[None]]
 STATE_HANDLERS: dict[S, Handler] = {}
 REPEAT_STEP: dict[S, Handler] = {}
 GLOBAL_ACTIONS: dict[str, Handler] = {}
+# Диплинк max.ru/<бот>?start=<payload> из мини-приложения → глобальное действие (кнопка g|action).
+# Незарегистрированному — обычная регистрация (правило 2), в регистрации — «продолжим» (правило 3).
+START_PAYLOADS = {
+    "profile": "profile", "phone": "prof_phone", "add_address": "prof_addr", "delete_data": "prof_del",
+    "add_meter": "add_meter", "submit": "submit", "meters": "meters",
+}
 COMMANDS: dict[str, Handler] = {}
 HOOKS: dict[str, Handler] = {}
 BUTTON_STATES: set[S] = set()
@@ -317,7 +323,8 @@ class Router:
                 await repeat_step(ctx)
             else:
                 await cancel_scenario(ctx)
-                await show_menu(ctx)
+                action = START_PAYLOADS.get((ev.start_payload or "").strip().lower())
+                await (GLOBAL_ACTIONS[action] if action in GLOBAL_ACTIONS else show_menu)(ctx)
             return
 
         # 4. Отмена.

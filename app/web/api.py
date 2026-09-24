@@ -44,7 +44,7 @@ MAX_UPLOAD = photos.MAX_BYTES          # 10 МБ
 FORM_OVERHEAD = 64 * 1024              # запас на заголовки multipart при проверке Content-Length
 CHUNK = 256 * 1024
 
-EMPTY_DASHBOARD = {"lines": [], "urgent": None, "window": None, "bill": None, "verification": None,
+EMPTY_DASHBOARD = {"lines": [], "urgent": None, "window": None, "bill": None, "bills": [], "verification": None,
                    "pending": [], "submitted": 0, "total": 0}
 ERROR_STATUS = {"bad_format": 422, "less_than_previous": 422, "needs_confirm": 409,
                 "already_submitted": 409, "no_access": 403, "not_found": 404}
@@ -103,10 +103,17 @@ def meter_json(m: Row, today: date) -> dict:
         last = {"period": m["last_period"], "values": units(values_of(m)), "created_at": iso(m["last_created_at"])}
     return {
         "id": m["id"], "type": m["type"], "type_label": M.TYPE_LABELS[m["type"]], "unit": M.UNITS[m["type"]],
-        "tariffs": m["tariffs"], "address_label": m["address_label"], "serial": m["serial"],
+        "tariffs": m["tariffs"], "address_id": m["address_id"], "address_label": m["address_label"],
+        "serial": m["serial"],
         "verification_due": m["verification_due"], "last": last,
         "submitted_this_period": m.get("last_period") == M.current_period(today),
     }
+
+
+def address_json(a: Row) -> dict:
+    """Адрес профиля: короткая подпись, полный текст, доступ; verified=False — адрес не сверен с ФИАС."""
+    return {"id": a["id"], "label": a["label"], "full_text": a["full_text"], "access": a["access"],
+            "role": a["role"], "verified": a["status"] != "unverified"}
 
 
 # === Доступ ===
@@ -157,7 +164,7 @@ async def me(request: Request, init: InitData = Depends(current_user)) -> dict:
                  "phone_verified": bool(user["phone_verified"])},
         "dashboard": (await dashboard(deps, user["id"], today)).to_api(),
         "meters": [meter_json(m, today) for m in meters],
-        "addresses": [{"label": a["label"], "access": a["access"], "role": a["role"]} for a in addresses],
+        "addresses": [address_json(a) for a in addresses],
         "bot_username": deps.bot_username,
     }
 
