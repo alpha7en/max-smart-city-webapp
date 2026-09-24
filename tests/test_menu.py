@@ -79,9 +79,9 @@ async def test_menu_keyboard_with_urgent_verification(chat, api, repo):
     mid = await add_meter(repo, user, aid, verif=NOW.date() + timedelta(days=10))
     await chat.text("/start")
     text, kb = api.outgoing()[-1]
-    assert text.startswith("**Запишитесь на поверку: 10 дн.**\n\nПоказания за октябрь — до 25 октября")
+    assert text.startswith("**Запишитесь на поверку: 10 дней**\n\nПоказания за октябрь — до 25 октября")
     assert text.endswith(T.FOOTER)
-    assert labels(kb) == [["Запишитесь на поверку: 10 дн."], ["Подать показания"],
+    assert labels(kb) == [["Запишитесь на поверку: 10 дней"], ["Подать показания"],
                           ["Мои счётчики", "Профиль"], [C.BTN_MINIAPP]]
     b = rows(kb)
     assert b[0][0]["payload"] == f"g|verify|{mid}" and b[1][0]["payload"] == "g|submit|"
@@ -96,7 +96,7 @@ async def test_urgent_submit_replaces_plain_submit_button(chat, api, repo):
     clock.set_now(datetime(2026, 10, 23, 12, 0, tzinfo=clock.TZ))
     await chat.text("меню")
     _, kb = api.outgoing()[-1]
-    assert labels(kb)[:2] == [["Подайте показания: 2 дн."], ["Мои счётчики", "Профиль"]]
+    assert labels(kb)[:2] == [["Подайте показания: 2 дня"], ["Мои счётчики", "Профиль"]]
     assert rows(kb)[0][0]["payload"] == "g|submit|"
 
 
@@ -134,7 +134,7 @@ async def test_verification_and_payment_stubs(chat, api, repo):
     await add_meter(repo, user, aid, verif=NOW.date() + timedelta(days=10))
     await chat.text("/start")
     api.clear()
-    await chat.press("Запишитесь на поверку: 10 дн.")
+    await chat.press("Запишитесь на поверку: 10 дней")
     text, kb = api.outgoing()[-1]
     assert text == T.VERIFICATION_STUB and labels(kb) == [[C.BTN_MENU]]
     assert api.named("answer")[0]["message"] is None  # новым сообщением

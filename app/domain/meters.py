@@ -227,7 +227,7 @@ def meter_labels(meters: Sequence[Mapping[str, Any]], max_len: int = 40) -> list
     for m in meters:
         base = TYPE_LABELS[m["type"]] + (f" · {m['address_label']}" if m.get("address_label") else "")
         group = sorted(
-            (x for x in meters if x["type"] == m["type"] and x["address_id"] == m["address_id"]),
+            (x for x in meters if x["type"] == m["type"] and x.get("address_id") == m.get("address_id")),
             key=lambda x: x["id"],
         )
         if len(group) > 1:

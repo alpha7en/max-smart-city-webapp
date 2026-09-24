@@ -15,7 +15,7 @@ def meter(mid: int, type: str = "cold_water", *, label: str = ARBAT, period: str
           created: str = "2026-10-12 09:00:00", verif: date | None = None, t1: int = 123456,
           tariffs: int = 1) -> dict:
     return {
-        "id": mid, "type": type, "tariffs": tariffs, "address_label": label, "serial": None,
+        "id": mid, "type": type, "tariffs": tariffs, "address_id": 1, "address_label": label, "serial": None,
         "verification_due": verif.isoformat() if verif else None, "verification_source": "user" if verif else None,
         "last_id": mid * 10 if period else None, "last_period": period, "last_t1": t1 if period else None,
         "last_t2": None, "last_t3": None, "last_created_at": created if period else None,
@@ -46,13 +46,13 @@ def test_urgent_priority_verification_bill_submit():
     b = bill(7, today + timedelta(days=3))
     d = dash([m], [b], today=today)
     assert (d.urgent.kind, d.urgent.text, d.urgent.days_left, d.urgent.ref) == (
-        "verification", "Запишитесь на поверку: 10 дн.", 10, 1)
+        "verification", "Запишитесь на поверку: 10 дней", 10, 1)
     assert d.lines[0] == d.urgent.text  # срочное — первой строкой (мини-приложение его пропускает)
     d = dash([meter(1)], [b], today=today)
-    assert (d.urgent.kind, d.urgent.text, d.urgent.ref) == ("bill", "Оплатите счёт: 3 дн.", 7)
+    assert (d.urgent.kind, d.urgent.text, d.urgent.ref) == ("bill", "Оплатите счёт: 3 дня", 7)
     d = dash([meter(1)], today=today)
-    assert (d.urgent.kind, d.urgent.text) == ("submit", "Подайте показания: 2 дн.")
-    assert d.urgent.to_dict() == {"kind": "submit", "text": "Подайте показания: 2 дн.", "days_left": 2}
+    assert (d.urgent.kind, d.urgent.text) == ("submit", "Подайте показания: 2 дня")
+    assert d.urgent.to_dict() == {"kind": "submit", "text": "Подайте показания: 2 дня", "days_left": 2}
 
 
 def test_urgent_thresholds_and_edge_texts():
@@ -78,7 +78,7 @@ def test_typical_dashboard_matches_spec():
               meter(3, "hot_water", verif=date(2026, 11, 3) + timedelta(days=30))],
              [bill(1, date(2026, 11, 10))])
     assert d.lines == [
-        "Показания за октябрь — до 25 октября, осталось 6 дн.",
+        "Показания за октябрь — до 25 октября, осталось 6 дней",
         "Хол. вода · Арбат 47к1, кв 32 — подано 12.10",
         "Свет · Арбат 47к1, кв 32 — не подано",
         "Гор. вода · Арбат 47к1, кв 32 — не подано",
@@ -99,13 +99,13 @@ def test_many_meters_summary_and_line_limit():
     assert "Счётчиков: 5, не подано: 2" in d.lines
     assert "Счета: 2 на 5 312 ₽, ближайший до 21 октября (демо)" in d.lines
     assert any(x.endswith(", и ещё 4") for x in d.lines)
-    assert "Доступ к адресу «Ленина 5» ждёт подтверждения собственника." in d.lines
+    assert "По адресу «Ленина 5» передавать показания можно после одобрения собственника." in d.lines
     assert len(content(d)) <= MAX_LINES
     # Худший случай при ≤3 счётчиках: срочное, доступ, заголовок + 3 счётчика, поверка, счёт, «подробнее».
     d = dash(meters[:3] + [], [bill(1, TODAY + timedelta(days=2))],
              addresses + [{"label": "Мира 1", "access": "pending", "role": "tenant"}])
     assert len(content(d)) == MAX_LINES
-    assert "Доступ к 2 адресам ждёт подтверждения собственников." in d.lines
+    assert "По 2 адресам передавать показания можно после одобрения собственников." in d.lines
     all_done = dash([meter(i, period="2026-10") for i in range(1, 5)])
     assert "Счётчиков: 4, всё подано" in all_done.lines and all_done.all_submitted
 
@@ -115,13 +115,14 @@ def test_no_meters_and_pending_only():
     pending = [{"label": ARBAT, "access": "pending", "role": "tenant"}]
     d = dash(addresses=pending)
     assert T.NO_METERS not in d.lines  # фото без прав не поможет — не зовём присылать
-    assert d.lines[0] == f"Доступ к адресу «{ARBAT}» ждёт подтверждения собственника."
+    assert d.lines[0] == f"По адресу «{ARBAT}» передавать показания можно после одобрения собственника."
     assert d.addresses == [{"label": ARBAT, "access": "pending", "role": "tenant"}]
 
 
 def test_outside_window():
+    # Одинаковые тип и адрес различаем так же, как в подаче (domain.meters.meter_labels): «№1», «№2».
     d = dash([meter(1, period="2026-10", created="2026-10-20 08:00:00"), meter(2)], today=date(2026, 10, 28))
-    assert d.lines[:3] == ["Следующая подача — с 15 ноября", "Хол. вода · Арбат 47к1, кв 32 — подано 20.10",
+    assert d.lines[:3] == ["Следующая подача — с 15 ноября", "Хол. вода · Арбат 47к1, кв 32 №1 — подано 20.10",
                            "Хол. вода · Арбат 47к1, кв 32 №2 — не подано"]
     d = dash([meter(1)], today=date(2026, 10, 5))  # окно ещё не открылось — «не подано» не пишем
     assert d.lines[:2] == ["Следующая подача — с 15 октября", "Хол. вода · Арбат 47к1, кв 32"]
@@ -132,7 +133,7 @@ def test_outside_window():
 def test_formats_and_verification_window():
     d = dash([meter(1, verif=TODAY + timedelta(days=60))], [bill(1, date(2026, 11, 10), 431200)])
     text = d.text
-    assert "до 25 октября, осталось 6 дн." in text
+    assert "до 25 октября, осталось 6 дней" in text
     assert "Счёт: 4 312 ₽ до 10 ноября (демо)" in text
     assert "Поверка: Хол. вода · Арбат 47к1, кв 32 — до 18 декабря" in text
     assert "Поверка" not in dash([meter(1, verif=TODAY + timedelta(days=61))]).text

@@ -8,7 +8,7 @@ import logging
 
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx
-from app.bot.flows.registration import AddressFlow, parse_phone, phone_line, said
+from app.bot.flows.registration import AddressFlow, address_notes, parse_phone, phone_line, said
 from app.bot.router import drop_scenario, on_global, on_hook, on_repeat, on_state, show_menu
 from app.bot.states import S
 from app.bot.texts import common as C
@@ -96,6 +96,7 @@ async def add_address(ctx: Ctx) -> None:
 
 async def _address_chosen(ctx: Ctx, c: AddressCandidate) -> None:
     raw = ctx.data.pop("addr_raw", None)
+    notes = address_notes(ctx, c, ctx.data.pop("addr_shown", []))
     uid, key = ctx.user["id"], norm_key(c)
     dup = next((a for a in await ctx.repo.user_addresses(uid) if a["norm_key"] == key), None)
     if dup:
@@ -104,6 +105,8 @@ async def _address_chosen(ctx: Ctx, c: AddressCandidate) -> None:
         return
     res = await ctx.repo.add_user_address(uid, c.to_dict(), key, raw, ctx.now.date())
     ctx.note(T.ADDRESS_SAVED.format(label=esc(res["label"])))
+    for n in notes:
+        ctx.note(n)
     if res["access"] == "granted":
         await show_profile(ctx)
     else:

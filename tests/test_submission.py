@@ -185,8 +185,8 @@ async def test_f3_photo_recognize_send(chat, api, repo, settings, user, cold):
     (_, row) = await readings(repo, cold)
     assert (row["source"], row["status"]) == ("photo", "accepted") and row["t1"] > 118_200
     done = api.last_text()
-    assert done.startswith(f"Готово! Записали: {LABEL} — ") and "за октябрь" in done
-    assert T.UK_MOCK in done and T.STUB_DONE in done
+    assert done.startswith("Готово! Записали показание счётчика холодной воды (Арбат 47к1, кв 32) за октябрь: ")
+    assert T.UK_MOCK in done and T.STUB_NOTE not in done  # о демо-распознавании сказали на проверке
     assert buttons(api) == [C.BTN_MENU, T.BTN_MORE]
     assert api.button(T.BTN_MORE)["payload"] == "g|submit|"
     assert (await state(repo)).state == S.IDLE and photo_files(settings) == []
@@ -253,7 +253,7 @@ async def test_new_address_without_flat_and_new_search(chat, api, repo, user):
     await chat.text("Москва, Тверская 1")  # B9: текст на шаге выбора — новый поиск
     assert "Тверская, д. 1" in api.last_text()
     await chat.press(T.BTN_YES)
-    assert api.last_text() == T.ASK_FLAT
+    assert api.last_text() == T.ASK_FLAT.format(address="г. Москва, Тверская, д. 1")
     await chat.text("кв. сорок")
     assert api.last_text() == T.FLAT_ERROR
     await chat.text("кв. 5")
@@ -358,7 +358,7 @@ async def test_f7_edit_with_errors_then_photo_edited(chat, api, repo, cold):
     await chat.press(T.BTN_SEND)
     assert (await readings(repo, cold))[-1] == {"t1": 125_500, "t2": None, "t3": None,
                                                 "source": "photo_edited", "status": "accepted"}
-    assert T.STUB_DONE not in api.last_text()
+    assert api.last_text().startswith("Готово! Записали показание счётчика холодной воды")
 
 
 async def test_f8_retake_then_new_photo_recognized_at_once(chat, api, repo, settings, cold):
@@ -696,6 +696,28 @@ async def test_f24_later_and_photo_starts_new_submission(chat, api, repo, user):
     assert api.last_text() == T.VERIF_LATER and (await state(repo)).state == S.IDLE
     await chat.photo()  # не отвечая на вопрос о дате — новая подача (B8)
     assert (await state(repo)).state == S.SUB_PICK_METER
+
+
+@pytest.mark.parametrize("exit_", ["/start", "отмена", "g|menu|", "expired"])
+async def test_f24_leaving_verification_date_is_not_a_cancel(chat, api, repo, user, frozen_clock, exit_):
+    """Показание уже сохранено: выход из вопроса о дате поверки не пишет «подачу отменили/прервалась»."""
+    await chat.photo()
+    await chat.press("Газ")
+    await chat.press("Арбат 47к1, кв 32")
+    await chat.press(T.BTN_SEND)
+    assert (await state(repo)).state == S.SUB_VERIF_DATE
+    if exit_ == "expired":
+        clock.set_now(frozen_clock + timedelta(minutes=31))
+        await chat.text("что-нибудь")
+    elif exit_.startswith("g|"):
+        await chat.payload(exit_)
+    else:
+        await chat.text(exit_)
+    text = api.last_text()
+    assert (await state(repo)).state == S.IDLE and text.startswith("Показания за октябрь")
+    for line in (C.SUB_CANCELLED, C.SUB_CANCELLED_BY_USER, C.SUB_EXPIRED):
+        assert line not in text
+    assert len(await repo.history((await repo.address_meters(user[1]))[0]["id"])) == 1
 
 
 # --- F25–F28 ---

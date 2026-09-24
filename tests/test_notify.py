@@ -69,7 +69,7 @@ async def test_verification_notifications(deps, repo, api):
 
     assert await tick(deps, at(2026, 11, 19)) == []  # 31 день
     ((text, kb),) = await tick(deps, at(2026, 11, 20))
-    assert text.startswith("Поверка счётчика Хол. вода · Арбат 47к1, кв 32 — до 20 декабря, осталось 30 дней.")
+    assert text.startswith("Поверка счётчика холодной воды (Арбат 47к1, кв 32) — до 20 декабря, осталось 30 дней.")
     assert "по нормативу" in text and "смоделирована" not in text
     assert labels(kb) == [["Записаться на поверку"], [C.BTN_MENU]]
     assert rows(kb)[0][0]["payload"] == f"g|verify|{mid}"
@@ -81,7 +81,7 @@ async def test_verification_notifications(deps, repo, api):
     assert "остался 1 день" in text
     assert await tick(deps, at(2026, 12, 20)) == []  # тот же этап «1»
     ((text, _),) = await tick(deps, at(2026, 12, 21))
-    assert text.startswith("Срок поверки счётчика Хол. вода · Арбат 47к1, кв 32 истёк 20 декабря.")
+    assert text.startswith("Срок поверки счётчика холодной воды (Арбат 47к1, кв 32) истёк 20 декабря.")
     assert await tick(deps, at(2026, 12, 28)) == []
     stages = [k.split(":")[-1] for kind, k in await sent_kinds(repo) if kind == "verification"]
     assert stages == ["30", "7", "1", "overdue"]
@@ -163,7 +163,7 @@ async def test_demo_notifications(chat, api, repo):
     assert await sent_kinds(repo) == []  # демо не пишет дедуп
 
     await chat.text("/start")  # срочная кнопка после демо-поверки
-    assert labels(api.outgoing()[-1][1])[0] == ["Запишитесь на поверку: 20 дн."]
+    assert labels(api.outgoing()[-1][1])[0] == ["Запишитесь на поверку: 20 дней"]
 
 
 async def test_demo_keeps_user_verification_date_and_disabled(chat, api, repo, deps):

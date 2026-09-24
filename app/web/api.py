@@ -13,7 +13,6 @@ import logging
 import os
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -32,8 +31,10 @@ from app.bot import photos
 from app.bot.ctx import Deps
 from app.bot.texts import common as C
 from app.bot.texts import fmt
+from app.bot.texts.api import BTN_MORE, CHAT_FLAGGED, CHAT_MOCK, CHAT_SAVED, MSG
 from app.domain import meters as M
-from app.repo import ReadingExists, Repo, Row, values_of
+from app.readings import submit_reading
+from app.repo import Repo, Row, values_of
 from app.web.auth import InitData, current_user
 
 log = logging.getLogger(__name__)
@@ -41,25 +42,6 @@ MAX_UPLOAD = photos.MAX_BYTES          # 10 МБ
 FORM_OVERHEAD = 64 * 1024              # запас на заголовки multipart при проверке Content-Length
 CHUNK = 256 * 1024
 
-# --- Тексты API ---
-MSG = {
-    "bad_request": "Не получилось прочитать запрос. Обновите страницу и попробуйте ещё раз.",
-    "not_found": "Не нашли этот счётчик — возможно, данные уже изменились. Вернитесь на главную.",
-    "no_access": "Нет доступа к этому адресу. Попросите собственника открыть доступ в боте.",
-    "too_large": "Фото больше 10 МБ. Снимите ещё раз или введите показание вручную.",
-    "not_image": "Это не похоже на фото. Сфотографируйте счётчик ещё раз.",
-    "no_file": "Не нашли фото в запросе. Сфотографируйте счётчик ещё раз.",
-    "internal": "Что-то пошло не так на нашей стороне. Ваши данные на месте — попробуйте ещё раз.",
-    # TODO(S2): тексты ниже нужны только временной подаче; после слияния message приходит из SubmitResult.
-    "bad_format": "Введите число, например 123,456.",
-    "less_than_previous": "Показание меньше прошлого ({prev}). Проверьте цифры.",
-    "needs_confirm": "Прирост необычно большой: {delta}. Всё верно?",
-    "already_submitted": "За {month} уже передано показание: {prev}. Заменить?",
-}
-CHAT_SAVED = "Записали показание из мини-приложения.\n\n{title}\n{values}"
-CHAT_FLAGGED = "Прирост больше обычного — отметили показание для проверки."
-CHAT_MOCK = "Передача в управляющую компанию в MVP смоделирована."
-BTN_MORE = "Подать ещё"
 ERROR_STATUS = {"bad_format": 422, "less_than_previous": 422, "needs_confirm": 409,
                 "already_submitted": 409, "no_access": 403, "not_found": 404}
 
@@ -307,62 +289,8 @@ async def notify_chat(deps: Deps, user: Row, meter: Row, reading: Row) -> None:
         log.warning("miniapp reading %s: chat notify failed: %s", reading["id"], e)
 
 
-# === Адаптеры к потокам S2 (подача) и S4 (дашборд) ===
-# TODO(S2)/TODO(S4): после слияния удалить временные реализации _submit_fallback/_dashboard_fallback и
-# блоки except ImportError — останутся только импорты.
-
-@dataclass
-class _SubmitResult:
-    status: str
-    reading_id: int | None = None
-    meter_id: int | None = None
-    previous: dict | None = None
-    delta: dict | None = None
-    message: str = ""
-
-
-async def _submit_fallback(repo: Repo, *, user_id: int, meter_id: int | None, draft: dict | None,
-                           values: dict[str, str | int], source: str, recognized: dict | None,
-                           confirm: bool = False, replace: bool = False, today: date) -> _SubmitResult:
-    """TODO(S2): временная подача поверх repo.submit_reading (порядок проверок — SPEC_REVIEW C5)."""
-    meter = await repo.user_meter(user_id, meter_id) if meter_id else None
-    if not meter:
-        return _SubmitResult("no_access", message=MSG["no_access"])
-    mtype = meter["type"]
-    try:
-        parsed = {f: M.parse_value(str(values.get(f, "")), mtype) for f in M.fields_for(meter["tariffs"])}
-    except M.ValueParseError:
-        return _SubmitResult("bad_format", message=MSG["bad_format"])
-    period = M.current_period(today)
-
-    def exists(row: Row) -> _SubmitResult:
-        prev = values_of(row)
-        text = MSG["already_submitted"].format(month=fmt.month_name(period), prev=fmt.value(prev["t1"], mtype))
-        return _SubmitResult("already_submitted", previous=prev, message=text)
-
-    current = await repo.reading_for_period(meter_id, period)
-    if current and not replace:
-        return exists(current)
-    prev_row = await repo.last_reading(meter_id, before_period=period)
-    prev = values_of(prev_row) if prev_row else None
-    months = M.months_between(prev_row["period"], period) if prev_row else 1
-    verdict = M.check_plausibility(mtype, parsed, prev, months)
-    if verdict == "less":
-        text = MSG["less_than_previous"].format(prev=fmt.value(prev["t1"], mtype))
-        return _SubmitResult("less_than_previous", previous=prev, message=text)
-    if verdict == "too_big" and not confirm:
-        delta = {f: parsed[f] - prev[f] for f in parsed if prev.get(f) is not None}
-        text = MSG["needs_confirm"].format(delta=f"{fmt.delta(delta['t1'], mtype)} {fmt.unit(mtype)}")
-        return _SubmitResult("needs_confirm", previous=prev, delta=delta, message=text)
-    status = "flagged" if verdict == "too_big" else "accepted"
-    try:
-        _, reading_id = await repo.submit_reading(user_id=user_id, period=period, values=parsed, source=source,
-                                                  status=status, recognized=recognized, replace=replace,
-                                                  meter_id=meter_id)
-    except ReadingExists as e:
-        return exists(e.reading)
-    return _SubmitResult(status, reading_id, meter_id, prev)
-
+# === Адаптер к потоку S4 (дашборд) ===
+# TODO(S4): после слияния удалить временную реализацию _dashboard_fallback и блок except ImportError.
 
 async def _dashboard_fallback(repo: Repo, user_id: int, today: date, day_from: int = 15, day_to: int = 25) -> dict:
     """TODO(S4): простой дашборд (окно подачи, демо-счета) до слияния domain/dashboard.load_dashboard."""
@@ -375,11 +303,6 @@ async def _dashboard_fallback(repo: Repo, user_id: int, today: date, day_from: i
         lines.append(f"Счёт: {fmt.money(b['amount_kop'])} до {fmt.day_month(date.fromisoformat(b['due_date']))} (демо)")
     return {"lines": lines, "urgent": None}
 
-
-try:
-    from app.readings import submit_reading  # S2
-except ImportError:  # TODO(S2)
-    submit_reading = _submit_fallback
 
 try:
     from app.domain.dashboard import load_dashboard  # S4

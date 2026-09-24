@@ -191,9 +191,9 @@ def test_a3_urgent_kind_and_dashboard_shapes():
         lines: list
         urgent: U | None
 
-    got = web_api.dashboard_json(D(["a", "", "b"], U("verif", "Запишитесь на поверку: 20 дн.", 20)))
+    got = web_api.dashboard_json(D(["a", "", "b"], U("verif", "Запишитесь на поверку: 20 дней", 20)))
     assert got == {"lines": ["a", "", "b"], "urgent": {"kind": "verification",
-                                                       "text": "Запишитесь на поверку: 20 дн.", "days_left": 20}}
+                                                       "text": "Запишитесь на поверку: 20 дней", "days_left": 20}}
     assert web_api.dashboard_json({"lines": [], "urgent": {"kind": "pay", "text": "x", "days_left": 1}})[
         "urgent"]["kind"] == "bill"
     assert web_api.urgent_kind("submit") == "submit"

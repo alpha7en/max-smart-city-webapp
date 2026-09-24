@@ -60,15 +60,6 @@ def month_name(period: str) -> str:
     return MONTHS_NOM[int(period.split("-")[1]) - 1]
 
 
-def days(n: int) -> str:
-    """'осталось 6 дн.'; 0 → 'сегодня последний день'; <0 → 'просрочено на 3 дн.'."""
-    if n > 0:
-        return f"осталось {n} дн."
-    if n == 0:
-        return "сегодня последний день"
-    return f"просрочено на {-n} дн."
-
-
 def plural(n: int, one: str, few: str, many: str) -> str:
     """Форма слова по числу: plural(3, 'день', 'дня', 'дней') → 'дня'."""
     n = abs(n)
@@ -89,3 +80,26 @@ def left_days(n: int) -> str:
     if n <= 0:
         return "сегодня последний день"
     return f"{plural(n, 'остался', 'осталось', 'осталось')} {n_days(n)}"
+
+
+def days(n: int) -> str:
+    """'осталось 6 дней', 'остался 1 день'; 0 → 'сегодня последний день'; <0 → 'просрочено на 3 дня'."""
+    return left_days(n) if n >= 0 else f"просрочено на {n_days(-n)}"
+
+
+def flats(n: int) -> str:
+    """'40 квартир', '21 квартира'."""
+    return f"{n} {plural(n, 'квартира', 'квартиры', 'квартир')}"
+
+
+# Названия типов счётчиков для полных предложений (сокращения «Хол. вода» — только на кнопках и в списках).
+TYPE_GEN = {"cold_water": "холодной воды", "hot_water": "горячей воды", "electricity": "электричества",
+            "gas": "газа", "heat": "отопления"}
+
+
+def meter_of(meter_type: str, label: str | None) -> str:
+    """Подпись счётчика из списка → для предложения «счётчика …»:
+    'Хол. вода · Арбат 47к1, кв 32' → 'холодной воды (Арбат 47к1, кв 32)'."""
+    rest = (label or "").partition(" · ")[2].strip()
+    name = TYPE_GEN.get(meter_type, "")
+    return f"{name} ({rest})" if rest else name
