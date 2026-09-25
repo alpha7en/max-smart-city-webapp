@@ -208,7 +208,7 @@
   function fmtNum(v, m) {
     if (v == null || v === '') return '—';
     if (typeof v === 'string') return v.trim().replace('.', ',');
-    return Number(v).toFixed(decimals(m)).replace('.', ',');
+    return Number(v).toFixed(decimals(m)).replace(/\.?0+$/, '').replace('.', ',');  // без несуществующих нулей
   }
   const parts = (v, m) => { const s = fmtNum(v, m), j = s.indexOf(','); return j < 0 ? [s, ''] : [s.slice(0, j), s.slice(j)]; };
   // Показание «приборным» шрифтом: целая часть + дробная другим цветом, как на барабане счётчика.

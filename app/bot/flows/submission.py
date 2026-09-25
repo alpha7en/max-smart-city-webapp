@@ -960,10 +960,10 @@ async def ask_review(ctx: Ctx) -> None:
     prev = await _prev_values(ctx, m)
     if prev:
         if len(m.fields) == 1 and values.get("t1") is not None:
-            lines.append(T.PREV_LINE.format(value=fmt.value(prev.get("t1"), m.type),
+            lines.append(T.PREV_LINE.format(value=fmt.stored(prev.get("t1"), m.type),
                                             delta=fmt.delta(values["t1"] - prev["t1"], m.type)))
         else:
-            lines.append(T.PREV_LINE_MULTI.format(value=format_values(prev, m.type, m.tariffs)))
+            lines.append(T.PREV_LINE_MULTI.format(value=format_values(prev, m.type, m.tariffs, stored=True)))
     rec = d.get("recognized") or {}
     if d.get("source") == "photo":
         warnings = T.review_warnings(rec.get("issues") or [], m.type)
@@ -1055,7 +1055,7 @@ async def ask_manual(ctx: Ctx) -> None:
         lines.append(T.RECOGNIZED_HINT.format(value=shown))
     prev = await _prev_values(ctx, m)
     if prev and prev.get(f) is not None:
-        lines.append(T.PREV_HINT.format(value=fmt.value(prev[f], m.type)))
+        lines.append(T.PREV_HINT.format(value=fmt.stored(prev[f], m.type)))
     await ctx.reply("\n".join(lines), _manual_kb(ctx))
 
 

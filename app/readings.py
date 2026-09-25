@@ -29,6 +29,7 @@ from app.domain.access import can_submit
 from app.domain.meters import (
     FIELDS,
     ValueParseError,
+    format_stored,
     check_plausibility,
     current_period,
     fields_for,
@@ -74,10 +75,11 @@ def values_to_units(values: Values | dict[str, int] | None) -> dict[str, float |
     return {f: to_units(v) for f, v in (values or {}).items()}
 
 
-def format_values(values: Values, meter_type: str, tariffs: int = 1) -> str:
-    """'123,456 м³' или для нескольких тарифов '12345,67 / 5000,00 кВт·ч'."""
+def format_values(values: Values, meter_type: str, tariffs: int = 1, *, stored: bool = False) -> str:
+    """'123,456 м³' или для нескольких тарифов '12345,67 / 5000,00 кВт·ч'; stored=True — без хвостовых нулей."""
     fs = fields_for(tariffs_of(meter_type, tariffs))
-    nums = [format_value(values[f], meter_type) if values.get(f) is not None else "—" for f in fs]
+    fmt_one = format_stored if stored else format_value
+    nums = [fmt_one(values[f], meter_type) if values.get(f) is not None else "—" for f in fs]
     return f"{' / '.join(nums)} {spec(meter_type).unit}"
 
 

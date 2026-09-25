@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.domain.meters import format_value, spec
+from app.domain.meters import format_value, format_stored, spec
 from app.domain.people import format_phone  # noqa: F401 — реэкспорт для текстов
 
 MONTHS_NOM = ("январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август",
@@ -21,6 +21,11 @@ def esc(text: str | None) -> str:
 def value(v: int | None, meter_type: str, unit: bool = True) -> str:
     """123456 → '123,456 м³'."""
     return "—" if v is None else format_value(v, meter_type, unit=unit)
+
+
+def stored(v: int | None, meter_type: str, unit: bool = True) -> str:
+    """Значение из базы без хвостовых нулей: '2168 кВт·ч', '118,2 м³'."""
+    return "—" if v is None else format_stored(v, meter_type, unit=unit)
 
 
 def delta(v: int, meter_type: str) -> str:

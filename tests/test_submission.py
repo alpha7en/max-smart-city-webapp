@@ -194,7 +194,7 @@ async def test_f3_photo_recognize_send(chat, api, repo, settings, user, cold):
     await chat.press(LABEL)
     assert api.named("typing") and api.texts()[0] == T.LOOKING
     review = api.last_text()
-    assert review.startswith(LABEL + "\n\nПоказание: **") and "В прошлый раз: 118,200 м³ (+" in review
+    assert review.startswith(LABEL + "\n\nПоказание: **") and "В прошлый раз: 118,2 м³ (+" in review
     assert T.STUB_NOTE in review and review.endswith(T.REVIEW_QUESTION)
     assert buttons(api) == [T.BTN_SEND, T.BTN_EDIT, T.BTN_RETAKE, C.BTN_CANCEL]
     assert (await state(repo)).state == S.SUB_REVIEW
@@ -783,7 +783,7 @@ async def test_f13_less_than_previous_manual_path_has_no_retake(chat, api, repo,
     await chat.press(T.BTN_MANUAL)
     assert api.last_text() == T.PICK_MANUAL
     await chat.press(LABEL)
-    assert "В прошлый раз: 118,200 м³" in api.last_text()
+    assert "В прошлый раз: 118,2 м³" in api.last_text()
     await chat.text("100")
     assert T.BTN_RETAKE not in buttons(api)
     await chat.press(T.BTN_SEND)
@@ -909,7 +909,7 @@ async def test_f22_manual_three_tariffs_with_back(chat, api, repo, user):
     await chat.payload("g|submit|")
     await chat.press(T.BTN_MANUAL)
     await chat.press("Свет · Арбат 47к1, кв 32")
-    assert "Т1 пик (1 из 3)" in api.last_text() and "В прошлый раз: 1000,00 кВт·ч" in api.last_text()
+    assert "Т1 пик (1 из 3)" in api.last_text() and "В прошлый раз: 1000 кВт·ч" in api.last_text()
     await chat.text("1010")
     assert "Т2 ночь (2 из 3)" in api.last_text()
     await chat.press(C.BTN_BACK)
@@ -919,7 +919,7 @@ async def test_f22_manual_three_tariffs_with_back(chat, api, repo, user):
     await chat.text("303")
     review = api.last_text()
     assert "Т1 пик: **1010 кВт·ч**" in review and "Т3 полупик: **303 кВт·ч**" in review
-    assert "В прошлый раз: 1000,00 / 500,00 / 300,00 кВт·ч" in review
+    assert "В прошлый раз: 1000 / 500 / 300 кВт·ч" in review
     assert buttons(api) == [T.BTN_SEND, T.BTN_EDIT, C.BTN_CANCEL]
     await chat.press(T.BTN_SEND)
     assert (await readings(repo, mid))[-1] == {"t1": 1_010_000, "t2": 505_500, "t3": 303_000,
