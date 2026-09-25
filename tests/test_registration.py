@@ -310,7 +310,7 @@ async def test_r13_local_address_marked_once(chat, api):
     """«Не сверен с ФИАС» — один раз, на «Мы поняли так»; ни на подтверждении, ни в «Записали»."""
     await _at_address(chat)
     await chat.text(ADDRESS)
-    assert RT.LOCAL_NOTE in api.last_text() and api.last_text().endswith("Верно?")
+    assert api.last_text().endswith(f"Верно?\n\n> {RT.LOCAL_NOTE}")  # демо-оговорка — последней цитатой
     await chat.press(RT.BTN_YES)
     assert api.last_text().startswith("Проверьте, всё ли верно:") and "ФИАС" not in api.last_text()
     await chat.press(RT.BTN_ALL_OK)

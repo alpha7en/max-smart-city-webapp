@@ -256,7 +256,7 @@ async def test_demo_grant_opens_access_and_submission_works(router, api, repo):
     assert _no_access_kb(api) == [PT.BTN_REQUEST, PT.BTN_DEMO_GRANT, PT.BTN_PROFILE, C.BTN_MENU]
     await tenant.press(PT.BTN_REQUEST)                      # запрос собственнику тоже ушёл
     await tenant.payload(f"g|acc_demo|{aid}")
-    assert api.last_text() == PT.DEMO_GRANTED
+    assert api.last_text() == f"{PT.DEMO_GRANTED}\n\n> {PT.DEMO_GRANTED_NOTE}"
     assert labels(last_kb(api)) == [PT.BTN_SUBMIT, C.BTN_MENU]
     ua = await repo.user_address(tenant_id, aid)
     assert (ua["role"], ua["access"]) == ("tenant", "granted")

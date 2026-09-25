@@ -127,7 +127,7 @@ async def test_registration_with_contact_to_menu(chat, api, repo):
     await chat.press(RT.BTN_ALL_OK)
     user = await repo.get_user(UID)
     assert user["registered_at"] and user["phone"] == "+79123456789" and user["phone_verified"] == 1
-    assert api.last_text().startswith(RT.DONE) and api.last_text().endswith(MT.FOOTER)
+    assert api.last_text().startswith(RT.DONE) and api.last_text().endswith(f"{MT.FOOTER}\n\n> {MT.BILL_NOTE}")
 
 
 async def test_foreign_contact_rejected(chat, api):
@@ -188,7 +188,7 @@ async def test_start_in_idle_and_in_submission(chat, api, repo):
     await register(chat)
     api.clear()
     await chat.text("/start")
-    assert api.last_text().endswith(MT.FOOTER)
+    assert api.last_text().endswith(f"{MT.FOOTER}\n\n> {MT.BILL_NOTE}")
     await chat.press("Подать показания")
     user = await repo.get_user(UID)
     assert (await load_session(repo, user["id"])).state == S.SUB_AWAIT_PHOTO

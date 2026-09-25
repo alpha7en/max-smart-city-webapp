@@ -1,7 +1,8 @@
 """Дашборд главного меню (SPEC §5.7) — один и тот же для бота и /api/me.
 
 build_dashboard() — чистая функция от строк репозитория и даты; load_dashboard() — загрузка + сборка.
-Строки дашборда — текст для бота, без markdown; блоки разделены пустой строкой "".
+Строки дашборда (lines) — простой текст, блоки разделены пустой строкой ""; markdown — то же для бота
+(сроки и суммы жирным, демо-оговорки цитатой в конце).
 Мини-приложение строки не разбирает: ему отдаются структурированные поля (Dashboard.to_api()).
 """
 from __future__ import annotations
@@ -14,7 +15,7 @@ from zoneinfo import ZoneInfo
 from app import clock
 from app.bot.texts import arshin as TA
 from app.bot.texts import menu as T
-from app.bot.texts.fmt import day_month, days, money, month_name, n_days, short_date
+from app.bot.texts.fmt import b, day_month, days, esc, money, month_name, n_days, quote, short_date
 from app.domain.meters import (
     TYPE_LABELS,
     UNITS,
@@ -62,8 +63,9 @@ class DashboardData:
 
 @dataclass
 class Dashboard:
-    lines: list[str]
+    lines: list[str]                  # простой текст (для /api/me)
     urgent: Urgent | None
+    markdown: str = ""                # тот же дашборд в разметке MAX (для бота)
     meters: list[dict] = field(default_factory=list)      # для /api/me (SPEC §6)
     addresses: list[dict] = field(default_factory=list)   # [{label, access, role}]
     all_submitted: bool = False                           # счётчики есть и все поданы за текущий период
@@ -187,58 +189,76 @@ def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to
     elif window.is_open and not_done and window.days_left <= URGENT_SUBMIT_DAYS:
         urgent = Urgent("submit", _urgent_text("submit", window.days_left), window.days_left)
 
-    blocks: list[list[str]] = []
-    if urgent:
-        blocks.append([urgent.text])
-
     pending = [a for a in data.addresses if a.get("access") == "pending"]
-    if len(pending) == 1:
-        blocks.append([T.PENDING.format(label=pending[0].get("label") or "")])
-    elif pending:
-        blocks.append([T.PENDING_MANY.format(n=len(pending))])
-
     granted = any(a.get("access") == "granted" for a in data.addresses)
-    if meters:
-        if window.is_open:
-            head = T.PERIOD_OPEN.format(month=month_name(period), deadline=day_month(window.end),
-                                        left=days(window.days_left))
-        else:
-            head = T.PERIOD_NEXT.format(start=day_month(window.start))
-        block = [head]
-        if len(meters) > MAX_METER_LINES:
-            block.append(T.METERS_SUMMARY.format(total=len(meters), left=len(not_done)) if not_done
-                         else T.METERS_ALL_DONE.format(total=len(meters)))
-        else:
-            missed = window.is_open or today.day > day_to  # до открытия окна «не подано» не пишем
-            for m in meters:
-                if submitted(m, period):
-                    when = local_time(m.get("last_created_at"))
-                    block.append(T.METER_SUBMITTED.format(meter=names[m["id"]],
-                                                          date=short_date(when.date() if when else today)))
-                else:
-                    block.append(T.METER_NOT_SUBMITTED.format(meter=names[m["id"]]) if missed else names[m["id"]])
-        blocks.append(block)
-    elif granted or not data.addresses:
-        blocks.append([T.NO_METERS])
 
-    info: list[str] = []
-    if verif_soon:
-        d, m = verif_soon[0]
-        tpl = T.VERIFICATION_OVERDUE if d < today else T.VERIFICATION
-        line = tpl.format(meter=names[m["id"]], date=day_month(d))
-        if m.get("verification_source") == "arshin":
-            line += ", " + (TA.SOURCE_DEMO if is_demo_id(m.get("arshin_vri_id")) else TA.SOURCE)
-        info.append(line + (T.MORE.format(n=len(verif_soon) - 1) if len(verif_soon) > 1 else ""))
-    if len(bills) == 1:
-        d, b = bills[0]
-        tpl = T.BILL_OVERDUE if d < today else T.BILL
-        info.append(tpl.format(amount=money(b["amount_kop"]), date=day_month(d)))
-    elif bills:
-        total = sum(b["amount_kop"] for _, b in bills)
-        info.append(T.BILLS.format(count=len(bills), amount=money(total), date=day_month(bills[0][0])))
-    if info:
-        blocks.append(info)
-    blocks.append([T.FOOTER])
+    def text_lines(md: bool) -> list[str]:
+        """Строки дашборда. md=False — простой текст (/api/me); md=True — markdown для бота:
+        пользовательское экранировано, сроки и суммы жирным, демо-оговорки — цитатой в конце."""
+        bold, e = (b, esc) if md else (str, str)
+        blocks: list[list[str]] = []
+        notes: list[str] = []
+        if urgent:
+            blocks.append([bold(urgent.text)])
+        if len(pending) == 1:
+            blocks.append([T.PENDING.format(label=e(pending[0].get("label") or ""))])
+        elif pending:
+            blocks.append([T.PENDING_MANY.format(n=len(pending))])
+        if meters:
+            if window.is_open:
+                head = T.PERIOD_OPEN.format(month=month_name(period), deadline=bold(day_month(window.end)),
+                                            left=days(window.days_left, bold=md))
+            else:
+                head = T.PERIOD_NEXT.format(start=bold(day_month(window.start)))
+            block = [head]
+            if len(meters) > MAX_METER_LINES:
+                block.append(T.METERS_SUMMARY.format(total=len(meters), left=len(not_done)) if not_done
+                             else T.METERS_ALL_DONE.format(total=len(meters)))
+            else:
+                missed = window.is_open or today.day > day_to  # до открытия окна «не подано» не пишем
+                for m in meters:
+                    name = e(names[m["id"]])
+                    if submitted(m, period):
+                        when = local_time(m.get("last_created_at"))
+                        block.append(T.METER_SUBMITTED.format(meter=name,
+                                                              date=short_date(when.date() if when else today)))
+                    else:
+                        block.append(T.METER_NOT_SUBMITTED.format(meter=name) if missed else name)
+            blocks.append(block)
+        elif granted or not data.addresses:
+            blocks.append([T.NO_METERS])
+
+        info: list[str] = []
+        if verif_soon:
+            d, m = verif_soon[0]
+            tpl = T.VERIFICATION_OVERDUE if d < today else T.VERIFICATION
+            line = tpl.format(meter=e(names[m["id"]]), date=bold(day_month(d)))
+            if m.get("verification_source") == "arshin":
+                demo = is_demo_id(m.get("arshin_vri_id"))
+                line += ", " + (TA.SOURCE_DEMO if demo and not md else TA.SOURCE)
+                notes += [TA.DEMO_NOTE] if demo else []
+            info.append(line + (T.MORE.format(n=len(verif_soon) - 1) if len(verif_soon) > 1 else ""))
+        if bills:
+            if len(bills) == 1:
+                d, bill = bills[0]
+                tpl = T.BILL_OVERDUE if d < today else T.BILL
+                line = tpl.format(amount=bold(money(bill["amount_kop"])), date=day_month(d))
+            else:
+                total = sum(x["amount_kop"] for _, x in bills)
+                line = T.BILLS.format(count=len(bills), amount=bold(money(total)), date=day_month(bills[0][0]))
+            info.append(line if md else line + T.DEMO_MARK)
+            notes.append(T.BILL_NOTE)
+        if info:
+            blocks.append(info)
+        blocks.append([T.FOOTER])
+        if md and notes:
+            blocks.append([quote(dict.fromkeys(notes))])
+        out: list[str] = []
+        for block in blocks:
+            if out:
+                out.append("")
+            out.extend(block)
+        return out
 
     bills_json = [{"id": b["id"], "address_id": b.get("address_id"), "amount_kop": b["amount_kop"],
                    "amount_text": money(b["amount_kop"]), "due": d.isoformat(), "days_left": days_left(today, d),
@@ -250,13 +270,9 @@ def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to
         verif_json = {"meter_id": m["id"], "meter_label": names[m["id"]], "type": m["type"],
                       "due": d.isoformat(), "days_left": days_left(today, d)}
 
-    lines: list[str] = []
-    for block in blocks:
-        if lines:
-            lines.append("")
-        lines.extend(block)
     return Dashboard(
-        lines=lines,
+        lines=text_lines(md=False),
+        markdown="\n".join(text_lines(md=True)),
         urgent=urgent,
         meters=[_api_meter(m, period) for m in meters],
         addresses=[{"label": a.get("label") or "", "access": a["access"], "role": a["role"]}

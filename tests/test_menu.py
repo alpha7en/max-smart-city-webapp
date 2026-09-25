@@ -79,8 +79,9 @@ async def test_menu_keyboard_with_urgent_verification(chat, api, repo):
     mid = await add_meter(repo, user, aid, verif=NOW.date() + timedelta(days=10))
     await chat.text("/start")
     text, kb = api.outgoing()[-1]
-    assert text.startswith("**Запишитесь на поверку: 10 дней**\n\nПоказания за октябрь — до 25 октября")
-    assert text.endswith(T.FOOTER)
+    assert text.startswith("**Запишитесь на поверку: 10 дней**\n\nПоказания за октябрь — до **25 октября**, "
+                           "осталось **6 дней**")
+    assert text.endswith(f"{T.FOOTER}\n\n> {T.BILL_NOTE}")
     assert labels(kb) == [["Запишитесь на поверку: 10 дней"], ["Подать показания"],
                           ["Мои счётчики", "Профиль"], [C.BTN_MINIAPP]]
     b = rows(kb)
@@ -154,7 +155,7 @@ async def test_my_meters_list_and_add(chat, api, repo, hooks):
     await chat.press("Мои счётчики")
     text, kb = api.outgoing()[-1]
     assert text.startswith(T.METERS_TITLE)
-    assert f"Хол. вода · {ARBAT}\nПоследнее: 123,456 м³ (19.10), поверка до 15.03.2030" in text
+    assert f"Хол. вода · {ARBAT}\nПоследнее: **123,456 м³** (19.10), поверка до **15.03.2030**" in text
     assert f"Свет · {ARBAT}\nПоказаний пока нет" in text
     assert labels(kb) == [[f"Хол. вода · {ARBAT}"], [f"Свет · {ARBAT}"], ["Добавить счётчик", "В меню"]]
     assert rows(kb)[0][0]["payload"].startswith("g|meter|")
@@ -177,7 +178,7 @@ async def test_free_text_in_idle_shows_menu(chat, api, repo):
     await chat.text("вцвц")
     (text,) = api.texts()
     assert "вцвц" not in text and "принято" not in text.lower()
-    assert text.startswith(T.NO_METERS) and text.endswith(T.FOOTER)
+    assert text.startswith(T.NO_METERS) and text.endswith(f"{T.FOOTER}\n\n> {T.BILL_NOTE}")
     assert await state(repo) == S.IDLE
 
 

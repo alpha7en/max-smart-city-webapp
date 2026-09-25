@@ -381,8 +381,7 @@ def chat_text(meter: Row, reading: Row, typed: dict[str, str] | None = None) -> 
     parts = [CHAT_SAVED.format(title=title, values="\n".join(lines))]
     if reading["status"] == "flagged":
         parts.append(CHAT_FLAGGED)
-    parts.append(CHAT_MOCK)
-    return "\n\n".join(parts)
+    return fmt.with_notes("\n\n".join(parts), CHAT_MOCK)  # демо-оговорка — последней цитатой
 
 
 async def notify_chat(deps: Deps, user: Row, meter: Row, reading: Row, typed: dict[str, str] | None = None) -> None:

@@ -46,7 +46,7 @@ tools/live_smoke.py  живая проверка MAX API (нужен досту�
 ## Команды
 ```bash
 python3.12 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
-python -m pytest -q                                   # все тесты, меньше 15 с, должны быть зелёными
+python -m pytest -q                                   # все тесты (~20–25 с), должны быть зелёными
 cp .env.example .env                                  # затем вписать BOT_TOKEN
 docker compose up -d --build && docker compose logs -f app    # бот + API на :8080
 # + распознавание: в .env COMPOSE_PROFILES=recognizer, YC_API_KEY, YC_FOLDER_ID,

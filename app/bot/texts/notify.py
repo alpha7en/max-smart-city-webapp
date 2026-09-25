@@ -1,25 +1,26 @@
-"""Тексты уведомлений и /demo (поток S4)."""
+"""Тексты уведомлений и /demo (поток S4). Демо-оговорки — последней цитатой (fmt.with_notes)."""
+from app.bot.texts.fmt import with_notes
 
 # --- Подача показаний ---
-SUBMIT_OPEN = "Открыт приём показаний за {month} — до {deadline}."
-SUBMIT_NEXT = "Приём показаний за {month} откроется {start} и продлится до {deadline}."
-SUBMIT_LAST = "Приём показаний за {month} заканчивается {deadline} — {left}."
+SUBMIT_OPEN = "Открыт приём показаний за {month} — до **{deadline}**."
+SUBMIT_NEXT = "Приём показаний за {month} откроется **{start}** и продлится до **{deadline}**."
+SUBMIT_LAST = "Приём показаний за {month} заканчивается **{deadline}** — {left}."  # left: fmt.left_days(n, bold=True)
 SUBMIT_NOT_DONE = "Ещё не подано: {meters}."
 SUBMIT_HINT = "Пришлите фото счётчика — цифры распознаем сами."
 ALREADY_SUBMITTED = "Показания за {month} уже поданы — спасибо."
 
 # --- Поверка ({meter} — «холодной воды (Арбат 47к1, кв 32)», fmt.meter_of) ---
-VERIFICATION_SOON = "Поверка счётчика {meter} — до {date}, {left}."
-VERIFICATION_TODAY = "Сегодня последний день поверки счётчика {meter}."
-VERIFICATION_OVERDUE = "Срок поверки счётчика {meter} истёк {date}."
+VERIFICATION_SOON = "Поверка счётчика {meter} — до **{date}**, {left}."
+VERIFICATION_TODAY = "**Сегодня** последний день поверки счётчика {meter}."
+VERIFICATION_OVERDUE = "Срок поверки счётчика {meter} истёк **{date}**."
 VERIFICATION_WHY = "Без поверки показания могут не принять, и начислять будут по нормативу."
 VERIFICATION_MODEL = "Дата поверки смоделирована для демо."
 VERIFICATION_UPDATED = "Дату поверки этого счётчика уже обновили."
 METER_GONE = "Этого счётчика уже нет в вашем списке."
 
 # --- Счёт (демо) ---
-BILL_DUE = "Счёт за {month} по адресу {address}: {amount} — оплатить до {date}, {left}."
-BILL_OVERDUE = "Счёт за {month} по адресу {address}: {amount} — срок оплаты был {date}."
+BILL_DUE = "Счёт за {month} по адресу {address}: **{amount}** — оплатить до **{date}**, {left}."
+BILL_OVERDUE = "Счёт за {month} по адресу {address}: **{amount}** — срок оплаты был **{date}**."
 BILL_DEMO = "Счёт демонстрационный."
 ALREADY_PAID = "Этот счёт уже оплачен."
 
@@ -29,9 +30,9 @@ BTN_VERIFY = "Записаться на поверку"
 BTN_PAY = "Оплатить"
 
 # --- /demo ---
-DEMO = (
-    "Пришлём пример уведомления — выберите какое. Кнопки под ним работают по-настоящему.\n\n"
-    "Сроки подачи, поверки и счета в демо-версии смоделированы."
+DEMO = with_notes(
+    "Пришлём пример уведомления — выберите какое. Кнопки под ним работают по-настоящему.",
+    "Сроки подачи, поверки и счета в демо-версии смоделированы.",
 )
 DEMO_ADD_METER_FIRST = "Сначала добавьте счётчик — пришлите его фото, и мы его добавим."
 DEMO_NO_BILLS = "Неоплаченных счетов нет — пример появится с новым счётом."
