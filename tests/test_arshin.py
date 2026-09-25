@@ -5,6 +5,7 @@ import asyncio
 import json
 from dataclasses import replace
 from datetime import date, timedelta
+from pathlib import Path
 
 import aiosqlite
 import httpx
@@ -20,6 +21,7 @@ from app.bot.texts import common as C
 from app.bot.texts import submission as T
 from app.db import MIGRATIONS, SCHEMA_FILE, SCHEMA_VERSION
 from app.domain.dashboard import DashboardData, build_dashboard
+from app.domain.verification import card_url, choose
 from app.integrations import arshin as A
 from app.integrations.arshin import ArshinClient
 from app.repo import Repo
@@ -412,3 +414,68 @@ async def test_demo_button_runs_check(deps, api, repo, user):
     assert TA.BTN_DEMO in buttons(api)
     await chat.press(TA.BTN_DEMO)
     assert "Поверка по демо-данным ФГИС «Аршин»" in api.last_text()
+
+
+# --- Реальные фикстуры ФГИС «Аршин» ---
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures" / "arshin"
+
+
+def _fixture(name: str) -> dict:
+    return json.loads((FIXTURES_DIR / name).read_text("utf-8"))
+
+
+async def test_real_water_fixture_lookup():
+    water_data = _fixture("search_water_18452178.json")
+    client, seen, _ = make(lambda r: httpx.Response(200, json=water_data))
+    res = await client.lookup("18-452178", "cold_water", TODAY)
+    assert res.status == "found"
+    assert len(res.records) == 1
+    r = res.records[0]
+    assert r.vri_id == "1-333392815"
+    assert r.verification_date == date(2023, 11, 14)
+    assert r.valid_date == date(2029, 11, 13)
+    assert r.applicable is True
+    assert "СГВ-15" in r.mi_modification
+    match = choose(res.records, "cold_water")
+    assert match.level == "high" and match.best.vri_id == "1-333392815"
+    assert card_url(match.best.vri_id) == "https://fgis.gost.ru/fundmetrology/cm/results/1-333392815"
+
+
+async def test_real_collision_and_inapplicable_fixture():
+    collision_data = _fixture("search_collision_0112456.json")
+    inapplicable_card = _fixture("card_inapplicable_340080782.json")
+
+    def handler(r: httpx.Request) -> httpx.Response:
+        if r.url.path.endswith("/1-340080782"):
+            return httpx.Response(200, json=inapplicable_card)
+        return httpx.Response(200, json=collision_data)
+
+    client, seen, _ = make(handler)
+    res = await client.lookup("0112456", "cold_water", TODAY)
+    assert res.status == "found"
+    vri_ids = [r.vri_id for r in res.records]
+    assert "2-120021534" in vri_ids
+    assert "1-340080782" in vri_ids
+    assert "1-368481110" in vri_ids
+    assert card_url("2-120021534") == "https://fgis.gost.ru/fundmetrology/cm/results/2-120021534"
+    unfit_rec = next(r for r in res.records if r.vri_id == "1-340080782")
+    assert unfit_rec.unfit is True and unfit_rec.valid_date is None
+    gas_match = choose(res.records, "gas")
+    assert gas_match.level == "high" and gas_match.best.vri_id == "1-368481110"
+    assert gas_match.best.valid_date == date(2032, 9, 5)
+
+
+async def test_real_water_fixture_bot_flow(deps, api, repo, user):
+    water_data = _fixture("search_water_18452178.json")
+    chat, _ = arshin_chat(deps, api, lambda r: httpx.Response(200, json=water_data))
+    await new_water_meter(chat, "18-452178")
+    text = api.last_text()
+    assert "Поверка по данным ФГИС «Аршин»: до 13.11.2029." in text
+    assert buttons(api) == [C.BTN_MENU, T.BTN_MORE, TA.BTN_CARD]
+    link = api.outgoing()[-1][1]["payload"]["buttons"][1][0]
+    assert link["url"] == "https://fgis.gost.ru/fundmetrology/cm/results/1-333392815"
+    (m,) = await repo.address_meters(user[1])
+    assert m["verification_due"] == "2029-11-13" and m["verification_source"] == "arshin"
+    assert m["arshin_vri_id"] == "1-333392815"
+

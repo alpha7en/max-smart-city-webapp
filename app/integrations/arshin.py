@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import socket
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
@@ -40,6 +41,30 @@ from app.integrations.max_api import ssl_context
 
 log = logging.getLogger(__name__)
 DEFAULT_BASE = "https://fgis.gost.ru/fundmetrology/eapi"
+FGIS_HOST = "fgis.gost.ru"
+FGIS_FALLBACK_IPS = ("212.164.138.19", "212.164.138.14")
+_orig_getaddrinfo = socket.getaddrinfo
+
+
+def _fgis_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    try:
+        return _orig_getaddrinfo(host, port, family, type, proto, flags)
+    except socket.gaierror:
+        h = host.decode() if isinstance(host, bytes) else host
+        if h == FGIS_HOST:
+            for ip in FGIS_FALLBACK_IPS:
+                try:
+                    target_ip = ip.encode() if isinstance(host, bytes) else ip
+                    return _orig_getaddrinfo(target_ip, port, family, type, proto, flags)
+                except Exception:
+                    continue
+        raise
+
+
+if socket.getaddrinfo is not _fgis_getaddrinfo:
+    import socket
+    socket.getaddrinfo = _fgis_getaddrinfo
+
 USER_AGENT = "max-smart-city-bot/1.0 (+https://github.com/alpha7en/max-smart-city-webapp)"
 MIN_INTERVAL = 0.6          # с между запросами (лимит API — 2 в секунду)
 MAX_REQUESTS = 4            # на одну проверку, вместе с повтором

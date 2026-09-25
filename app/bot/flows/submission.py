@@ -705,8 +705,12 @@ async def _recognize(ctx: Ctx) -> None:
         await ctx.reply(T.PHOTO_GONE, _retake_kb(ctx))
         return
     await ctx.typing()
-    await ctx.reply(T.LOOKING)
-    rec = await _run_recognizer(ctx, path, m, await _prev_values(ctx, m))
+    looking_mid = await ctx.reply(T.LOOKING)
+    try:
+        rec = await _run_recognizer(ctx, path, m, await _prev_values(ctx, m))
+    finally:
+        if looking_mid:
+            await ctx.delete(looking_mid)
     log.info("recognition %s/%s: readable=%s confidence=%.2f issues=%s serial=%s stub=%s", m.type, m.tariffs,
              rec.readable(m.fields), rec.confidence, rec.issues, bool(rec.serial), rec.stub)
     if not rec.readable(m.fields):
@@ -1236,8 +1240,6 @@ async def got_replace(ctx: Ctx) -> None:
 
 # === Готово и дата поверки ===
 
-def _after_kb() -> dict:
-    return K.kb([K.gbtn(C.BTN_MENU, "menu"), K.gbtn(T.BTN_MORE, "submit")])
 
 
 async def _done(ctx: Ctx, m: Meter, res: SubmitResult) -> None:

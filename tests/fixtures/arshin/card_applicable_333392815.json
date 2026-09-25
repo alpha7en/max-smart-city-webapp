@@ -1,0 +1,27 @@
+{
+  "result": {
+    "miInfo": {
+      "singleMI": {
+        "mitypeNumber": "16078-05",
+        "mitypeURL": "https://fgis.gost.ru/fundmetrology/cm/mits/16078-05",
+        "mitypeType": "СХВ, СГВ",
+        "mitypeTitle": "Счетчики холодной и горячей воды",
+        "manufactureNum": "18452178",
+        "modification": "СГВ-15"
+      }
+    },
+    "vriInfo": {
+      "organization": "ООО \"МЕТРОЛОГИЯ\"",
+      "signCipher": "ДАС",
+      "vrfDate": "14.11.2023",
+      "validDate": "13.11.2029",
+      "vriType": "2",
+      "docTitle": "МИ 1592-2015",
+      "applicable": {
+        "certNum": "С-ДАС/14-11-2023/294585416",
+        "signPass": true,
+        "signMi": false
+      }
+    }
+  }
+}

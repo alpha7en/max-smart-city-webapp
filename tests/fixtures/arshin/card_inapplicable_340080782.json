@@ -1,0 +1,26 @@
+{
+  "result": {
+    "miInfo": {
+      "singleMI": {
+        "mitypeNumber": "54233-13",
+        "mitypeURL": "https://fgis.gost.ru/fundmetrology/cm/mits/83167556-4958-349b-7291-aaeb713e66e2",
+        "mitypeType": "СВК-15 \"ЭКВАТЭЛ\"",
+        "mitypeTitle": "Счетчики холодной и горячей воды крыльчатые",
+        "manufactureNum": "0112456",
+        "manufactureYear": 2014,
+        "modification": "СВК-15ИГ"
+      }
+    },
+    "vriInfo": {
+      "organization": "АО \"ОЭЗ ППТ \"АЛАБУГА\"",
+      "signCipher": "ЕМГ",
+      "miOwner": "АО \"ОЭЗ ППТ \"Алабуга\"",
+      "vrfDate": "08.05.2024",
+      "vriType": "2",
+      "docTitle": "МИ 1592-2015",
+      "inapplicable": {
+        "noticeNum": "И-ЕМГ/08-05-2024/340080782"
+      }
+    }
+  }
+}

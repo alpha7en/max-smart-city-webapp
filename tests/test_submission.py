@@ -193,6 +193,7 @@ async def test_f3_photo_recognize_send(chat, api, repo, settings, user, cold):
     api.clear()
     await chat.press(LABEL)
     assert api.named("typing") and api.texts()[0] == T.LOOKING
+    assert api.named("delete")  # «Смотрим на фото…» удалено при получении результата
     review = api.last_text()
     assert review.startswith(LABEL + "\n\nПоказание: **") and "В прошлый раз: 118,2 м³ (+" in review
     assert T.STUB_NOTE in review and review.endswith(T.REVIEW_QUESTION)

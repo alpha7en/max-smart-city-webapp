@@ -1,0 +1,61 @@
+{
+  "result": {
+    "count": 4,
+    "start": 0,
+    "rows": 100,
+    "items": [
+      {
+        "vri_id": "2-120021534",
+        "org_title": "ФБУ \"ТЕСТ-С.-ПЕТЕРБУРГ\"",
+        "mit_number": "54233-13",
+        "mit_title": "Счетчики воды крыльчатые",
+        "mit_notation": "СВК-15",
+        "mi_modification": "СВК-15",
+        "mi_number": "0112456",
+        "verification_date": "13.04.2017",
+        "valid_date": "13.04.2023",
+        "result_docnum": "0012/17",
+        "applicability": true
+      },
+      {
+        "vri_id": "1-340080782",
+        "org_title": "АО \"ОЭЗ ППТ \"АЛАБУГА\"",
+        "mit_number": "54233-13",
+        "mit_title": "Счетчики холодной и горячей воды крыльчатые",
+        "mit_notation": "СВК-15 \"ЭКВАТЭЛ\"",
+        "mi_modification": "СВК-15ИГ",
+        "mi_number": "0112456",
+        "verification_date": "08.05.2024",
+        "valid_date": null,
+        "result_docnum": "И-ЕМГ/08-05-2024/340080782",
+        "applicability": false
+      },
+      {
+        "vri_id": "1-368481110",
+        "org_title": "ООО \"ГАЗТЕХСЕРВИС\"",
+        "mit_number": "14494-04",
+        "mit_title": "Счетчики газа диафрагменные",
+        "mit_notation": "СГМН-1",
+        "mi_modification": "СГМН-1 G6",
+        "mi_number": "0112456",
+        "verification_date": "06.09.2024",
+        "valid_date": "05.09.2032",
+        "result_docnum": "С-ГТС/06-09-2024/368481110",
+        "applicability": true
+      },
+      {
+        "vri_id": "1-390257330",
+        "org_title": "ФБУ \"РОСТЕСТ-МОСКВА\"",
+        "mit_number": "20875-01",
+        "mit_title": "Термометры медицинские максимальные стеклянные ртутные",
+        "mit_notation": "ТММС",
+        "mi_modification": "",
+        "mi_number": "0112456",
+        "verification_date": "12.11.2024",
+        "valid_date": null,
+        "result_docnum": "С-РТМ/12-11-2024/390257330",
+        "applicability": true
+      }
+    ]
+  }
+}
