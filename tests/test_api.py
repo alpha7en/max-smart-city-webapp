@@ -154,7 +154,7 @@ def test_a3_me_contract_and_dashboard(client):
     assert d["registered"] is True and d["bot_username"] == "test_bot"
     assert d["user"] == {"full_name": "Иванова Анна Сергеевна", "phone": "+79123456789", "phone_verified": True}
     assert d["addresses"] == [{"id": u["address_id"], "label": u["label"], "full_text": ANY, "access": "granted",
-                               "role": "owner", "verified": False}]
+                               "role": "owner", "verified": False, "members": []}]
     assert "Арбат" in d["addresses"][0]["full_text"]  # полный адрес для профиля; без DaData — не сверен с ФИАС
 
     by_id = {m["id"]: m for m in d["meters"]}
@@ -197,6 +197,20 @@ def test_a3_pending_address_marked_and_hidden_meters(client):
     dash = d["dashboard"]
     assert dash["pending"] == [{"label": owner["label"]}] and dash["bill"] is None and dash["total"] == 0
     assert sum("одобрения собственника" in line for line in dash["lines"]) == 1  # строка для бота — одна
+
+
+def test_a3_owner_sees_members_without_personal_data(client):
+    owner = register(client, OTHER)
+    tenant = register(client, TENANT)  # тот же адрес → tenant/pending
+    run(client, repo(client).update_user, tenant["id"], full_name="Петров Пётр Иванович")
+    d = client.get("/api/me", headers=auth(OTHER)).json()
+    assert d["addresses"][0]["members"] == [{"name_short": "Пётр П.", "access": "pending"}]
+    run(client, repo(client).set_access, tenant["id"], owner["address_id"], "granted")
+    (a,) = client.get("/api/me", headers=auth(OTHER)).json()["addresses"]
+    assert a["members"] == [{"name_short": "Пётр П.", "access": "granted"}]
+    assert "+7" not in str(a) and "Петров" not in str(a)  # ни телефона, ни фамилии целиком
+    (t,) = client.get("/api/me", headers=auth(TENANT)).json()["addresses"]
+    assert "members" not in t  # не собственнику список не отдаём
 
 
 def test_a3_dashboard_verification_urgent(client):

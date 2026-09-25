@@ -6,10 +6,20 @@ from pathlib import Path
 
 import aiosqlite
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SCHEMA_FILE = Path(__file__).with_name("schema.sql")
-# Миграции: версия → SQL. Версия 1 — schema.sql целиком.
-MIGRATIONS: dict[int, str] = {}
+# Миграции: версия → SQL. Версия 1 — schema.sql целиком; новые таблицы — только здесь (и новой БД тоже).
+MIGRATIONS: dict[int, str] = {
+    # 2: одноразовые приглашения жильцов от собственника (ссылка max.ru/<бот>?start=inv_<token>).
+    2: """
+CREATE TABLE invites(
+  token TEXT PRIMARY KEY, address_id INTEGER NOT NULL REFERENCES addresses(id),
+  owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
+  used_by INTEGER REFERENCES users(id) ON DELETE SET NULL, used_at TEXT);
+CREATE INDEX invites_address ON invites(address_id);
+""",
+}
 
 
 def ts(dt: datetime) -> str:

@@ -8,10 +8,12 @@ import logging
 
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx
+from app.bot.flows import invite
 from app.bot.flows.registration import AddressFlow, address_notes, parse_phone, phone_line, said
 from app.bot.router import drop_scenario, on_global, on_hook, on_repeat, on_state, show_menu
 from app.bot.states import S
 from app.bot.texts import common as C
+from app.bot.texts import invite as IT
 from app.bot.texts import profile as T
 from app.bot.texts import registration as RT
 from app.bot.texts.fmt import esc
@@ -35,15 +37,24 @@ async def show_profile(ctx: Ctx) -> None:
     ctx.session.reset()
     u = ctx.user
     addrs = await ctx.repo.user_addresses(u["id"])
-    lines = [f"{esc(a['label'])} — {T.ROLE.get((a['role'], a['access']), a['access'])}" for a in addrs]
+    lines, owned, shared = [], [], False
+    for a in addrs:
+        lines.append(f"{esc(a['label'])} — {T.ROLE.get((a['role'], a['access']), a['access'])}")
+        if a["role"] == "owner":  # собственнику — кто ещё передаёт показания по адресу
+            members = await ctx.repo.address_members(a["id"])
+            lines.append(invite.members_line(members))
+            owned.append(a["id"])
+            shared = shared or any(m["access"] != "denied" for m in members)
     pending = [a for a in addrs if a["access"] == "pending"]
     req = [K.gbtn(T.BTN_REQUEST if len(pending) == 1 else T.BTN_REQUEST_FOR.format(label=a["label"]),
                   "acc_req", a["id"]) for a in pending]
+    arg = owned[0] if len(owned) == 1 else ""  # несколько адресов — спросим, какой
+    access = [K.gbtn(IT.BTN_INVITE, "inv_new", arg), shared and K.gbtn(IT.BTN_MANAGE, "acc_list", arg)] if owned else []
     await ctx.reply(
         T.PROFILE.format(name=esc(u.get("full_name")), phone=phone_line(u.get("phone"), u.get("phone_verified")),
                          addresses="\n".join(lines) or T.NO_ADDRESSES),
         _menu_kb([K.gbtn(T.BTN_EDIT_PHONE, "prof_phone"), K.gbtn(T.BTN_ADD_ADDRESS, "prof_addr")],
-                 *req, [K.gbtn(T.BTN_DELETE, "prof_del")]),
+                 access, *req, [K.gbtn(T.BTN_DELETE, "prof_del")]),
     )
 
 
