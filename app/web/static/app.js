@@ -60,6 +60,7 @@
     gauge: '<path d="m12 14 4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0z"/>',
     home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
     down: '<path d="m6 9 6 6 6-6"/>',
     image: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
@@ -126,7 +127,7 @@
           ibox(o.icon || 'alert', o.tone || 'accent', 28, 'si'),
           h('h2', {}, o.title),
           o.text && h('p', {}, o.text),
-          h('div', { class: 'acts' }, btn(o.ok, () => done(true)), o.cancel && btn(o.cancel, () => done(false), 'ghost'))));
+          h('div', { class: 'acts' }, btn(o.ok, () => done(true), o.okCls), o.cancel && btn(o.cancel, () => done(false), 'ghost'))));
       document.body.append(dlg);
     });
   }
@@ -825,8 +826,24 @@
             h('small', {}, [fmtDay(r.created_at), SOURCES[r.source]].filter(Boolean).join(' · '))),
           h('span', { class: 'r' }, num(m, r.values, true),
             r.status === 'flagged' && h('span', { class: 'pill t-warn' }, 'большой прирост')))))
-        : h('div', { class: 'row' }, ibox('clock', 'accent', 18), h('span', { class: 'grow' }, h('small', {}, 'Показаний пока нет'))));
+        : h('div', { class: 'row' }, ibox('clock', 'accent', 18), h('span', { class: 'grow' }, h('small', {}, 'Показаний пока нет'))),
+      h('button', { class: 'btn ghost quiet', type: 'button', onclick: () => deleteMeter(m) }, 'Удалить счётчик'));
     setBar(btn([icon('camera', 20), 'Подать показания'], () => go('submit', { meterId: m.id })));
+  }
+  // Удаление — не основная функция: тихая кнопка внизу экрана и обязательный вопрос в нижнем листе.
+  async function deleteMeter(m) {
+    const yes = await ask({ icon: 'trash', tone: 'bad', title: 'Удалить счётчик?', ok: 'Удалить', okCls: 'del', cancel: 'Отмена',
+      text: meterTitle(m) + '. Переданные показания сохранятся, но подавать новые по этому счётчику будет нельзя.' });
+    if (!yes) return;
+    try {
+      await api('/api/meters/' + encodeURIComponent(m.id), { method: 'DELETE' });
+      haptic('success');
+      toHome();
+      toast('Счётчик удалён');
+    } catch (e) {
+      haptic('error');
+      if (e.status === 404) { toHome(); toast('Счётчик уже удалён'); } else toast(e.message);
+    }
   }
 
   const SCREENS = { home: screenHome, submit: screenSubmit, result: screenResult, meter: screenMeter, profile: screenProfile };

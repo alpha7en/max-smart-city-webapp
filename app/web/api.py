@@ -33,6 +33,7 @@ from app.bot import photos
 from app.bot.ctx import Deps
 from app.bot.texts import common as C
 from app.bot.texts import fmt
+from app.bot.texts import meters as TM
 from app.bot.texts import submission as TS
 from app.bot.texts.api import BTN_MORE, CHAT_FLAGGED, CHAT_MOCK, CHAT_SAVED, MSG
 from app.domain import meters as M
@@ -195,6 +196,21 @@ async def meter_detail(meter_id: str, request: Request, init: InitData = Depends
     _, meter = await _meter(repo, init, meter_id)
     history = await repo.history(meter["id"], limit=12)
     return {**meter_json(meter, clock.today()), "history": [reading_json(r) for r in history]}
+
+
+@router.delete("/meters/{meter_id}")
+async def delete_meter(meter_id: str, request: Request, init: InitData = Depends(current_user)) -> dict:
+    """Мягкое удаление счётчика (repo.delete_meter): 404 not_found, 403 no_access / not_owner."""
+    repo = _deps(request).repo
+    user, meter = await _meter(repo, init, meter_id)
+    res = await repo.delete_meter(user["id"], meter["id"])
+    if res == "not_found":
+        raise api_error(404, "not_found")
+    if res == "not_owner":
+        raise api_error(403, "not_owner", TM.API_NOT_OWNER)
+    if res != "ok":
+        raise api_error(403, "no_access")
+    return {"status": "deleted", "id": meter["id"]}
 
 
 class ReadingIn(BaseModel):

@@ -250,6 +250,45 @@ def test_a4_meter_404_403(client):
     assert_error(client.get(f"/api/meters/{foreign}", headers=auth(TENANT)), 403, "no_access")
 
 
+# --- Удаление счётчика: DELETE /api/meters/{id} ---
+
+def test_delete_meter_200_then_gone(client):
+    u = register(client)
+    mid = add_meter(client, u["address_id"], readings={"2026-09": 118_200})
+    keep = add_meter(client, u["address_id"], "electricity", serial=None)
+    r = client.delete(f"/api/meters/{mid}", headers=auth())
+    assert r.status_code == 200 and r.json() == {"status": "deleted", "id": mid}
+    assert [m["id"] for m in client.get("/api/me", headers=auth()).json()["meters"]] == [keep]
+    assert_error(client.get(f"/api/meters/{mid}", headers=auth()), 404, "not_found")
+    assert_error(client.delete(f"/api/meters/{mid}", headers=auth()), 404, "not_found")  # повторно
+    assert_error(post(client, mid, values={"t1": "120"}), 404, "not_found")
+    assert run(client, repo(client).history, mid)  # показания остались в БД
+
+
+def test_delete_meter_403_404(client):
+    owner = register(client)
+    mid = add_meter(client, owner["address_id"])
+    assert_error(client.delete("/api/meters/999", headers=auth()), 404, "not_found")
+    assert_error(client.delete("/api/meters/abc", headers=auth()), 404, "not_found")
+    assert_error(client.delete(f"/api/meters/{mid}"), 401, "unauthorized")
+    register(client, OTHER, flat="33")  # чужой адрес
+    assert_error(client.delete(f"/api/meters/{mid}", headers=auth(OTHER)), 403, "no_access")
+    tenant = register(client, TENANT)  # тот же адрес → tenant/pending
+    assert_error(client.delete(f"/api/meters/{mid}", headers=auth(TENANT)), 403, "no_access")
+    run(client, repo(client).set_access, tenant["id"], owner["address_id"], "granted")
+    r = client.delete(f"/api/meters/{mid}", headers=auth(TENANT))
+    assert_error(r, 403, "not_owner")
+    assert "собственник" in r.json()["message"]
+    assert client.delete(f"/api/meters/{mid}", headers=auth()).status_code == 200  # собственник может
+
+
+def test_delete_meter_cors_preflight(make_client):
+    c = make_client(miniapp_origins=(ORIGIN,))
+    r = c.options("/api/meters/1", headers={"Origin": ORIGIN, "Access-Control-Request-Method": "DELETE",
+                                            "Access-Control-Request-Headers": "X-Max-Init-Data"})
+    assert r.status_code == 200 and "DELETE" in r.headers["access-control-allow-methods"]
+
+
 # --- A5: /api/readings ---
 
 def post(client, meter_id, uid=UID, **body):
