@@ -23,6 +23,7 @@ import logging
 import re
 from dataclasses import dataclass
 
+from app import arshin_service as AS
 from app.bot import keyboards as K
 from app.bot import photos
 from app.bot.ctx import Ctx
@@ -38,6 +39,7 @@ from app.bot.router import (
 )
 from app.bot.session import save_session
 from app.bot.states import S
+from app.bot.texts import arshin as TA
 from app.bot.texts import common as C
 from app.bot.texts import fmt
 from app.bot.texts import submission as T
@@ -65,6 +67,7 @@ from app.domain.meters import (
     tariffs_of,
 )
 from app.domain.serials import clean_serial, format_serial, usable_serial, validate_serial
+from app.domain.verification import Record, card_url, short_title
 from app.integrations.recognizer import CONF_MIN, SERVICE, Recognition
 from app.readings import SubmitResult, format_delta, format_months, format_values, submit_reading
 from app.repo import values_of
@@ -1251,28 +1254,101 @@ async def _done(ctx: Ctx, m: Meter, res: SubmitResult) -> None:
     await drop_scenario(ctx)  # фото удалено, новый flow — кнопки проверки устарели
     meter = await ctx.repo.get_meter(res.meter_id)
     ask_verif_date = created and meter and not meter["verification_due"]
-    if ask_verif_date:
+    out = await _arshin_check(ctx, meter)
+    url, options = None, []
+    if out and out.level == "high":
+        lines.append(AS.result_line(out.match.best, out.demo, ctx.now.date()))
+        url = card_url(out.match.best.vri_id)
+        ask_verif_date = False
+    elif out and out.level == "low":
+        options = out.match.options
+    elif out and out.status in ("found", "none") and ask_verif_date:
+        serial = esc(format_serial(meter["serial"], m.type))
+        lines += [TA.NOT_FOUND.format(serial=serial)] + ([TA.PICK_DEMO] if out.demo else [])
+    if options:
+        ctx.session.go(S.SUB_VERIF_DATE, meter_id=res.meter_id, arshin_opts=[r.to_dict() for r in options],
+                       arshin_demo=out.demo, arshin_serial=meter["serial"])
+    elif ask_verif_date:
         ctx.session.go(S.SUB_VERIF_DATE, meter_id=res.meter_id)
     # Показание уже в БД: сохраняем сессию до ответа. Упадёт отправка — роутер не сохранит сессию,
     # и старое «Отправить» не должно записать показание второй раз (QA-1).
     await save_session(ctx.repo, ctx.session, ctx.now)
-    if ask_verif_date:
+    if options:
+        await ctx.reply("\n".join(lines) + "\n\n" + _pick_text(ctx, m.type), _pick_kb(ctx))
+    elif ask_verif_date:
         await ctx.reply("\n".join(lines) + "\n\n" + T.ASK_VERIF, _verif_kb(ctx))
-        return
-    await ctx.reply("\n".join(lines), _after_kb())
+    else:
+        await ctx.reply("\n".join(lines), _after_kb(url))
+
+
+async def _arshin_check(ctx: Ctx, meter: dict | None) -> AS.Outcome | None:
+    """Проверка в ФГИС «Аршин» после первой подачи с номером (не дольше AS.WAIT_SECONDS, потом — в фоне).
+    Дату из паспорта (source='user') не трогаем; уже проверенный счётчик обновляет планировщик."""
+    arshin = ctx.deps.arshin
+    if (arshin is None or not arshin.enabled or not meter or not meter["serial"]
+            or meter["verification_source"] == "user" or meter["arshin_checked_at"]):
+        return None
+    await ctx.typing()
+    return await AS.check_within(ctx.deps, meter["id"], ctx.now.date(), ctx.now)
+
+
+def _after_kb(url: str | None = None) -> dict:
+    return K.kb([K.gbtn(C.BTN_MENU, "menu"), K.gbtn(T.BTN_MORE, "submit")], K.link(TA.BTN_CARD, url) if url else None)
 
 
 def _verif_kb(ctx: Ctx) -> dict:
     return K.kb(_row(ctx, (T.BTN_LATER, "later")))
 
 
+def _options(ctx: Ctx) -> list[Record]:
+    return [Record.from_dict(d) for d in ctx.data.get("arshin_opts") or []]
+
+
+def _pick_text(ctx: Ctx, meter_type: str) -> str:
+    """«Это ваш счётчик?» по записям ФГИС с низкой уверенностью (коллизия номеров, тип не подтверждён)."""
+    opts, serial = _options(ctx), esc(format_serial(ctx.data.get("arshin_serial"), meter_type))
+    head = (TA.PICK_ONE.format(serial=serial, title=esc(opts[0].mit_title or short_title(opts[0])))
+            if len(opts) == 1 else TA.PICK_MANY.format(serial=serial))
+    demo = [TA.PICK_DEMO] if ctx.data.get("arshin_demo") else []
+    return "\n\n".join([head, *demo, TA.PICK_OR_DATE])
+
+
+def _pick_kb(ctx: Ctx) -> dict:
+    rows = [[ctx.btn(AS.option_text(r), "ar", i)] for i, r in enumerate(_options(ctx))]
+    rows.append(_row(ctx, (TA.BTN_NOT_MINE if len(rows) == 1 else TA.BTN_NONE, "ar_none")))
+    return K.kb(*rows)
+
+
 @on_repeat(S.SUB_VERIF_DATE)
 async def ask_verif(ctx: Ctx) -> None:
+    if ctx.data.get("arshin_opts"):
+        meter = await ctx.repo.get_meter(ctx.data.get("meter_id") or 0)
+        await ctx.reply(_pick_text(ctx, meter["type"] if meter else ""), _pick_kb(ctx))
+        return
     await ctx.reply(T.ASK_VERIF, _verif_kb(ctx))
+
+
+async def _arshin_pick(ctx: Ctx) -> bool:
+    """Кнопки записей ФГИС в SUB_VERIF_DATE. True — событие обработано."""
+    opts = _options(ctx)
+    if not opts or ctx.action not in ("ar", "ar_none"):
+        return False
+    if ctx.action == "ar_none" or not ctx.arg.isdigit() or int(ctx.arg) >= len(opts):
+        for key in ("arshin_opts", "arshin_demo", "arshin_serial"):
+            ctx.data.pop(key, None)
+        await ctx.reply(T.ASK_VERIF, _verif_kb(ctx))
+        return True
+    rec, demo = opts[int(ctx.arg)], bool(ctx.data.get("arshin_demo"))
+    await AS.apply_record(ctx.repo, ctx.data["meter_id"], rec, ctx.now)
+    await drop_scenario(ctx)
+    await ctx.reply(AS.picked_line(rec, demo), _after_kb(card_url(rec.vri_id)))
+    return True
 
 
 @on_state(S.SUB_VERIF_DATE)
 async def got_verif(ctx: Ctx) -> None:
+    if await _arshin_pick(ctx):
+        return
     if ctx.action == "later" or (not ctx.is_callback and ctx.text.lower() in T.LATER_WORDS):
         await drop_scenario(ctx)
         await ctx.reply(T.VERIF_LATER, _after_kb())
@@ -1283,7 +1359,8 @@ async def got_verif(ctx: Ctx) -> None:
     try:
         due = parse_due_date(ctx.text, ctx.now.date())
     except DateParseError as e:
-        await ctx.reply(T.VERIF_ERRORS[e.code], _verif_kb(ctx))
+        kb = _pick_kb(ctx) if ctx.data.get("arshin_opts") else _verif_kb(ctx)
+        await ctx.reply(T.VERIF_ERRORS[e.code], kb)
         return
     await ctx.repo.set_verification(ctx.data["meter_id"], due.isoformat(), "user")
     await drop_scenario(ctx)

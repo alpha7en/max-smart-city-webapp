@@ -27,7 +27,7 @@ def frozen_clock():
 
 @pytest.fixture
 def settings(tmp_path) -> Settings:
-    return Settings(bot_token=TOKEN, bot_username="test_bot", data_dir=tmp_path)
+    return Settings(bot_token=TOKEN, bot_username="test_bot", data_dir=tmp_path, arshin_mode="off")  # сеть не трогаем
 
 
 @pytest.fixture

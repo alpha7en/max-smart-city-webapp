@@ -1,0 +1,19 @@
+{
+  "_comment": "Демо-данные ФГИС для ARSHIN_MODE=fixtures: элементы списка /eapi/vri в формате руководства «Внешние публичные интерфейсы» v2.2 (табл. 3.3.7.1). Не из реестра: номер, даты и организация подставляются/выдуманы.",
+  "water": [
+    {"vri_id": "demo-w1", "org_title": "ООО «Демо-поверка»", "mit_number": "демо-1", "mit_title": "Счетчики холодной и горячей воды", "mit_notation": "СГВ", "mi_modification": "СГВ-15", "mi_number": "", "verification_date": "2024-10-08T12:00:00Z", "valid_date": "2030-10-07T12:00:00Z", "result_docnum": "Нет данных", "sticker_num": "", "applicability": true},
+    {"vri_id": "demo-w2", "org_title": "ООО «Демо-поверка»", "mit_number": "демо-2", "mit_title": "Счетчики воды крыльчатые", "mit_notation": "ВСКМ", "mi_modification": "ВСКМ 90-15", "mi_number": "", "verification_date": "07.02.2024", "valid_date": "06.02.2030", "result_docnum": "Нет данных", "sticker_num": "", "applicability": true}
+  ],
+  "electricity": [
+    {"vri_id": "demo-e1", "org_title": "ООО «Демо-поверка»", "mit_number": "демо-3", "mit_title": "Счетчики электрической энергии статические однофазные", "mit_notation": "Меркурий 201", "mi_modification": "Меркурий 201.8", "mi_number": "", "verification_date": "2024-10-08T12:00:00Z", "valid_date": "2040-10-07T12:00:00Z", "applicability": true},
+    {"vri_id": "demo-e2", "org_title": "ООО «Демо-поверка»", "mit_number": "демо-4", "mit_title": "Счетчики электрической энергии трехфазные", "mit_notation": "Нева МТ 314", "mi_modification": "", "mi_number": "", "verification_date": "2024-10-08T12:00:00Z", "valid_date": "2040-10-07T12:00:00Z", "applicability": true}
+  ],
+  "gas": [
+    {"vri_id": "demo-g1", "org_title": "ООО «Демо-поверка»", "mit_number": "демо-5", "mit_title": "Счетчики газа объемные диафрагменные", "mit_notation": "ВК", "mi_modification": "ВК-G4", "mi_number": "", "verification_date": "2024-10-08T12:00:00Z", "valid_date": "2034-10-07T12:00:00Z", "applicability": true},
+    {"vri_id": "demo-g2", "org_title": "ООО «Демо-поверка»", "mit_number": "демо-6", "mit_title": "Счетчики газа бытовые", "mit_notation": "Гранд", "mi_modification": "Гранд-4", "mi_number": "", "verification_date": "2024-10-08T12:00:00Z", "valid_date": "2036-10-07T12:00:00Z", "applicability": true}
+  ],
+  "heat": [
+    {"vri_id": "demo-h1", "org_title": "ООО «Демо-поверка»", "mit_number": "демо-7", "mit_title": "Теплосчетчики", "mit_notation": "Пульсар", "mi_modification": "", "mi_number": "", "verification_date": "2024-10-08T12:00:00Z", "valid_date": "2028-10-07T12:00:00Z", "applicability": true},
+    {"vri_id": "demo-h2", "org_title": "ООО «Демо-поверка»", "mit_number": "демо-8", "mit_title": "Теплосчетчики ультразвуковые", "mit_notation": "СТУ", "mi_modification": "", "mi_number": "", "verification_date": "2024-10-08T12:00:00Z", "valid_date": "2028-10-07T12:00:00Z", "applicability": true}
+  ]
+}

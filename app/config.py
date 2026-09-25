@@ -20,6 +20,11 @@ def _int(value: str | None, default: int) -> int:
         return default
 
 
+def _choice(value: str | None, options: tuple[str, ...], default: str) -> str:
+    v = (value or "").strip().lower()
+    return v if v in options else default
+
+
 @dataclass(frozen=True)
 class Settings:
     bot_token: str = ""
@@ -35,6 +40,8 @@ class Settings:
     submit_day_from: int = 15
     submit_day_to: int = 25
     miniapp_origins: tuple[str, ...] = ()  # CORS: мини-приложение на другом домене (GitHub Pages)
+    arshin_mode: str = "live"           # ФГИС «Аршин»: live | fixtures (демо-данные) | off
+    arshin_base: str = "https://fgis.gost.ru/fundmetrology/eapi"
 
     @property
     def db_path(self) -> Path:
@@ -60,5 +67,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         tz=e.get("TZ", "").strip() or Settings.tz,
         submit_day_from=_int(e.get("SUBMIT_DAY_FROM"), 15),
         submit_day_to=_int(e.get("SUBMIT_DAY_TO"), 25),
+        arshin_mode=_choice(e.get("ARSHIN_MODE"), ("live", "fixtures", "off"), "live"),
+        arshin_base=e.get("ARSHIN_BASE", "").strip().rstrip("/") or Settings.arshin_base,
         miniapp_origins=tuple(o.strip().rstrip("/") for o in e.get("MINIAPP_ORIGINS", "").split(",") if o.strip()),
     )

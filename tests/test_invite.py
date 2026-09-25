@@ -343,7 +343,7 @@ async def test_migration_v1_to_v2_keeps_data(tmp_path):
     repo = await Repo.open(path)
     try:
         async with repo.db.execute("PRAGMA user_version") as cur:
-            assert (await cur.fetchone())[0] == SCHEMA_VERSION == 2
+            assert (await cur.fetchone())[0] == SCHEMA_VERSION
         assert (await repo.get_user(1))["full_name"] == "Иванова Анна"
         assert await repo.get_invite("x") is None  # таблица есть
     finally:

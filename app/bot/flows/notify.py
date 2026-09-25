@@ -10,15 +10,19 @@ import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
+from app import arshin_service as AS
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx, Deps
 from app.bot.flows.menu import MENU, PAY, SUBMIT, VERIFY, dashboard, send_menu
 from app.bot.router import call_hook, on_command, on_global
+from app.bot.texts import arshin as TA
 from app.bot.texts import common as C
 from app.bot.texts import notify as T
 from app.bot.texts.fmt import day_month, esc, left_days, meter_of, money, month_name
 from app.domain.dashboard import DashboardData, load_data, meter_names, submitted
 from app.domain.meters import current_period, days_left, submission_window
+from app.domain.serials import format_serial
+from app.domain.verification import card_url, is_demo_id
 from app.integrations.max_api import MaxApiError
 from app.repo import Row
 
@@ -75,8 +79,15 @@ def verification_notice(meter: Row, name: str, today: date, stage: str = "") -> 
     lines = [head, T.VERIFICATION_WHY]
     if meter.get("verification_source") == "model":
         lines.append(T.VERIFICATION_MODEL)
-    return Notice("verification", f"{meter['id']}:{due.isoformat()}:{stage}", "\n\n".join(lines),
-                  _kb(K.gbtn(T.BTN_VERIFY, VERIFY, meter["id"])))
+    url = None
+    if meter.get("verification_source") == "arshin":
+        demo = is_demo_id(meter.get("arshin_vri_id"))
+        lines.append(TA.NOTICE_SOURCE_DEMO if demo else TA.NOTICE_SOURCE)
+        url = card_url(meter.get("arshin_vri_id"))
+    lines.append(TA.NOTICE_ANTIFRAUD)
+    kb = K.kb(K.gbtn(T.BTN_VERIFY, VERIFY, meter["id"]), K.link(TA.BTN_CARD, url) if url else None,
+              K.gbtn(C.BTN_MENU, MENU))
+    return Notice("verification", f"{meter['id']}:{due.isoformat()}:{stage}", "\n\n".join(lines), kb)
 
 
 def bill_notice(bill: Row, today: date, stage: str = "") -> Notice:
@@ -163,25 +174,26 @@ async def demo(ctx: Ctx) -> None:
         ctx.note(C.UNKNOWN_COMMAND)
         await send_menu(ctx)
         return
+    arshin = ctx.deps.arshin is not None and ctx.deps.arshin.enabled
     await ctx.reply(T.DEMO, K.kb(
         [K.gbtn(T.BTN_DEMO_SUBMIT, DEMO, "submit"), K.gbtn(T.BTN_DEMO_VERIFY, DEMO, "verify"),
          K.gbtn(T.BTN_DEMO_BILL, DEMO, "bill")],
-        K.gbtn(C.BTN_MENU, MENU),
+        [K.gbtn(TA.BTN_DEMO, DEMO, "arshin") if arshin else None, K.gbtn(C.BTN_MENU, MENU)],
     ))
 
 
 async def _demo_verification(ctx: Ctx, today: date) -> Notice | None:
-    """Одному счётчику (без даты от пользователя) ставим поверку через 20 дней (verification_source='model')."""
+    """Одному счётчику (без даты от пользователя и из ФГИС) ставим поверку через 20 дней (source='model')."""
     meters = await ctx.repo.user_meters(ctx.user["id"])
     if not meters:
         return None
-    target = next((m for m in meters if m.get("verification_source") != "user"), None)
+    target = next((m for m in meters if m.get("verification_source") not in ("user", "arshin")), None)
     if target is not None:
         due = today + timedelta(days=DEMO_VERIFICATION_DAYS)
         await ctx.repo.set_verification(target["id"], due.isoformat(), "model")
         meters = await ctx.repo.user_meters(ctx.user["id"])
         target = next(m for m in meters if m["id"] == target["id"])
-    else:  # все даты введены пользователем — не перетираем, берём ближайшую
+    else:  # все даты от пользователя или из ФГИС — не перетираем, берём ближайшую
         target = min(meters, key=lambda m: m["verification_due"])
     return verification_notice(target, meter_names(meters)[target["id"]], today)
 
@@ -204,6 +216,9 @@ async def demo_notice(ctx: Ctx) -> None:
         await send_menu(ctx)
         return
     today, s = ctx.now.date(), ctx.settings
+    if ctx.arg == "arshin":
+        await _demo_arshin(ctx)
+        return
     if ctx.arg == "verify":
         notice = await _demo_verification(ctx, today)
         if notice is None:
@@ -217,3 +232,31 @@ async def demo_notice(ctx: Ctx) -> None:
     else:
         notice = submit_notice(await ctx.repo.user_meters(ctx.user["id"]), today, s.submit_day_from, s.submit_day_to)
     await ctx.reply(notice.text, notice.keyboard)
+
+
+async def _demo_arshin(ctx: Ctx) -> None:
+    """Проверка первого счётчика с номером в ФГИС «Аршин» — настоящая (live) или на демо-данных (fixtures)."""
+    menu = K.kb(K.gbtn(C.BTN_MENU, MENU))
+    if ctx.deps.arshin is None or not ctx.deps.arshin.enabled:
+        await ctx.reply(TA.DEMO_OFF, menu)
+        return
+    meter = next((m for m in await ctx.repo.user_meters(ctx.user["id"]) if m.get("serial")), None)
+    if meter is None:
+        await ctx.reply(TA.DEMO_NO_SERIAL, _kb(K.gbtn(T.BTN_SUBMIT, SUBMIT)))
+        return
+    await ctx.typing()
+    out = await AS.check_within(ctx.deps, meter["id"], ctx.now.date(), ctx.now)
+    serial = esc(format_serial(meter["serial"], meter["type"]))
+    head = esc(meter_names([meter])[meter["id"]])
+    url = None
+    if out.level == "high":
+        body = AS.result_line(out.match.best, out.demo, ctx.now.date())
+        url = card_url(out.match.best.vri_id)
+    elif out.level == "low":
+        body = "\n".join([TA.PICK_MANY.format(serial=serial), *(esc(AS.option_text(r)) for r in out.match.options)])
+        body += ("\n\n" + TA.PICK_DEMO) if out.demo else ""
+    elif out.status in ("found", "none"):
+        body = TA.NOT_FOUND.format(serial=serial) + ((" " + TA.PICK_DEMO) if out.demo else "")
+    else:
+        body = TA.DEMO_UNAVAILABLE
+    await ctx.reply(f"{head}\n\n{body}", K.kb(K.link(TA.BTN_CARD, url) if url else None, K.gbtn(C.BTN_MENU, MENU)))

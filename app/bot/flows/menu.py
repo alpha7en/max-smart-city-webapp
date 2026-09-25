@@ -11,6 +11,8 @@ from app.bot import keyboards as K
 from app.bot.ctx import Ctx
 from app.bot.router import call_hook, on_global, on_hook, on_state
 from app.bot.states import S
+from app import arshin_service as AS
+from app.bot.texts import arshin as TA
 from app.bot.texts import common as C
 from app.bot.texts import menu as T
 from app.bot.texts import notify as N
@@ -31,6 +33,7 @@ log = logging.getLogger(__name__)
 SUBMIT, METERS, PROFILE, ADD_METER, VERIFY, PAY, MENU = (
     "submit", "meters", "profile", "add_meter", "verify", "pay", "menu",
 )
+ANTIFRAUD_DAYS = 365
 URGENT_ACTIONS = {"verification": VERIFY, "bill": PAY, "submit": SUBMIT}
 
 
@@ -139,6 +142,15 @@ def _values(m: dict) -> str:
     return f"{' · '.join(parts)} {spec(m['type']).unit}"
 
 
+def _antifraud(meters: list[dict], today: date) -> str | None:
+    """Все сроки поверки дальше года — напоминаем о листовках «срочной поверки» (без запугивания)."""
+    dues = [date.fromisoformat(m["verification_due"]) for m in meters if m.get("verification_due")]
+    if not dues or len(dues) < len(meters) or days_left(today, min(dues)) <= ANTIFRAUD_DAYS:
+        return None
+    tpl = TA.ANTIFRAUD if len(dues) == 1 else TA.ANTIFRAUD_MANY
+    return tpl.format(date=full_date(min(dues)))
+
+
 @on_global(METERS)
 async def my_meters(ctx: Ctx) -> None:
     """Список счётчиков: тип · адрес, последнее показание, поверка."""
@@ -154,8 +166,12 @@ async def my_meters(ctx: Ctx) -> None:
             info = T.METERS_NO_READINGS
         if m.get("verification_due"):
             info += ", " + T.METERS_VERIFICATION.format(date=full_date(date.fromisoformat(m["verification_due"])))
+            if source := AS.source_label(m):
+                info += TA.METERS_SOURCE.format(source=source)
         blocks.append(f"{esc(names[m['id']])}\n{info}")
     text = T.METERS_TITLE + "\n\n" + "\n\n".join(blocks) if meters else T.NO_METERS
+    if line := _antifraud(meters, ctx.now.date()):
+        text += "\n\n" + line
     if any(a["access"] == "pending" for a in addresses):
         text += "\n\n" + T.METERS_PENDING
     await ctx.reply(text, K.kb([K.gbtn(T.BTN_ADD_METER, ADD_METER), K.gbtn(C.BTN_MENU, MENU)]))
