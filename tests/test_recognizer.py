@@ -8,6 +8,8 @@ from app.config import load_settings
 from app.integrations.recognizer import (
     CONF_CHECK,
     CONF_OK,
+    FEW_DIGITS,
+    LOW_CONF,
     HttpRecognizer,
     StubRecognizer,
     get_recognizer,
@@ -85,8 +87,19 @@ def test_doubtful_answers_ask_to_check(kw, selected):
     assert rec.values["t1"] is not None and rec.confidence == CONF_CHECK
 
 
-def test_service_low_confidence_wins():
-    assert parse(confidence=0.3).confidence == 0.3
+def test_service_confidence_thresholds():
+    """Ниже SERVICE_MIN — не распознали; ниже SERVICE_SURE — прочитали, но с кодом low_confidence."""
+    rec = parse(confidence=0.3)
+    assert rec.confidence == 0.0 and rec.values["t1"] is None and rec.issues == [LOW_CONF]
+    assert not rec.readable(("t1",))
+    rec = parse(confidence=0.59, issues=["glare"])
+    assert rec.confidence == 0.0 and rec.issues == ["glare"]          # причина от сервиса важнее нашей
+    rec = parse(confidence=0.6)                                        # граница: ещё читаем
+    assert rec.values["t1"] == 595_825 and rec.confidence == 0.6 and rec.issues == [LOW_CONF]
+    rec = parse(confidence=0.79)
+    assert rec.readable(("t1",)) and rec.issues == [LOW_CONF]
+    rec = parse(confidence=0.8)
+    assert rec.confidence == 0.8 and rec.issues == []
     assert parse(confidence=None).confidence == CONF_OK
 
 
@@ -166,3 +179,67 @@ async def test_stub_error_caption_with_codes(photo):
     assert rec.error and rec.issues == ["glare", "too_dark"]
     rec = await StubRecognizer().recognize(photo, "cold_water", 1, hint={"caption": "Ошибка"})
     assert rec.issues == ["digits_not_visible"]
+
+
+# --- Скриншот владельца: бледное табло света, «2168», номер не виден ---
+
+BLURRY_2168 = {"meter_type": "electricity", "reading_text": "2168", "integer_digits": "2168",
+               "fraction_digits": None, "confidence": 0.95, "readable": True,
+               "issues": ["blurry", "serial_not_visible"], "serial_number": None, "unit": "kWh"}
+
+
+def test_blurry_with_few_digits_is_not_recognized():
+    rec = HttpRecognizer._parse(BLURRY_2168, "electricity", 1)
+    assert not rec.readable(("t1",)) and rec.values["t1"] is None and rec.confidence == 0.0
+    assert rec.issues == ["blurry", "serial_not_visible", FEW_DIGITS]
+
+
+def test_old_container_answer_without_issues_is_read_as_is():
+    """Старый контейнер (без readable/issues): читаем, но только прочитанные цифры и с предупреждением."""
+    old = {k: v for k, v in BLURRY_2168.items() if k not in ("readable", "issues")}
+    rec = HttpRecognizer._parse(old, "electricity", 1)
+    assert rec.values["t1"] == 2_168_000 and rec.texts == {"t1": "2168"}
+    assert rec.confidence == CONF_CHECK and rec.issues == [FEW_DIGITS] and rec.serial is None
+
+
+@pytest.mark.parametrize("answer, readable, issues", [
+    # 5 целых — типично для света: размытость — только предупреждение
+    ({"reading_text": "12168", "integer_digits": "12168", "issues": ["blurry"]}, True, ["blurry"]),
+    # ведущие нули считаются: 6 разрядов на табло
+    ({"reading_text": "002168.4", "integer_digits": "002168", "fraction_digits": "4", "issues": ["blurry"]},
+     True, ["blurry"]),
+    # 4 разряда без признаков плохого фото — читаем, но предупреждаем
+    ({"reading_text": "2168", "integer_digits": "2168", "issues": ["glare"]}, True, ["glare", FEW_DIGITS]),
+    ({"reading_text": "2168", "integer_digits": "2168", "issues": ["partially_covered"]}, False,
+     ["partially_covered", FEW_DIGITS]),
+    ({"reading_text": "2168", "integer_digits": "2168", "issues": ["digits_not_visible"]}, False,
+     ["digits_not_visible", FEW_DIGITS]),
+])
+def test_few_digits_rule_edges(answer, readable, issues):
+    rec = HttpRecognizer._parse({**BLURRY_2168, "serial_number": "01234567", **answer}, "electricity", 1)
+    assert rec.readable(("t1",)) is readable and rec.issues == issues
+
+
+def test_few_digits_rule_not_for_heat():
+    rec = parse("heat", meter_type="heat", reading_text="12.345", integer_digits="12", fraction_digits="345",
+                issues=["blurry"], readable=True)
+    assert rec.readable(("t1",)) and FEW_DIGITS not in rec.issues
+
+
+@pytest.mark.parametrize("answer, text", [
+    ({}, "595,825"),                                                           # ведущие нули не показываем
+    ({"reading_text": "02168", "integer_digits": "02168", "fraction_digits": None}, "2168"),
+    ({"reading_text": "12345.6", "integer_digits": "12345", "fraction_digits": "6"}, "12345,6"),
+    ({"reading_text": None, "reading": 12.5}, "12,5"),
+])
+def test_texts_only_digits_that_were_read(answer, text):
+    assert parse(**answer).texts == {"t1": text}
+
+
+async def test_answer_logged_without_personal_data(photo, caplog):
+    r, _ = rec_with(lambda _: httpx.Response(200, json={**BLURRY_2168, "serial_number": "0123456789"}))
+    with caplog.at_level("INFO", logger="app.integrations.recognizer"):
+        await r.recognize(photo, "electricity", 1)
+    (msg,) = [m.getMessage() for m in caplog.records if "recognizer answer" in m.getMessage()]
+    assert "'reading_text': '2168'" in msg and "'issues': ['blurry', 'serial_not_visible']" in msg
+    assert "0123456789" not in msg and "'serial': True" in msg

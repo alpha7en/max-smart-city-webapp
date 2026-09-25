@@ -24,6 +24,8 @@ class S(StrEnum):
     SUB_ADDR_FLAT = "sub_addr_flat"
     SUB_REVIEW = "sub_review"
     SUB_SERIAL_MISMATCH = "sub_serial_mismatch"
+    SUB_SERIAL_MISSING = "sub_serial_missing"   # номера нет ни у счётчика, ни на фото
+    SUB_SERIAL_INPUT = "sub_serial_input"       # ввод серийного номера
     SUB_PLAUSIBILITY = "sub_plausibility"
     SUB_MANUAL = "sub_manual"
     SUB_REPLACE_CONFIRM = "sub_replace_confirm"
