@@ -16,7 +16,7 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -36,7 +36,7 @@ from app.bot.texts import submission as TS
 from app.bot.texts.api import BTN_MORE, CHAT_FLAGGED, CHAT_MOCK, CHAT_SAVED, MSG
 from app.domain import meters as M
 from app.domain.dashboard import Dashboard, load_dashboard
-from app.domain.serials import usable_serial
+from app.domain.serials import clean_serial, usable_serial, validate_serial
 from app.integrations.recognizer import Recognition
 from app.readings import submit_reading
 from app.repo import Repo, Row, values_of
@@ -185,6 +185,28 @@ class ReadingIn(BaseModel):
     values: dict[str, str | int | float | None]
     confirm: bool = False
     replace: bool = False
+    # Показание с фото (source='photo') у счётчика без номера принимаем только с номером (serial):
+    # на фото его не разобрали — пользователь вводит его сам. Ручной ввод номер не требует.
+    source: Literal["photo", "manual"] | None = None
+    serial: str | None = None
+
+
+async def _serial_for(repo: Repo, meter: Row, body: ReadingIn) -> str | None:
+    """Номер для счётчика без номера: проверка по типу; с фото без номера → 422 serial_required."""
+    if meter["serial"]:
+        return None
+    raw = (body.serial or "").strip()
+    if not raw:
+        if body.source == "photo":
+            raise api_error(422, "serial_required", TS.API_SERIAL_REQUIRED)
+        return None
+    if not validate_serial(raw, meter["type"]).usable:
+        raise api_error(422, "serial_bad", TS.API_SERIAL_BAD.format(example=TS.SERIAL_EXAMPLES[meter["type"]]))
+    serial = clean_serial(raw) or ""
+    other = await repo.find_meter_by_serial(meter["address_id"], serial)
+    if other and other["id"] != meter["id"]:
+        raise api_error(422, "serial_taken", TS.API_SERIAL_TAKEN.format(serial=M.format_serial(serial, meter["type"])))
+    return serial
 
 
 @router.post("/readings")
@@ -193,15 +215,19 @@ async def post_reading(body: ReadingIn, request: Request, background: Background
     deps = _deps(request)
     user, meter = await _meter(deps.repo, init, body.meter_id)
     values = {k: str(v) for k, v in body.values.items() if k in M.FIELDS and v is not None}
+    serial = await _serial_for(deps.repo, meter, body)
     res = await submit_reading(
         deps.repo, user_id=user["id"], meter_id=meter["id"], draft=None, values=values, source="miniapp",
-        recognized=None, confirm=body.confirm, replace=body.replace, today=clock.today(),
+        recognized=None, confirm=body.confirm, replace=body.replace, today=clock.today(), serial=serial,
     )
     if res.status not in ("accepted", "flagged"):
         raise api_error(ERROR_STATUS.get(res.status, 422), res.status, res.message)
     reading = await deps.repo.get_reading(res.reading_id)
-    background.add_task(notify_chat, deps, user, meter, reading)
-    return {"status": res.status, "reading": reading_json(reading)}
+    background.add_task(notify_chat, deps, user, meter, reading, values)
+    out = {"status": res.status, "reading": reading_json(reading)}
+    if serial:
+        out["serial"] = M.format_serial(serial, meter["type"])
+    return out
 
 
 @router.post("/recognize")
@@ -247,14 +273,17 @@ async def _recognize_upload(deps: Deps, user: Row, meter: Row, upload: UploadFil
         await photos.delete_photo(deps.repo, photo_id)
         path.unlink(missing_ok=True)
     rec.serial = usable_serial(rec.serial, meter["type"])  # год, ГОСТ, Qn — не номер
-    return {"values": units(rec.values), "serial": M.format_serial(rec.serial, meter["type"]),
+    # texts — как прочитали ('2168'): в поле ввода кладём их, а не 2168.0 → «2168,00».
+    return {"values": units(rec.values), "texts": rec.texts, "serial": M.format_serial(rec.serial, meter["type"]),
             "confidence": rec.confidence, "stub": rec.stub, **recognition_notes(meter, rec)}
 
 
 def recognition_notes(meter: Row, rec: Recognition) -> dict:
     """Почему не распознали / о чём предупредить: readable, issues (коды), note (пояснение модели),
     missing (поля, которых нет на фото: многотарифный показывает тарифы по очереди — их вводят вручную),
-    message (что не так и что делать, обычный текст), serial_mismatch + serial_note (номер на фото не тот)."""
+    message (что не так и что делать, обычный текст; при удачном чтении — конкретные предупреждения о фото),
+    serial_mismatch + serial_note (номер на фото не тот или не виден), serial_required (у счётчика нет номера
+    и на фото его не разобрали — /api/readings с source='photo' примет показание только с serial)."""
     mtype = meter["type"]
     fields = M.fields_for(M.tariffs_of(mtype, meter["tariffs"]))
     readable = rec.readable(fields)
@@ -270,12 +299,16 @@ def recognition_notes(meter: Row, rec: Recognition) -> dict:
             parts.append(TS.API_PARTIAL.format(fields=", ".join(names[f] for f in missing)))
         if "wrong_type" in rec.issues:
             parts.append(TS.WRONG_TYPE_WARN)
+        parts += TS.review_warnings(rec.issues, mtype)
     photo, saved = M.normalize_serial(rec.serial), M.normalize_serial(meter["serial"])
     mismatch = bool(readable and photo and saved and photo != saved)
     note = TS.API_SERIAL_MISMATCH.format(photo=M.format_serial(rec.serial, mtype),
                                          saved=M.format_serial(meter["serial"], mtype)) if mismatch else None
+    if readable and saved and not photo:
+        note = TS.API_SERIAL_NOT_ON_PHOTO.format(serial=M.format_serial(meter["serial"], mtype))
     return {"readable": readable, "issues": rec.issues, "note": rec.note, "missing": missing,
-            "message": " ".join(parts) or None, "serial_mismatch": mismatch, "serial_note": note}
+            "message": " ".join(parts) or None, "serial_mismatch": mismatch, "serial_note": note,
+            "serial_required": not saved and not photo}
 
 
 async def _save(upload: UploadFile, path: Path) -> int:
@@ -294,11 +327,17 @@ async def _save(upload: UploadFile, path: Path) -> int:
 
 # === Подтверждение в чат (D3) ===
 
-def chat_text(meter: Row, reading: Row) -> str:
+def chat_text(meter: Row, reading: Row, typed: dict[str, str] | None = None) -> str:
+    """typed — значения, как их ввели ('2168'): показываем их, если они и записаны (без выдуманных ',00')."""
     labels = M.field_labels(meter["type"], meter["tariffs"])
     vals = values_of(reading)
-    lines = [f"{label + ': ' if label else 'Показание: '}**{fmt.value(vals[f], meter['type'])}**"
-             for f, label in labels.items()]
+
+    def shown(f: str) -> str:
+        text = M.typed_text((typed or {}).get(f) or "")
+        ok = (typed or {}).get(f) and M.text_matches(text, vals[f], meter["type"])
+        return f"{text} {M.UNITS[meter['type']]}" if ok else fmt.value(vals[f], meter["type"])
+
+    lines = [f"{label + ': ' if label else 'Показание: '}**{shown(f)}**" for f, label in labels.items()]
     title = f"{M.TYPE_LABELS[meter['type']]} · {fmt.esc(meter['address_label'])}"
     parts = [CHAT_SAVED.format(title=title, values="\n".join(lines))]
     if reading["status"] == "flagged":
@@ -307,13 +346,13 @@ def chat_text(meter: Row, reading: Row) -> str:
     return "\n\n".join(parts)
 
 
-async def notify_chat(deps: Deps, user: Row, meter: Row, reading: Row) -> None:
+async def notify_chat(deps: Deps, user: Row, meter: Row, reading: Row, typed: dict[str, str] | None = None) -> None:
     """Сообщение в чат после подачи из мини-приложения. Ошибка отправки только логируется."""
     if deps.api is None:
         return
     target = {"chat_id": user["chat_id"]} if user.get("chat_id") else {"user_id": user["max_user_id"]}
     try:
-        await deps.api.send(chat_text(meter, reading), **target,
+        await deps.api.send(chat_text(meter, reading, typed), **target,
                             keyboard=K.kb([K.gbtn(BTN_MORE, "submit"), K.gbtn(C.BTN_MENU, "menu")]))
     except Exception as e:  # noqa: BLE001
         log.warning("miniapp reading %s: chat notify failed: %s", reading["id"], e)

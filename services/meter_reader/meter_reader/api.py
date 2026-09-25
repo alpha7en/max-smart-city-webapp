@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -15,6 +16,8 @@ MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Short recognition answers (no image, no serial) at INFO: `docker compose logs meter-reader`.
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     app.state.recognizer = MeterRecognizer(settings)
     yield
     await app.state.recognizer.aclose()

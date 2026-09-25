@@ -539,9 +539,16 @@
     const meters = vis.some(m => String(m.id) === String(p.meterId)) || p.meterId == null ? vis : all;
     let sel = meters.find(m => String(m.id) === String(p.meterId)) ||
       meters.find(m => !m.submitted_this_period) || meters[0];
-    let usedStub = false;
+    let usedStub = false, usedPhoto = false;
     let inputs = {};
     const formBox = h('div');
+    // Серийный номер: у счётчика без номера показание с фото принимаем только с номером (сервер: serial_required).
+    const serialInp = h('input', { id: 'v-serial', class: 'serial-in', autocomplete: 'off', maxlength: '32',
+      enterkeyhint: 'done', placeholder: 'Например, 01234567', 'aria-label': 'Серийный номер счётчика' });
+    const serialHint = h('small', {});
+    const serialBox = h('div', { class: 'field serial', hidden: true },
+      h('label', { for: 'v-serial' }, 'Серийный номер'), serialInp, serialHint);
+    serialInp.addEventListener('input', () => serialBox.classList.remove('err'));
     const recBox = h('div', { hidden: true }), errBox = h('div', { hidden: true });
     const file = h('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
     const gallery = h('input', { type: 'file', accept: 'image/*', hidden: true });
@@ -564,7 +571,8 @@
       m.submitted_this_period ? h('span', { class: 'badge', title: 'подано' }, icon('check', 12)) : h('span', { class: 'dot', title: 'не подано' }))));
 
     function drawForm() {
-      usedStub = false;
+      usedStub = false; usedPhoto = false;
+      serialBox.hidden = true; serialInp.value = ''; serialBox.classList.remove('err');
       note(recBox);
       note(errBox);
       const n = tariffCount(sel);
@@ -604,7 +612,7 @@
         last && last.created_at && 'прошлое ' + fmtDay(last.created_at)].filter(Boolean).join(' · ');
       formBox.replaceChildren(h('div', { class: 'card panel' },
         h('div', { class: 'ph' }, meterIcon(sel, 22), h('span', { class: 'grow' }, h('b', {}, sel.type_label), sub && h('small', {}, sub))),
-        h('div', { class: 'shoot' }, photoBtn, galBtn), fields));
+        h('div', { class: 'shoot' }, photoBtn, galBtn), fields, serialBox));
     }
 
     async function recognize(f) {
@@ -623,7 +631,17 @@
           haptic('error');
           return note(recBox, 'bad', r.message || 'Не разобрали цифры. Переснимите прямо, без бликов, или введите вручную.');
         }
-        got.forEach(k => { inputs[k].value = fmtNum(vals[k], sel); inputs[k].dispatchEvent(new Event('input')); });
+        // Как прочитали (texts: «2168»), а не число с дописанными нулями («2168,00»).
+        const texts = r.texts || {};
+        got.forEach(k => { inputs[k].value = texts[k] || fmtNum(vals[k], sel); inputs[k].dispatchEvent(new Event('input')); });
+        usedPhoto = true;
+        if (!sel.serial) {
+          serialBox.hidden = false;
+          serialInp.value = r.serial || '';
+          serialHint.textContent = r.serial ? 'С фото. Проверьте и сохраните вместе с показанием.'
+            : 'Не разобрали на фото — он нужен, чтобы не перепутать счётчики. Он на корпусе, рядом со штрихкодом.';
+          serialBox.classList.toggle('err', !r.serial);
+        }
         // Тариф, которого нет на фото, не оставляем со старым значением: очищаем и просим ввести.
         const missing = keys.filter(k => !got.includes(k));
         missing.forEach(k => { inputs[k].value = ''; inputs[k].dispatchEvent(new Event('input')); markErr(inputs[k]); });
@@ -635,6 +653,7 @@
         if (r.message) parts2.push(r.message);
         else if (missing.length) parts2.push(missing.map(k => 'Т' + k.slice(1)).join(', ') + ': на фото не видно — введите вручную.');
         if (r.serial_note) parts2.push(r.serial_note);
+        if (r.serial_required && !sel.serial) parts2.push('Введите серийный номер счётчика.');
         else if (r.serial_mismatch === undefined && r.serial && sel.serial && normSerial(r.serial) !== normSerial(sel.serial)) {
           parts2.push('Номер на фото — ' + r.serial + ', у счётчика — ' + sel.serial + '. Проверьте, тот ли счётчик выбран.');
         }
@@ -669,11 +688,20 @@
         note(errBox, 'bad', empty.length ? 'Заполните показание' + what + ', например ' + ex : 'Введите число, например ' + ex);
         return bad.focus();
       }
+      const serial = serialBox.hidden ? '' : serialInp.value.trim();
+      if (usedPhoto && !sel.serial && !serial) {
+        haptic('error');
+        serialBox.classList.add('err');
+        note(errBox, 'bad', 'Введите серийный номер счётчика — он на корпусе, рядом со штрихкодом.');
+        return serialInp.focus();
+      }
       const meter = sel;
+      const body = Object.assign({ meter_id: meter.id, values, source: usedPhoto ? 'photo' : 'manual' }, serial ? { serial } : {}, extra);
       setBusy(sendBtn, 'Отправляем…');
       try {
-        const r = await api('/api/readings', { method: 'POST', json: Object.assign({ meter_id: meter.id, values }, extra) });
+        const r = await api('/api/readings', { method: 'POST', json: body });
         haptic('success');
+        if (r.serial) meter.serial = r.serial;
         meter.submitted_this_period = true;
         meter.last = { period: (r.reading && r.reading.period) || '', values, created_at: new Date().toISOString() };
         go('result', { meter, values, status: r.status, stub: usedStub }, true);
@@ -695,6 +723,7 @@
         haptic('error');
         if (e.status === 422) {
           if (e.code === 'bad_format' || e.code === 'less_than_previous') keys.forEach(k => markErr(inputs[k]));
+          if (/^serial_/.test(e.code || '')) { serialBox.hidden = false; serialBox.classList.add('err'); serialInp.focus(); }
           return note(errBox, 'bad', e.message);
         }
         note(errBox, 'bad', e.status === 0 ? 'Нет связи с сервером. Показание не отправлено.' : e.message,

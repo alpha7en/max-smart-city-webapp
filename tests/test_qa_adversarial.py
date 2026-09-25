@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import json
 from datetime import datetime, timedelta
 
@@ -85,11 +86,21 @@ def answers_per_callback(api) -> dict[str, int]:
     return out
 
 
+_SERIALS = itertools.count(10_000_001)
+
+
+async def enter_serial(chat: Chat) -> None:
+    """Демо-распознавание номер не читает: «Не разобрали серийный номер» → [Ввести номер] → новый номер."""
+    await chat.press(T.BTN_SERIAL)
+    await chat.text(str(next(_SERIALS)))
+
+
 async def submit_first_reading(chat: Chat, url: str = "https://i.oneme.ru/i?r=qa1", later: bool = True) -> None:
-    """Фото → новый счётчик «Хол. вода» → единственный адрес → Отправить → (Позже)."""
+    """Фото → новый счётчик «Хол. вода» → единственный адрес → номер → Отправить → (Позже)."""
     await chat.photo(url)
     await chat.press(COLD)
     await chat.payload(first_button(chat.api)["payload"])  # первый (единственный) адрес
+    await enter_serial(chat)
     await chat.press(T.BTN_SEND)
     if later:
         await chat.press(T.BTN_LATER)
@@ -266,6 +277,8 @@ async def test_triple_tap_type_and_address_buttons(chat, api, repo):
     await asyncio.gather(*(chat.payload(cold) for _ in range(3)))
     addr = api.button(ARBAT_LABEL)["payload"]
     await asyncio.gather(*(chat.payload(addr) for _ in range(3)))
+    assert (await sess(repo)).state == S.SUB_SERIAL_MISSING
+    await enter_serial(chat)
     assert (await sess(repo)).state == S.SUB_REVIEW
     send = api.button(T.BTN_SEND)["payload"]
     await asyncio.gather(*(chat.payload(send) for _ in range(3)))
@@ -374,6 +387,7 @@ async def test_old_buttons_from_every_finished_scenario(chat, api, repo):
     await chat.press(COLD)
     old_sub = [api.button(ARBAT_LABEL)["payload"], api.button(C.BTN_CANCEL)["payload"]]
     await chat.press(ARBAT_LABEL)
+    await enter_serial(chat)
     old_sub.append(api.button(T.BTN_SEND)["payload"])
     await chat.press(T.BTN_SEND)
     await chat.press(T.BTN_LATER)
@@ -395,6 +409,7 @@ async def test_old_review_send_after_new_photo_is_stale(chat, api, repo):
     await chat.photo("https://i.oneme.ru/i?r=v1", b"\xff\xd8one")
     await chat.press(COLD)
     await chat.press(ARBAT_LABEL)
+    await enter_serial(chat)
     old_send = api.button(T.BTN_SEND)["payload"]
     shown_first = api.last_text()
     await chat.photo("https://i.oneme.ru/i?r=v2", b"\xff\xd8two-different-bytes")
@@ -431,6 +446,7 @@ async def test_unsupported_attachments_in_review_keep_step(chat, api, repo, att)
     await chat.photo("https://i.oneme.ru/i?r=u")
     await chat.press(COLD)
     await chat.press(ARBAT_LABEL)
+    await enter_serial(chat)
     api.clear()
     await chat.feed(fakes.message_created(UID, None, [att]))
     assert api.last_text().startswith(C.UNSUPPORTED)
@@ -488,8 +504,10 @@ async def test_weird_numbers_in_manual_input(chat, api, repo, value, ok):
     assert (await sess(repo)).state == S.SUB_MANUAL
     await chat.text(value)
     s = await sess(repo)
-    assert s.state == (S.SUB_REVIEW if ok else S.SUB_MANUAL), (value, api.last_text())
-    if ok:
+    assert s.state == (S.SUB_SERIAL_INPUT if ok else S.SUB_MANUAL), (value, api.last_text())
+    if ok:  # новый счётчик без номера: номер спрашиваем и при ручном вводе
+        await chat.text("18-123456")
+        assert (await sess(repo)).state == S.SUB_REVIEW
         await chat.press(T.BTN_SEND)
         (r,) = await readings(repo)
         assert 0 <= r["t1"] < 100_000_000
@@ -514,6 +532,9 @@ async def test_huge_text_in_every_text_step(chat, api, repo):
     await chat.text(big)                          # новый адрес
     await chat.press(C.BTN_BACK)
     await chat.press(ARBAT_LABEL)
+    await chat.text(big)                          # вместо номера — слишком длинный, не номер
+    assert (await sess(repo)).state == S.SUB_SERIAL_INPUT
+    await enter_serial(chat)
     await chat.text(big)                          # на проверке (число!) → ручной ввод
     await chat.text(big)
     await chat.press(C.BTN_CANCEL)
@@ -551,6 +572,7 @@ async def _walk_to(chat: Chat, api, state: S) -> None:
         await chat.press(T.BTN_OTHER_ADDRESS)
         return
     await chat.press(ARBAT_LABEL)
+    await enter_serial(chat)
     if state == S.SUB_REVIEW:
         return
     if state == S.SUB_MANUAL:
@@ -670,6 +692,7 @@ async def test_answer_failure_on_button_shows_error_and_retry_works(fchat, flaky
     await fchat.press(C.BTN_RETRY)
     await fchat.press(COLD)
     await fchat.press(ARBAT_LABEL)
+    await enter_serial(fchat)
     assert (await sess(repo)).state == S.SUB_REVIEW
 
 
@@ -678,6 +701,7 @@ async def test_send_failure_after_commit_does_not_duplicate_meter(fchat, flaky, 
     await fchat.photo("https://i.oneme.ru/i?r=dup")
     await fchat.press(COLD)
     await fchat.press(ARBAT_LABEL)
+    await enter_serial(fchat)
     flaky.fail["answer"] = 1                    # MAX 503 на ответ «Готово! Записали…»
     await fchat.press(T.BTN_SEND)
     assert flaky.last_text() == C.ERROR
@@ -729,6 +753,7 @@ async def test_recognizer_crash_then_manual_path(repo, settings, api):
     assert T.ISSUE_TEXTS["service"] in api.last_text()
     await c.press(T.BTN_MANUAL)
     await c.text("123,456")
+    await c.text("18-123456")                     # номер нового счётчика
     await c.press(T.BTN_SEND)
     assert len(await readings(repo)) == 1
 
@@ -784,6 +809,7 @@ async def test_bot_started_in_every_submission_step(chat, api, repo):
             await chat.press(COLD)
         if st == S.SUB_REVIEW:
             await chat.press(ARBAT_LABEL)
+            await enter_serial(chat)
         assert (await sess(repo)).state == st
         api.clear()
         await chat.feed(fakes.bot_started(UID, "deep-link"))
@@ -904,6 +930,7 @@ async def test_duplicate_update_after_restart_is_not_double_processed(settings, 
         await c.photo("https://i.oneme.ru/i?r=d1")
         await c.press(COLD)
         await c.press(ARBAT_LABEL)
+        await enter_serial(c)
         upd = fakes.message_callback(UID, api.button(T.BTN_SEND)["payload"], callback_id="cb.fixed")
         await c.router.handle(parse_update(upd))
         c2 = Chat(new_router(repo1, settings, api), api)
@@ -1147,7 +1174,7 @@ async def test_photo_swept_while_session_alive(chat, api, repo, settings):
     assert T.PHOTO_GONE in api.last_text()
     assert (await sess(repo)).state == S.SUB_AWAIT_PHOTO
     await chat.photo("https://i.oneme.ru/i?r=sw2")
-    assert (await sess(repo)).state == S.SUB_REVIEW
+    assert (await sess(repo)).state == S.SUB_SERIAL_MISSING  # новый счётчик: номер на фото не разобрали
 
 
 async def test_deleted_user_in_miniapp_and_bot(client, api):

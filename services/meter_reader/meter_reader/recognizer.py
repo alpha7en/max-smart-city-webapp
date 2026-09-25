@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from typing import Any, Optional
 
@@ -7,6 +8,8 @@ from .image_utils import prepare_image
 from .llm import LLMError, YandexQwenClient
 from .prompts import ISSUE_CODES, METER_TYPES, SYSTEM_PROMPT, build_prompt
 from .schemas import MeterReading
+
+log = logging.getLogger("meter_reader")
 
 _METER_TYPES = set(METER_TYPES) | {"unknown"}
 _ISSUE_CODES = set(ISSUE_CODES)
@@ -136,6 +139,16 @@ def _normalize_issues(value: Any) -> list[str]:
     return issues
 
 
+def log_summary(raw: Any, reading: "MeterReading") -> dict[str, Any]:
+    """Short answer for logs: no image, no serial/brand values (only whether a serial was read)."""
+    return {
+        "type": reading.meter_type, "reading": reading.reading_text, "tariff": reading.tariff,
+        "confidence": reading.confidence, "readable": reading.readable, "issues": reading.issues,
+        "note": reading.issue_note, "serial": reading.serial_number is not None,
+        "raw_readable": raw.get("readable") if isinstance(raw, dict) else None,
+    }
+
+
 def _bool_or_none(value: Any) -> Optional[bool]:
     if isinstance(value, bool):
         return value
@@ -226,7 +239,10 @@ class MeterRecognizer:
                 SYSTEM_PROMPT, prompt, image_url, temperature
             )
             try:
-                return _to_reading(_extract_json(answer), expected)
+                raw = _extract_json(answer)
+                reading = _to_reading(raw, expected)
+                log.info("recognized (%s, tariffs=%s): %s", expected, tariffs, log_summary(raw, reading))
+                return reading
             except LLMError:
                 if attempt == attempts - 1:
                     raise
