@@ -65,7 +65,8 @@ async def lifespan(app: FastAPI):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     repo = await Repo.open(settings.db_path)
     api_client = MaxApi(settings.bot_token, settings.max_api_base) if settings.bot_token else None
-    arshin = ArshinClient(settings.arshin_mode, settings.arshin_base, repo)
+    arshin = ArshinClient(settings.arshin_mode, settings.arshin_base, repo,
+                          fallback_ips=settings.arshin_fallback_ips)
     log.info("ARSHIN_MODE=%s", arshin.mode)
     deps = Deps(api=api_client, repo=repo, settings=settings, recognizer=get_recognizer(settings),
                 addresses=_address_service(settings), bot_username=settings.bot_username, arshin=arshin)

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any, Literal
 
-from app.domain.serials import clean_serial
+from app.domain.serials import clean_serial, strip_invisible
 
 # Межповерочный интервал (типичный, лет) — для окна поиска verification_date_start = сегодня − МПИ − 1 год.
 # Берём верхнюю границу по типу: ГВС 4–6, газ 8–12, свет 8–16 (точное значение — в описании типа СИ).
@@ -78,7 +78,7 @@ def parse_item(item: Any) -> Record | None:
     """Элемент ответа → Record; без vri_id — None. Некоторых полей в ответе может не быть."""
     if not isinstance(item, dict) or not item.get("vri_id"):
         return None
-    s = lambda k: re.sub(r"[\ufeff\ufffc\u200b-\u200f]", "", str(item.get(k) or "")).strip()  # noqa: E731
+    s = lambda k: strip_invisible(str(item.get(k) or "")).strip()  # noqa: E731
     applicable = item.get("applicability")
     return Record(
         vri_id=s("vri_id"), mit_number=s("mit_number"), mit_title=s("mit_title"), mit_notation=s("mit_notation"),

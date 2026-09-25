@@ -134,45 +134,6 @@ class MaxApi:
             return
         await self._request("DELETE", "/messages", params={"message_id": mid})
 
-    delete_message = delete
-    edit_message = edit
-
-    async def delete_messages(self, mids: list[str]) -> list[str]:
-        """Удалить несколько сообщений. Возвращает список успешно удалённых mid."""
-        deleted: list[str] = []
-        for mid in mids:
-            if not mid:
-                continue
-            try:
-                await self.delete(mid)
-                deleted.append(mid)
-            except MaxApiError as e:
-                log.warning("delete %s failed: %s", mid, e)
-        return deleted
-
-    async def safe_delete(self, mid: str) -> bool:
-        """Безопасное удаление одного сообщения без выброса исключения."""
-        if not mid:
-            return False
-        try:
-            await self.delete(mid)
-            return True
-        except MaxApiError as e:
-            log.warning("delete %s failed: %s", mid, e)
-            return False
-
-    async def safe_edit(self, mid: str, text: str | None = None, keyboard: dict | None | object = KEEP,
-                        fmt: str | None = "markdown") -> bool:
-        """Безопасное редактирование одного сообщения без выброса исключения."""
-        if not mid:
-            return False
-        try:
-            await self.edit(mid, text=text, keyboard=keyboard, fmt=fmt)
-            return True
-        except MaxApiError as e:
-            log.warning("edit %s failed: %s", mid, e)
-            return False
-
     async def answer(self, callback_id: str, *, message: dict | None = None,
                      notification: str | None = None) -> None:
         """POST /answers: message (NewMessageBody) заменяет сообщение с кнопкой, notification — тост."""

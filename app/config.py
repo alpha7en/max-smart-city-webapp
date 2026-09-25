@@ -20,6 +20,10 @@ def _int(value: str | None, default: int) -> int:
         return default
 
 
+def _list(value: str) -> tuple[str, ...]:
+    return tuple(v.strip() for v in value.split(",") if v.strip())
+
+
 def _choice(value: str | None, options: tuple[str, ...], default: str) -> str:
     v = (value or "").strip().lower()
     return v if v in options else default
@@ -42,6 +46,7 @@ class Settings:
     miniapp_origins: tuple[str, ...] = ()  # CORS: мини-приложение на другом домене (GitHub Pages)
     arshin_mode: str = "live"           # ФГИС «Аршин»: live | fixtures (демо-данные) | off
     arshin_base: str = "https://fgis.gost.ru/fundmetrology/eapi"
+    arshin_fallback_ips: tuple[str, ...] = ("212.164.138.19", "212.164.138.14")  # если DNS не резолвит хост
 
     @property
     def db_path(self) -> Path:
@@ -69,5 +74,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         submit_day_to=_int(e.get("SUBMIT_DAY_TO"), 25),
         arshin_mode=_choice(e.get("ARSHIN_MODE"), ("live", "fixtures", "off"), "live"),
         arshin_base=e.get("ARSHIN_BASE", "").strip().rstrip("/") or Settings.arshin_base,
-        miniapp_origins=tuple(o.strip().rstrip("/") for o in e.get("MINIAPP_ORIGINS", "").split(",") if o.strip()),
+        arshin_fallback_ips=Settings.arshin_fallback_ips if e.get("ARSHIN_FALLBACK_IPS") is None
+        else _list(e["ARSHIN_FALLBACK_IPS"]),
+        miniapp_origins=tuple(o.rstrip("/") for o in _list(e.get("MINIAPP_ORIGINS", ""))),
     )

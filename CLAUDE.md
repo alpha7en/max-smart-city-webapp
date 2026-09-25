@@ -23,17 +23,18 @@ app/
   db.py schema.sql   SQLite (WAL), миграции по user_version
   repo.py            весь SQL; секции потоков «# === Sx ===»
   clock.py           время МСК (в тестах подменяется)
-  scheduler.py       уведомления и чистка фото/сессий
-  domain/            чистые функции без I/O: meters, people, addresses, access (+dashboard)
+  scheduler.py       уведомления, чистка фото, раз в сутки обновление поверки по ФГИС
+  domain/            чистые функции без I/O: meters, people, addresses, access, serials, verification (+dashboard)
   integrations/      ВЕСЬ внешний HTTP: max_api.py (клиент MAX + certs/ Минцифры),
                      recognizer.py (клиент meter-reader или демо-заглушка), address_service.py (DaData/локально),
-                     arshin.py (ФГИС «Аршин», поверка по заводскому номеру; ARSHIN_MODE=live|fixtures|off)
+                     arshin.py (ФГИС «Аршин», поверка по заводскому номеру; ARSHIN_MODE=live|fixtures|off,
+                     ARSHIN_FALLBACK_IPS — IP хоста, если DNS в контейнере его не резолвит)
   arshin_service.py  проверка поверки после подачи и раз в сутки; выбор записи — domain/verification.py
   bot/
     events.py        сырой update MAX → Event        poller.py   long polling, marker в kv
     router.py        глобальные правила + @on_state/@on_repeat/@on_global/@on_command/@on_hook
     states.py session.py ctx.py photos.py keyboards.py (кнопки + payload "flow|action|arg")
-    flows/           registration, profile, submission, menu, notify
+    flows/           registration, profile, invite, submission, menu, notify
     texts/           ВСЕ тексты бота; fmt.py: esc(), числа, деньги, даты
   web/               auth.py (initData), api.py (/api/*), static/ (мини-приложение, vanilla JS)
 tests/               pytest; conftest.py (фикстура chat), fakes.py (FakeMaxApi + апдейты в формате MAX)
@@ -99,7 +100,8 @@ sqlite3 data/bot.db 'select user_id,state,data from sessions'  # состоян�
 - ФИО из Госуслуг MAX боту не отдаёт. Телефон берётся кнопкой `request_contact` (vcf_info + max_info).
 - URL мини-приложения закреплён в MAX организаторами: `https://alpha7en.github.io/max-smart-city-webapp/`.
   НЕ МЕНЯТЬ. Бэкенд для него должен быть на постоянном HTTPS (переменная `MINIAPP_API_BASE`), не на туннеле.
-- ФГИС «Аршин» доступен только с российских IP: из облачных агентов не проверялся. Лимит 2 rps, без
+- ФГИС «Аршин» доступен только с российских IP: живьём работает с машины владельца (в Docker понадобился
+  ARSHIN_FALLBACK_IPS), из облачных агентов недоступен; реальные ответы — `tests/fixtures/arshin/`. Лимит 2 rps, без
   `verification_date_start`/`year` ищет только текущий год. Проверка с сервера:
   `curl -sS -G https://fgis.gost.ru/fundmetrology/eapi/vri --data-urlencode mi_number=<номер> --data-urlencode verification_date_start=2015-01-01`.
 - Живьём ещё НЕ проверено: приходит ли `initData`; формат `request_contact` (TEL в vcf, max_info, hash);

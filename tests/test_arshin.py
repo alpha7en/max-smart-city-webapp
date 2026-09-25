@@ -501,17 +501,39 @@ async def test_real_collision_unfit_bot_flow(deps, api, repo, user):
     assert not any("1-390257330" in r.url.path for r in seen)
 
 
-async def test_dns_fallback_socket_and_anyio_backend():
+@pytest.fixture
+def dns_fallback(monkeypatch):
+    """socket.getaddrinfo не резолвит fgis.gost.ru; перехват снимается после теста."""
+    import socket
+    real = socket.getaddrinfo
+
+    def broken(host, port, *args, **kwargs):
+        if host in ("fgis.gost.ru", b"fgis.gost.ru"):
+            raise socket.gaierror("no DNS")
+        return real(host, port, *args, **kwargs)
+
+    monkeypatch.setattr(socket, "getaddrinfo", broken)
+    yield
+    A.uninstall_dns_fallback()
+
+
+async def test_dns_fallback_socket_and_anyio_backend(dns_fallback):
     import socket
     from anyio._backends._asyncio import AsyncIOBackend
 
-    # Проверяем, что при сбое DNS резолвер возвращает fallback IP
-    res_sock = socket.getaddrinfo("fgis.gost.ru", 443)
-    ips_sock = [r[4][0] for r in res_sock]
-    assert any(ip in A.FGIS_FALLBACK_IPS for ip in ips_sock)
+    ips = ("127.0.0.2", "127.0.0.3")
+    ArshinClient("off", fallback_ips=ips)  # не live — перехват не ставится
+    ArshinClient("live", "https://example.test/eapi")  # без IP — тоже
+    with pytest.raises(socket.gaierror):
+        socket.getaddrinfo("fgis.gost.ru", 443)
 
-    res_anyio = await AsyncIOBackend.getaddrinfo("fgis.gost.ru", 443)
-    ips_anyio = [r[4][0] for r in res_anyio]
-    assert any(ip in A.FGIS_FALLBACK_IPS for ip in ips_anyio)
+    ArshinClient("live", fallback_ips=ips)
+    A.install_dns_fallback("fgis.gost.ru", ips)  # повторно — без второго слоя
+    assert {r[4][0] for r in socket.getaddrinfo("fgis.gost.ru", 443)} == {"127.0.0.2"}
+    assert {r[4][0] for r in await AsyncIOBackend.getaddrinfo("fgis.gost.ru", 443)} == {"127.0.0.2"}
+    with pytest.raises(socket.gaierror):  # другие хосты не подменяются
+        socket.getaddrinfo("nonexistent.invalid", 443)
 
-
+    A.uninstall_dns_fallback()
+    with pytest.raises(socket.gaierror):
+        socket.getaddrinfo("fgis.gost.ru", 443)

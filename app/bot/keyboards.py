@@ -95,10 +95,6 @@ def request_contact(text: str) -> Button:
     return {"type": "request_contact", "text": _text(text)}
 
 
-def request_geo(text: str, quick: bool = False) -> Button:
-    return {"type": "request_geo_location", "text": _text(text), "quick": quick}
-
-
 def open_app(text: str, web_app: str, payload: str | None = None) -> Button | None:
     """Кнопка мини-приложения. web_app — username бота; без него кнопку не показываем (None).
     contact_id сервер дописывает сам."""
