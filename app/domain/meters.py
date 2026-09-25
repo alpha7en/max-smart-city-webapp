@@ -108,6 +108,14 @@ def format_value(value: int, meter_type: str | None = None, *, unit: bool = Fals
     return f"{text} {spec(meter_type).unit}" if unit and meter_type else text
 
 
+def format_stored(value: int, meter_type: str | None = None, *, unit: bool = False) -> str:
+    """Сохранённое значение без хвостовых нулей: 2168000 → '2168', 118200 → '118,2' (не рисуем незнакомых знаков)."""
+    text = format_value(value, meter_type)
+    if "," in text:
+        text = text.rstrip("0").rstrip(",")
+    return f"{text} {spec(meter_type).unit}" if unit and meter_type else text
+
+
 def reading_text(whole: str, frac: str = "") -> str:
     """Показание как прочитано/введено, без выдуманных знаков: ('002168', '') → '2168', ('595', '8') → '595,8'."""
     return (whole.lstrip("0") or "0") + (f",{frac}" if frac else "")

@@ -272,6 +272,8 @@ body.has-bar main { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px
 .arow + .arow::before { content: ""; position: absolute; top: 0; right: 0; left: 58px; height: 1px; background: var(--line); }
 .arow b { display: block; font-size: 15px; font-weight: 650; }
 .arow small { display: block; }
+.arow .acc { display: block; margin-top: 3px; font-size: 13px; text-align: left; }
+.acc-chat { align-self: center; padding: 8px; font-size: 14px; }
 .item .chev { flex: none; color: var(--dim); }
 .btn.danger { color: var(--bad); }
 .shoot { display: grid; grid-template-columns: 1fr 54px; gap: 10px; }

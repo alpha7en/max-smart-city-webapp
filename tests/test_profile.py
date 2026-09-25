@@ -6,6 +6,7 @@ from pathlib import Path
 from app.bot.session import load_session
 from app.bot.states import S
 from app.bot.texts import common as C
+from app.bot.texts import invite as IT
 from app.bot.texts import profile as PT
 from app.bot.texts import registration as RT
 from app.integrations.max_api import MaxApiError
@@ -40,8 +41,8 @@ async def test_p1_profile(chat, api):
     await _profile(chat)
     text = api.last_text()
     assert text == PT.PROFILE.format(name="Иванова Анна Сергеевна", phone="+7 912 345-67-89",
-                                     addresses="Арбат 47к1, кв 32 — собственник")
-    assert labels(last_kb(api)) == [PT.BTN_EDIT_PHONE, PT.BTN_ADD_ADDRESS, PT.BTN_DELETE, C.BTN_MENU]
+                                     addresses="Арбат 47к1, кв 32 — собственник\nДоступ: только вы")
+    assert labels(last_kb(api)) == [PT.BTN_EDIT_PHONE, PT.BTN_ADD_ADDRESS, IT.BTN_INVITE, PT.BTN_DELETE, C.BTN_MENU]
     assert all(b["payload"].startswith("g|") for b in buttons(last_kb(api)))
 
 

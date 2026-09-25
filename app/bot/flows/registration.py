@@ -12,9 +12,11 @@ from pathlib import Path
 from app.bot import keyboards as K
 from app.bot import photos
 from app.bot.ctx import Ctx
-from app.bot.router import call_hook, on_hook, on_repeat, on_state, repeat_step, show_menu
+from app.bot.flows import invite
+from app.bot.router import REG_KEEP, call_hook, on_hook, on_repeat, on_state, repeat_step, show_menu
 from app.bot.states import S
 from app.bot.texts import common as C
+from app.bot.texts import invite as IT
 from app.bot.texts import registration as T
 from app.bot.texts.fmt import esc, flats, format_phone
 from app.db import ts
@@ -257,12 +259,10 @@ class AddressFlow:
 
 @on_hook("registration.begin")
 async def start_registration(ctx: Ctx) -> None:
-    """Приветствие (§8 эталон 1) и вопрос ФИО отдельным сообщением; отложенное фото сохраняем."""
-    pending = ctx.data.get("pending_photo_id")
+    """Приветствие (§8 эталон 1) и вопрос ФИО отдельным сообщением; отложенное фото и приглашение сохраняем."""
+    keep = {k: v for k, v in ctx.data.items() if k in REG_KEEP and v}
     ctx.session.reset()
-    ctx.session.go(S.REG_NAME)
-    if pending:
-        ctx.data["pending_photo_id"] = pending
+    ctx.session.go(S.REG_NAME, **keep)
     await ctx.reply(C.WELCOME)
     await ask_name(ctx)
 
@@ -372,7 +372,7 @@ async def got_phone(ctx: Ctx) -> None:
     if reg.get("editing"):
         await to_confirm(ctx)
     else:
-        await REG_ADDRESS.start(ctx)
+        await start_address(ctx)
 
 
 # === Адрес ===
@@ -388,6 +388,7 @@ async def _address_back(ctx: Ctx) -> None:
 
 async def _address_chosen(ctx: Ctx, c: AddressCandidate) -> None:
     reg = _reg(ctx)
+    reg.pop("norm_key", None)
     reg["address"] = c.to_dict()
     reg["raw_address"] = ctx.data.pop("addr_raw", None)
     reg["notes_shown"] = ctx.data.pop("addr_shown", [])
@@ -398,6 +399,51 @@ REG_ADDRESS = AddressFlow(
     S.REG_ADDRESS, S.REG_ADDRESS_PICK, S.REG_FLAT, ask=T.ASK_ADDRESS, back_text=C.BTN_BACK,
     on_chosen=_address_chosen, on_back=_address_back,
 )
+
+
+# --- Адрес из приглашения: первым вопросом шага адреса ---
+
+async def _invite_address(ctx: Ctx) -> dict | None:
+    """Адрес действующего приглашения из сессии, если пользователь не выбрал «Другой адрес»."""
+    if not ctx.data.get("invite") or ctx.data.get("invite_skip"):
+        return None
+    inv, err = await invite.check_invite(ctx, ctx.data["invite"])
+    return None if err else await ctx.repo.get_address(inv["address_id"])
+
+
+async def start_address(ctx: Ctx) -> None:
+    ctx.data.pop("addr", None)
+    await ask_address(ctx)
+
+
+@on_repeat(S.REG_ADDRESS)
+async def ask_address(ctx: Ctx, text: str | None = None) -> None:
+    addr = None if ctx.data.get("addr") else await _invite_address(ctx)
+    if addr is None:
+        await REG_ADDRESS.ask(ctx, text)
+        return
+    ctx.session.go(S.REG_ADDRESS)
+    await ctx.reply(IT.ASK_INVITE_ADDRESS.format(address=esc(addr["full_text"])), K.kb(
+        [ctx.btn(IT.BTN_THIS_ADDRESS, "inv_yes"), ctx.btn(IT.BTN_OTHER_ADDRESS, "inv_other")],
+        [ctx.btn(C.BTN_BACK, "back")]))
+
+
+@on_state(S.REG_ADDRESS)
+async def got_address(ctx: Ctx) -> None:
+    act = said(ctx)
+    offered = not ctx.data.get("addr") and await _invite_address(ctx)
+    if offered and act in ("inv_yes", "yes"):
+        reg = _reg(ctx)
+        reg.update(address=AddressCandidate.from_dict(offered).to_dict(), norm_key=offered["norm_key"],
+                   raw_address=None, notes_shown=[])
+        await to_confirm(ctx)
+    elif act == "inv_other":
+        ctx.data["invite_skip"] = True
+        await REG_ADDRESS.ask(ctx)
+    elif act == "inv_yes":  # приглашение перестало действовать, пока шла регистрация
+        await REG_ADDRESS.ask(ctx)
+    else:
+        await REG_ADDRESS.got_input(ctx)
 
 
 # === Подтверждение ===
@@ -450,7 +496,7 @@ async def got_confirm(ctx: Ctx) -> None:
         return
     reg["editing"] = True
     if edit == S.REG_ADDRESS:
-        await REG_ADDRESS.start(ctx)
+        await start_address(ctx)
     else:
         ctx.session.go(edit)
         await repeat_step(ctx)
@@ -467,22 +513,31 @@ async def finish(ctx: Ctx) -> None:
     c = AddressCandidate.from_dict(reg["address"])
     res = await ctx.repo.complete_registration(
         ctx.user["id"], full_name=reg["name"], phone=reg["phone"], phone_verified=bool(reg.get("phone_verified")),
-        address=c.to_dict(), norm_key=norm_key(c), raw_input=reg.get("raw_address"), now=ctx.now,
+        address=c.to_dict(), norm_key=reg.get("norm_key") or norm_key(c), raw_input=reg.get("raw_address"),
+        now=ctx.now,
     )
     ctx.user = await ctx.repo.get_user_by_id(ctx.user["id"])
     if ctx.is_callback:  # сводка остаётся в чате без кнопок
         await ctx.reply(_summary(ctx, T.SAVED, notes=False))
+    by_invite = None
+    if res["access"] != "granted" and ctx.data.get("invite"):
+        by_invite = await invite.accept_after_registration(ctx, res["address_id"])
     pending = ctx.data.get("pending_photo_id")
     ctx.session.reset()
-    if res["access"] != "granted":
+    if by_invite != "accepted" and res["access"] != "granted":
         await photos.delete_photo(ctx.repo, pending)
         ctx.note(T.DONE_SHORT)
+        if by_invite:
+            ctx.note(IT.REG_NOT_APPLIED)
         await call_hook("access.no_access", ctx, address_id=res["address_id"])
         await show_menu(ctx)
         return
+    invited = [IT.REG_ACCEPTED.format(label=esc(res["label"]))] if by_invite else []
     if pending and await photo_alive(ctx, pending):
-        ctx.note(T.DONE_PHOTO)
+        for line in (T.DONE_PHOTO, *invited):
+            ctx.note(line)
         await call_hook("submission.with_photo", ctx, photo_id=pending)
         return
-    ctx.note(T.DONE_PHOTO_EXPIRED if pending else T.DONE)
+    for line in (T.DONE_PHOTO_EXPIRED if pending else T.DONE, *invited):
+        ctx.note(line)
     await show_menu(ctx)

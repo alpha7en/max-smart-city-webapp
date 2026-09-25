@@ -44,6 +44,9 @@ START_PAYLOADS = {
     "profile": "profile", "phone": "prof_phone", "add_address": "prof_addr", "delete_data": "prof_del",
     "add_meter": "add_meter", "submit": "submit", "meters": "meters",
 }
+# Диплинк с аргументом: start=<префикс><arg> → точка входа (hook) с kw arg=<arg>, в любом состоянии
+# и до регистрации (приглашение жильца: inv_<token>, inv_new_<address_id>, inv_acc_<address_id>).
+START_PREFIXES = {"inv_": "invite.start"}
 COMMANDS: dict[str, Handler] = {}
 HOOKS: dict[str, Handler] = {}
 BUTTON_STATES: set[S] = set()
@@ -58,12 +61,14 @@ ACCEPTS: dict[S, frozenset[str]] = {}
 #   "submission.add_meter" — «Добавить счётчик» из «Мои счётчики» (S2).
 #   "submission.with_photo"— начать подачу с уже сохранённым фото, kw photo_id (S2; вызывает S1 после регистрации).
 #   "access.no_access"     — сообщение «нет прав» по адресу, kw address_id (S1; вызывает S2).
+#   "invite.start"         — диплинк с префиксом из START_PREFIXES, kw arg (S1; вызывает роутер).
 HOOK_NAMES = (
     "menu", "registration.begin", "submission.photo",
     "submission.start", "submission.manual", "submission.add_meter", "submission.with_photo",
-    "access.no_access",
+    "access.no_access", "invite.start",
 )
 DEDUP_SIZE = 2000
+REG_KEEP = ("pending_photo_id", "invite")  # переживают начало/перезапуск регистрации
 
 
 def on_state(*states: S, buttons: bool = False, accepts: tuple[str, ...] = ()):
@@ -169,13 +174,26 @@ async def cancel_scenario(ctx: Ctx, *, by_user: bool = False) -> None:
         ctx.note(T.PROFILE_CANCELLED_BY_USER if by_user else T.PROFILE_CANCELLED)
 
 
+def start_prefix(payload: str | None) -> tuple[str, str] | None:
+    """payload диплинка → (hook, arg) по START_PREFIXES или None."""
+    p = (payload or "").strip()
+    for prefix, hook in START_PREFIXES.items():
+        if p.lower().startswith(prefix) and len(p) > len(prefix):
+            return hook, p[len(prefix):]
+    return None
+
+
+async def continue_registration(ctx: Ctx) -> None:
+    """/start посреди регистрации: «продолжим» и тот же шаг (правило 3)."""
+    await ctx.reply(T.CONTINUE_REG, K.kb([ctx.btn(T.BTN_RESTART, "restart")]))
+    await repeat_step(ctx)
+
+
 async def restart_registration(ctx: Ctx) -> None:
-    """Очистить черновик регистрации (фото сохраняем) и начать с ФИО."""
-    pending = ctx.session.data.get("pending_photo_id")
+    """Очистить черновик регистрации (фото и приглашение сохраняем) и начать с ФИО."""
+    keep = {k: v for k, v in ctx.session.data.items() if k in REG_KEEP and v}
     ctx.session.reset()
-    ctx.session.go(S.REG_NAME)
-    if pending:
-        ctx.session.data["pending_photo_id"] = pending
+    ctx.session.go(S.REG_NAME, **keep)
     await repeat_step(ctx)
 
 
@@ -302,6 +320,11 @@ class Router:
                     await show_menu(ctx)
                     return
 
+        # Диплинк с аргументом (приглашение) — свой обработчик в любом состоянии.
+        if ev.kind == "start" and (target := start_prefix(ev.start_payload)):
+            await HOOKS[target[0]](ctx, arg=target[1])
+            return
+
         # 2. Незарегистрированный вне регистрации → приветствие и регистрация.
         if not ctx.registered and not s.state.is_reg:
             await ctx.ack()
@@ -319,8 +342,7 @@ class Router:
         # 3. /start и «меню».
         if ev.kind == "start" or is_menu_text:
             if s.state.is_reg:
-                await ctx.reply(T.CONTINUE_REG, K.kb([ctx.btn(T.BTN_RESTART, "restart")]))
-                await repeat_step(ctx)
+                await continue_registration(ctx)
             else:
                 await cancel_scenario(ctx)
                 action = START_PAYLOADS.get((ev.start_payload or "").strip().lower())

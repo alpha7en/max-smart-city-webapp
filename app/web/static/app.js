@@ -60,6 +60,7 @@
     gauge: '<path d="m12 14 4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0z"/>',
     home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
     down: '<path d="m6 9 6 6 6-6"/>',
     image: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
     phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>',
@@ -207,7 +208,7 @@
   function fmtNum(v, m) {
     if (v == null || v === '') return '—';
     if (typeof v === 'string') return v.trim().replace('.', ',');
-    return Number(v).toFixed(decimals(m)).replace('.', ',');
+    return Number(v).toFixed(decimals(m)).replace(/\.?0+$/, '').replace('.', ',');  // без несуществующих нулей
   }
   const parts = (v, m) => { const s = fmtNum(v, m), j = s.indexOf(','); return j < 0 ? [s, ''] : [s.slice(0, j), s.slice(j)]; };
   // Показание «приборным» шрифтом: целая часть + дробная другим цветом, как на барабане счётчика.
@@ -515,7 +516,8 @@
         const r = ROLE[a.access !== 'granted' ? a.access : a.role === 'owner' ? 'owner' : 'granted'] || ROLE.pending;
         return h('div', { class: 'arow' }, ibox('home', r[1] === 'ok' ? 'accent' : r[1], 18),
           h('span', { class: 'grow' }, h('b', {}, a.label),
-            (a.full_text || a.verified === false) && h('small', {}, [a.full_text, a.verified === false && 'не сверен с ФИАС'].filter(Boolean).join(' · '))),
+            (a.full_text || a.verified === false) && h('small', {}, [a.full_text, a.verified === false && 'не сверен с ФИАС'].filter(Boolean).join(' · ')),
+            a.role === 'owner' && Array.isArray(a.members) && h('button', { class: 'link acc', type: 'button', 'aria-haspopup': 'dialog', onclick: () => accessSheet(a) }, accessLine(a.members) + ' ›')),
           h('span', { class: 'pill t-' + r[1] }, r[0]));
       })),
       waiting && h('div', { class: 'note t-warn' }, icon('clock', 18),
@@ -524,6 +526,26 @@
       h('div', { class: 'list acts-list' }, action('plus', 'Добавить адрес', 'add_address'), action('phone', 'Изменить телефон', 'phone')),
       h('p', { class: 'foot' }, 'Изменения вносим в чате с ботом: там проверим адрес и номер. Права по адресам в демо смоделированы.'),
       h('button', { class: 'btn ghost danger', type: 'button', onclick: () => openChat('delete_data') }, 'Удалить мои данные'));
+  }
+
+  // Кто ещё передаёт показания по адресу собственника: строка в профиле и нижний лист со списком.
+  const PEOPLE_WORDS = ['человек', 'человека', 'человек'];
+  const MEMBER_STATUS = { granted: ['есть доступ', 'accent'], pending: ['ждёт одобрения', 'warn'], denied: ['доступ закрыт', 'bad'] };
+  function accessLine(ms) {
+    const n = ms.filter(m => m.access !== 'denied').length;  // статусы — в листе
+    return n ? 'Доступ: ' + n + ' ' + plural(n, PEOPLE_WORDS) : 'Только вы';
+  }
+  function accessSheet(a) {
+    const ms = a.members || [];
+    listSheet('Доступ · ' + a.label, [
+      ms.length ? ms.map(m => {
+        const st = MEMBER_STATUS[m.access] || MEMBER_STATUS.pending;
+        return h('div', { class: 'opt' }, ibox('user', st[1], 18), h('span', { class: 'grow' }, h('b', {}, m.name_short), h('small', {}, st[0])));
+      }) : h('div', { class: 'opt' }, ibox('user', 'accent', 18), h('span', { class: 'grow' }, h('b', {}, 'Только вы'), h('small', {}, 'пригласите того, кто тоже передаёт показания'))),
+      h('button', { class: 'opt add', type: 'button', onclick: () => { closeDialog(); openChat('inv_new_' + a.id); } },
+        ibox('plus', 'accent', 18), h('span', { class: 'grow' }, h('b', {}, 'Пригласить жильца'), h('small', {}, 'бот пришлёт ссылку в чат'))),
+      ms.length > 0 && h('button', { class: 'link acc-chat', type: 'button', onclick: () => { closeDialog(); openChat('inv_acc_' + a.id); } }, 'Отозвать доступ — в чате'),
+    ]);
   }
 
   // ---------- экран: подать показания ----------

@@ -52,6 +52,14 @@ def first_name(full_name: str | None) -> str:
     return words[1] if len(words) > 1 else (words[0] if words else "")
 
 
+def short_name(full_name: str | None) -> str:
+    """«Иванова Анна Сергеевна» → «Анна И.»: имя и инициал фамилии, без чужих персональных данных."""
+    words = (full_name or "").split()
+    if len(words) < 2:
+        return words[0] if words else "Без имени"
+    return f"{words[1]} {words[0][0]}."
+
+
 def normalize_phone(text: str | None) -> str | None:
     """Российский номер → '+7XXXXXXXXXX' или None. Принимает 8…, 7…, +7…, 10 цифр."""
     if not text or re.search(r"[^\d\s()+\-.]", text.strip()):
