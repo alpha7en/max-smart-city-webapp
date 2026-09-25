@@ -414,6 +414,39 @@ def test_a6_wrong_serial_in_miniapp_does_not_touch_meter(client, monkeypatch):
     assert run(client, repo(client).get_meter, mid)["serial"] == "18-123456"
 
 
+def test_a6_photo_quality_texts_and_serial(client, monkeypatch):
+    """Прочитанное как есть (texts), конкретные предупреждения о фото, номер: не виден / обязателен."""
+    u = register(client)
+    mid = add_meter(client, u["address_id"], "electricity", serial=None)
+    d = recognize_with(client, monkeypatch, mid, confidence=0.6, values={"t1": 2_168_000}, texts={"t1": "2168"},
+                       issues=["glare", "serial_not_visible"])
+    assert d["values"]["t1"] == 2168.0 and d["texts"] == {"t1": "2168"}
+    assert d["message"] == TS.REVIEW_WARN["glare"] and d["serial_required"] is True
+    with_serial = add_meter(client, u["address_id"], "gas", serial="1234567")
+    d = recognize_with(client, monkeypatch, with_serial, confidence=0.9, values={"t1": 1000}, issues=["blurry"])
+    assert d["serial_required"] is False and d["message"] == TS.REVIEW_WARN["blurry"]
+    assert d["serial_note"] == "Номер на фото не виден — убедитесь, что это счётчик с номером 1234567."
+
+
+def test_a5_photo_reading_requires_serial_for_meter_without_it(client, api):
+    u = register(client)
+    mid = add_meter(client, u["address_id"], "electricity", serial=None)
+    other = add_meter(client, u["address_id"], "gas", serial="12345678")
+    assert_error(post(client, mid, values={"t1": "2168"}, source="photo"), 422, "serial_required")
+    assert_error(post(client, mid, values={"t1": "2168"}, source="photo", serial="2021"), 422, "serial_bad")
+    assert_error(post(client, mid, values={"t1": "2168"}, source="photo", serial="12 345 678"), 422, "serial_taken")
+    assert api.named("send") == [] and run(client, repo(client).reading_for_period, mid, "2026-10") is None
+    r = post(client, mid, values={"t1": "2168"}, source="photo", serial="№ 01234567")
+    assert r.status_code == 200 and r.json()["serial"] == "01234567"
+    assert run(client, repo(client).get_meter, mid)["serial"] == "01234567"
+    (msg,) = api.named("send")
+    assert "**2168 кВт·ч**" in msg["text"] and "2168,00" not in msg["text"]  # как ввели, без выдуманных знаков
+    # Ручной ввод номер не требует; у счётчика с номером поле serial игнорируется.
+    assert post(client, other, values={"t1": "5"}, source="manual").status_code == 200
+    assert post(client, other, values={"t1": "5"}, replace=True, source="photo", serial="99999999").status_code == 200
+    assert run(client, repo(client).get_meter, other)["serial"] == "12345678"
+
+
 def test_a6_too_large_by_content_length(client):
     headers = {**auth(), "Content-Length": str(20 * 1024 * 1024), "Content-Type": "multipart/form-data; boundary=x"}
     assert_error(client.post("/api/recognize", headers=headers, content=b"--x--"), 413, "too_large")

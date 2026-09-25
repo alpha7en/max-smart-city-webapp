@@ -124,6 +124,8 @@ async def run(d: Dialog) -> None:
     await d.photo(ANNA)
     await d.press(ANNA, "Хол. вода")
     await d.press(ANNA, "Арбат 47к1, кв 32")
+    await d.press(ANNA, "Ввести номер")  # демо-распознавание номер не читает
+    await d.text(ANNA, "18-452178")
     await d.press(ANNA, "Отправить")
     await d.text(ANNA, "15.03.2030")
 
@@ -135,6 +137,7 @@ async def run(d: Dialog) -> None:
     await d.press(ANNA, "Арбат 47к1, кв 32")
     await d.text(ANNA, "12,34,5")
     await d.text(ANNA, "45,678")
+    await d.text(ANNA, "18-452190")
     await d.press(ANNA, "Отправить")
     await d.press(ANNA, "Позже")
 

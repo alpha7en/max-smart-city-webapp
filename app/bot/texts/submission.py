@@ -72,7 +72,10 @@ ISSUE_TEXTS = {
     "display_off": "Табло не горит — нажмите кнопку на счётчике, чтобы оно включилось.",
     "other": "Не получилось разобрать цифры на фото.",
     "service": "Сервис распознавания сейчас не отвечает.",
+    "low_confidence": "Мы не уверены в цифрах: фото нечёткое или мелкое — снимите ближе и ровнее.",
+    "few_digits": "Видно не все цифры показания — в кадр должен попасть весь ряд цифр табло.",
 }
+FAILED_SERIAL = "Серийный номер тоже не виден — пусть в кадр попадёт и он или штрихкод."
 MAX_ISSUES = 2
 NOTE_LIMIT = 160
 WRONG_TYPE_WARN = "Похоже, на фото счётчик другого типа — проверьте, тот ли счётчик выбран."
@@ -92,6 +95,11 @@ SERIAL_OF_OTHER = (
 API_UNREADABLE = "Не разобрали цифры. Переснимите прямо, без бликов, или введите вручную."
 API_SERIAL_MISMATCH = "Номер на фото — {photo}, у счётчика — {saved}. Проверьте, тот ли счётчик выбран."
 API_PARTIAL = "{fields}: на фото не видно — введите вручную."
+API_SERIAL_NOT_ON_PHOTO = "Номер на фото не виден — убедитесь, что это счётчик с номером {serial}."
+API_SERIAL_REQUIRED = ("Не разобрали серийный номер — он нужен, чтобы не перепутать счётчики. "
+                       "Введите номер с корпуса счётчика или переснимите так, чтобы он был в кадре.")
+API_SERIAL_BAD = "Это не похоже на серийный номер счётчика. Номер обычно рядом со штрихкодом, например: {example}"
+API_SERIAL_TAKEN = "Номер {serial} уже записан у другого вашего счётчика. Проверьте номер."
 
 
 def _stems(text: str) -> set[str]:
@@ -116,13 +124,38 @@ def issue_lines(issues: list[str], note: str | None, meter_type: str, *, markup:
     return lines
 
 
-def recognize_failed(issues: list[str], note: str | None, meter_type: str) -> str:
-    """Экран «не получилось распознать»: что не так и что делать. Нет причин — общий текст."""
+def recognize_failed(issues: list[str], note: str | None, meter_type: str, *, need_serial: bool = False) -> str:
+    """Экран «не получилось распознать»: что не так и что делать. Нет причин — общий текст.
+    need_serial — у счётчика нет сохранённого номера, а на фото его тоже не видно."""
     lines = issue_lines(issues, note, meter_type)
+    if need_serial and "serial_not_visible" in issues:
+        lines.append(FAILED_SERIAL)
     if not lines:
         return RECOGNIZE_FAILED
     tail = FAILED_TAIL_SERVICE if "service" in issues else FAILED_TAIL
     return "\n".join([FAILED_HEAD, "", *lines, "", tail])
+
+
+# Прочитали, но с оговорками (коды сервиса и наши) → предупреждение на экране проверки.
+REVIEW_WARN = {
+    "blurry": "Фото нечёткое — сверьте каждую цифру с табло.",
+    "glare": "На фото блики — сверьте каждую цифру с табло.",
+    "angle": "Снято под углом — сверьте каждую цифру с табло.",
+    "too_dark": "Фото тёмное — сверьте каждую цифру с табло.",
+    "partially_covered": "Часть табло закрыта — проверьте, все ли цифры на месте.",
+    "digits_not_visible": "Не все цифры видны чётко — сверьте показание с табло.",
+    "few_digits": "Разобрали меньше цифр до запятой, чем бывает у такого счётчика ({typical}), — сверьте с табло.",
+    "low_confidence": "Мы не уверены в цифрах: фото нечёткое или мелкое. Сверьте с табло.",
+}
+TYPICAL_WHOLE = {"cold_water": "обычно 5", "hot_water": "обычно 5", "electricity": "обычно 5–6", "gas": "обычно 5"}
+
+
+def review_warnings(issues: list[str], meter_type: str) -> list[str]:
+    """До MAX_ISSUES конкретных предупреждений; «не уверены» — только если конкретных нет."""
+    codes = [c for c in dict.fromkeys(issues) if c in REVIEW_WARN and c != "low_confidence"]
+    if not codes and "low_confidence" in issues:
+        codes = ["low_confidence"]
+    return [REVIEW_WARN[c].format(typical=TYPICAL_WHOLE.get(meter_type, "")) for c in codes[:MAX_ISSUES]]
 
 
 # --- Проверка ---
@@ -138,6 +171,26 @@ SERIAL_TYPICAL = {
     "gas": "обычно 7–8 цифр", "heat": "обычно 6–10 цифр",
 }
 SERIAL_WARN = "Номер необычный для этого счётчика ({typical}) — сверьте с корпусом."
+SERIAL_NOT_ON_PHOTO = "Номер на фото не виден — убедитесь, что это счётчик с номером {serial}."
+# Номера нет ни у счётчика, ни на фото: без него не отправляем (счётчики легко перепутать).
+SERIAL_MISSING = (
+    "Не разобрали серийный номер — он нужен, чтобы не перепутать счётчики. "
+    "Переснимите так, чтобы в кадре был номер или штрихкод, или введите номер вручную."
+)
+ASK_SERIAL = (
+    "Напишите серийный номер счётчика — он на корпусе, рядом со штрихкодом. Например: {example}\n\n"
+    "Он нужен, чтобы не перепутать счётчики."
+)
+SERIAL_EXAMPLES = {"cold_water": "18-123456", "hot_water": "18-123456", "electricity": "01234567",
+                   "gas": "1234567", "heat": "12345678"}
+SERIAL_ERRORS = {
+    "empty": "Напишите номер с корпуса счётчика, например: {example}",
+    "not_serial": ("Это не похоже на серийный номер: год, ГОСТ, класс или номер пломбы не подходят. "
+                   "Номер обычно рядом со штрихкодом, например: {example}"),
+    "too_short": "Слишком короткий номер — в нём {typical}. Например: {example}",
+    "too_long": "Слишком длинный номер — в нём {typical}. Например: {example}",
+}
+SERIAL_TAKEN = "Номер {serial} уже записан у другого вашего счётчика: «{other}». Проверьте номер."
 PREV_LINE = "В прошлый раз: {value} ({delta})"
 PREV_LINE_MULTI = "В прошлый раз: {value}"
 CHECK_DIGITS = "Проверьте цифры внимательно."
@@ -207,6 +260,7 @@ BTN_EDIT = "Исправить"
 BTN_RETAKE = "Переснять"
 BTN_OTHER_METER = "Это другой счётчик"
 BTN_SAME_METER = "Номер на фото неверный"
+BTN_SERIAL = "Ввести номер"
 BTN_PICK_OTHER = "Выбрать другой счётчик"
 BTN_CONFIRM_BIG = "Да, всё верно"
 BTN_REPLACE = "Заменить"

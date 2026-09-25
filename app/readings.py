@@ -141,6 +141,7 @@ async def submit_reading(
     confirm: bool = False,
     replace: bool = False,
     today: date,
+    serial: str | None = None,
 ) -> SubmitResult:
     """Подать показание за текущий месяц — проверки и запись одной транзакцией.
 
@@ -152,12 +153,13 @@ async def submit_reading(
     Порядок проверок (SPEC_REVIEW C5): права → формат → уже подано (если не replace) →
     меньше прошлого (последнее показание ДО текущего периода) → прирост выше порога × месяцев (если не confirm).
     Первое показание счётчика проверяется только на формат. confirm=True с большим приростом → 'flagged'.
+    serial — номер, введённый вручную: сохраняется у счётчика без номера (важнее номера из recognized).
     """
     period = current_period(today)
     try:
         async with repo.tx():
             return await _submit(repo, user_id, meter_id, draft, values, source, recognized,
-                                 confirm, replace, period)
+                                 confirm, replace, period, serial)
     except ReadingExists as e:  # гонка двух подач: запись откатили, отвечаем как «уже подано»
         row = await repo.get_meter(e.reading["meter_id"])
         return _already(row["type"], row["tariffs"], e.reading, None, period)
@@ -171,7 +173,7 @@ def _already(meter_type: str, tariffs: int, old: dict, new: Values | None, perio
 
 async def _submit(repo: Repo, user_id: int, meter_id: int | None, draft: dict | None,
                   values: dict, source: str, recognized: dict | None, confirm: bool, replace: bool,
-                  period: str) -> SubmitResult:
+                  period: str, entered_serial: str | None = None) -> SubmitResult:
     # 1. Права.
     if meter_id is not None:
         meter = await repo.meter_access(user_id, meter_id)
@@ -226,7 +228,7 @@ async def _submit(repo: Repo, user_id: int, meter_id: int | None, draft: dict | 
         draft=None if meter_id is not None else {**draft, "tariffs": tariffs},
     )
     # Номер с фото: «№» и мусор по краям убираем, явное «не номер» (год, ГОСТ, Qn) не сохраняем.
-    serial = usable_serial((recognized or {}).get("serial"), mtype)
+    serial = usable_serial(entered_serial or (recognized or {}).get("serial"), mtype)
     if serial:
         row = await repo.get_meter(meter_id)
         if not row["serial_norm"] and not await repo.find_meter_by_serial(address_id, serial):
