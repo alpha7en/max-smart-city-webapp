@@ -196,15 +196,15 @@ async def test_f3_photo_recognize_send(chat, api, repo, settings, user, cold):
     assert api.named("delete")  # «Смотрим на фото…» удалено при получении результата
     review = api.last_text()
     assert review.startswith(LABEL + "\n\nПоказание: **") and "В прошлый раз: 118,2 м³ (+" in review
-    assert T.STUB_NOTE in review and review.endswith(T.REVIEW_QUESTION)
+    assert review.endswith(f"{T.REVIEW_QUESTION}\n\n> {T.STUB_NOTE}")  # демо — последней цитатой
     assert buttons(api) == [T.BTN_SEND, T.BTN_EDIT, T.BTN_RETAKE, C.BTN_CANCEL]
     assert (await state(repo)).state == S.SUB_REVIEW
     await chat.press(T.BTN_SEND)
     (_, row) = await readings(repo, cold)
     assert (row["source"], row["status"]) == ("photo", "accepted") and row["t1"] > 118_200
     done = api.last_text()
-    assert done.startswith("Готово! Записали показание счётчика холодной воды (Арбат 47к1, кв 32) за октябрь: ")
-    assert T.UK_MOCK in done and T.STUB_NOTE not in done  # о демо-распознавании сказали на проверке
+    assert done.startswith("Готово! Записали показание за **октябрь**.\nХолодная вода · Арбат 47к1, кв 32\n**")
+    assert done.endswith(f"\n\n> {T.UK_MOCK}") and T.STUB_NOTE not in done  # о демо-распознавании сказали на проверке
     assert buttons(api) == [C.BTN_MENU, T.BTN_MORE]
     assert api.button(T.BTN_MORE)["payload"] == "g|submit|"
     assert (await state(repo)).state == S.IDLE and photo_files(settings) == []
@@ -243,7 +243,7 @@ async def test_f4_new_electricity_two_tariffs(chat, api, repo, user):
     await chat.text("0112 3456 7890")
     review = api.last_text()
     assert "Т1 день: **" in review and "Т2 ночь: **" in review
-    assert "Серийный номер: 011234567890 — сохраним" in review
+    assert "Серийный номер: **011234567890** — сохраним" in review
     assert await repo.address_meters(user[1]) == []  # черновик: в БД ещё нет
     await chat.press(T.BTN_SEND)
     (m,) = await repo.address_meters(user[1])
@@ -251,7 +251,7 @@ async def test_f4_new_electricity_two_tariffs(chat, api, repo, user):
     assert m["serial"] == "0112 3456 7890"
     (r,) = await readings(repo, m["id"])
     assert r["t1"] and r["t2"] and r["t3"] is None
-    assert api.last_text().endswith(T.ASK_VERIF) and buttons(api) == [T.BTN_LATER]
+    assert api.last_text().endswith(f"{T.ASK_VERIF}\n\n> {T.UK_MOCK}") and buttons(api) == [T.BTN_LATER]
     assert (await state(repo)).state == S.SUB_VERIF_DATE
 
 
@@ -388,7 +388,7 @@ async def test_f7_edit_with_errors_then_photo_edited(chat, api, repo, cold):
     await chat.press(T.BTN_SEND)
     assert (await readings(repo, cold))[-1] == {"t1": 125_500, "t2": None, "t3": None,
                                                 "source": "photo_edited", "status": "accepted"}
-    assert api.last_text().startswith("Готово! Записали показание счётчика холодной воды")
+    assert api.last_text().startswith("Готово! Записали показание за **октябрь**.\nХолодная вода")
 
 
 async def test_f8_retake_then_new_photo_recognized_at_once(chat, api, repo, settings, cold):
@@ -533,12 +533,12 @@ async def test_serial_match_and_saved_for_meter_without_serial(chat, api, repo, 
     await meter(repo, user, serial="18-123456")
     deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="18 123456")
     await to_review(chat)
-    assert "Серийный номер: 18 123456 — совпадает" in api.last_text()
+    assert "Серийный номер: **18 123456** — совпадает" in api.last_text()
     await chat.press(C.BTN_CANCEL)
     gas = await meter(repo, user, "gas", serial=None)
     deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="GZ-1234567")
     await to_review(chat, "Газ · Арбат 47к1, кв 32", "https://i/3")
-    assert "GZ-1234567 — сохраним" in api.last_text()
+    assert "GZ-1234567** — сохраним" in api.last_text()
     await chat.press(T.BTN_SEND)
     assert (await repo.get_meter(gas))["serial"] == "GZ-1234567"
 
@@ -548,7 +548,7 @@ async def test_meter_model_saved_internally_never_shown(chat, api, repo, deps, u
     cold = await meter(repo, user, serial=None, readings=[("2026-09", 118_200)])
     deps.recognizer = FixedRecognizer({"t1": 120_000}, serial="18-4521", brand="Бетар", model="СХВ-15")
     await to_review(chat)
-    assert "Серийный номер: 18-4521" in api.last_text()
+    assert "Серийный номер: **18-4521" in api.last_text()
     await chat.press(T.BTN_SEND)
     assert not [t for t in api.texts() if "СХВ" in t or "Бетар" in t]
     row = (await repo.history(cold))[0]
@@ -575,7 +575,7 @@ async def test_new_meter_serial_saved_from_photo(chat, api, repo, deps, user):
     await chat.photo()
     await chat.press("Гор. вода")
     await chat.press("Арбат 47к1, кв 32")
-    assert "HW-90123456 — сохраним" in api.last_text()
+    assert "HW-90123456** — сохраним" in api.last_text()
     await chat.press(T.BTN_SEND)
     (m,) = await repo.address_meters(user[1])
     assert (m["type"], m["serial"]) == ("hot_water", "HW-90123456")
@@ -593,11 +593,11 @@ async def test_serial_new_meter_retake_other_serial_no_false_mismatch(chat, api,
     await chat.photo()
     await chat.press("Гор. вода")
     await chat.press("Арбат 47к1, кв 32")
-    assert "18-111111 — сохраним" in api.last_text()
+    assert "18-111111** — сохраним" in api.last_text()
     await chat.press(T.BTN_RETAKE)
     deps.recognizer = FixedRecognizer({"t1": 7_000}, serial="18-222222")
     await chat.photo("https://i/2")
-    assert (await state(repo)).state == S.SUB_REVIEW and "18-222222 — сохраним" in api.last_text()
+    assert (await state(repo)).state == S.SUB_REVIEW and "18-222222** — сохраним" in api.last_text()
     assert "18-111111" not in api.last_text()
     await chat.press(T.BTN_SEND)
     (m,) = await repo.address_meters(user[1])
@@ -640,7 +640,7 @@ async def test_serial_retake_after_mismatch_matches_after_normalization(chat, ap
     deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="№ 18 654 321")
     await chat.photo("https://i/2")
     assert (await state(repo)).state == S.SUB_REVIEW
-    assert "Серийный номер: 18 654 321 — совпадает" in api.last_text()
+    assert "Серийный номер: **18 654 321** — совпадает" in api.last_text()
     await chat.press(T.BTN_SEND)
     assert (await repo.get_meter(mid))["serial"] == "18-654321"
 
@@ -653,7 +653,7 @@ async def test_serial_other_meter_then_pick_it(chat, api, repo, deps, user):
     await chat.press(T.BTN_OTHER_METER)
     assert (await state(repo)).state == S.SUB_PICK_METER
     await chat.press("Гор. вода · Арбат 47к1, кв 32")
-    assert "18-123456 — совпадает" in api.last_text()
+    assert "18-123456** — совпадает" in api.last_text()
     await chat.press(T.BTN_SEND)
     assert [r["t1"] for r in await readings(repo, hot)] == [5_000] and await readings(repo, cold_id) == []
     assert (await repo.get_meter(cold_id))["serial"] == "18-654321"
@@ -672,7 +672,7 @@ async def test_serial_of_another_meter_for_meter_without_serial(chat, api, repo,
     await chat.text("18-123456")  # тот же чужой номер
     assert api.last_text().startswith("Номер 18-123456 уже записан у другого вашего счётчика")
     await chat.text("18-777777")
-    assert "Серийный номер: 18-777777 — сохраним" in api.last_text()
+    assert "Серийный номер: **18-777777** — сохраним" in api.last_text()
     await chat.press(T.BTN_SEND)
     assert (await repo.get_meter(cold_id))["serial"] == "18-777777"
     assert (await repo.get_meter(hot))["serial"] == "18-123456" and len(await readings(repo, cold_id)) == 1
@@ -682,7 +682,7 @@ async def test_serial_cyrillic_lookalike_matches(chat, api, repo, deps, user):
     await meter(repo, user, serial="АВ-7712345")  # кириллица
     deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="AB7712345")
     await to_review(chat)
-    assert (await state(repo)).state == S.SUB_REVIEW and "AB7712345 — совпадает" in api.last_text()
+    assert (await state(repo)).state == S.SUB_REVIEW and "AB7712345** — совпадает" in api.last_text()
 
 
 # --- Почему не распознали: коды проблем от сервиса ---
@@ -769,7 +769,7 @@ async def test_f13_less_than_previous_photo_path(chat, api, repo, deps, cold):
     await to_review(chat)
     await chat.press(T.BTN_SEND)
     assert (await state(repo)).state == S.SUB_PLAUSIBILITY
-    assert "было 118,200 м³, сейчас 100,000 м³" in api.last_text()
+    assert "было **118,200 м³**, сейчас **100,000 м³**" in api.last_text()
     assert buttons(api) == [T.BTN_EDIT, T.BTN_RETAKE, C.BTN_CANCEL]
     await chat.text("да")  # «да» здесь не подтверждает — вопрос заново
     assert (await state(repo)).state == S.SUB_PLAUSIBILITY
@@ -796,7 +796,7 @@ async def test_f14_big_growth_confirm_flagged(chat, api, repo, deps, cold):
     await to_review(chat)
     await chat.press(T.BTN_SEND)
     text = api.last_text()
-    assert "Большой прирост: +31,000 м³ за 1 месяц. Обычно не больше 30,000 м³." in text
+    assert "Большой прирост: **+31,000 м³** за 1 месяц. Обычно не больше 30,000 м³." in text
     assert buttons(api) == [T.BTN_CONFIRM_BIG, T.BTN_EDIT, C.BTN_CANCEL]
     await chat.press(T.BTN_CONFIRM_BIG)
     assert (await readings(repo, cold))[-1]["status"] == "flagged"
@@ -816,7 +816,7 @@ async def test_f15_already_submitted_replace_or_keep(chat, api, repo, cold):
     await to_review(chat)
     await chat.press(T.BTN_SEND)
     assert (await state(repo)).state == S.SUB_REPLACE_CONFIRM
-    assert api.last_text().startswith("За октябрь уже передано: 130,000 м³.")
+    assert api.last_text().startswith("За октябрь уже передано: **130,000 м³**.")
     assert buttons(api) == [T.BTN_REPLACE, T.BTN_KEEP_OLD]
     await chat.press(T.BTN_KEEP_OLD)
     assert api.last_text().startswith(T.KEPT_OLD) and len(await readings(repo, cold)) == 2
@@ -954,7 +954,7 @@ async def test_f23_add_meter_manual_and_photo(chat, api, repo, user, hook_button
     assert (await state(repo)).state == S.SUB_MANUAL
     await chat.text("1234,5")
     await chat.text("GZ-7654321")
-    assert "Показание: **1234,5 м³**" in api.last_text() and "GZ-7654321 — сохраним" in api.last_text()
+    assert "Показание: **1234,5 м³**" in api.last_text() and "GZ-7654321** — сохраним" in api.last_text()
     await chat.press(T.BTN_SEND)
     (gas,) = await repo.address_meters(user[1])
     assert gas["serial"] == "GZ-7654321"
@@ -982,7 +982,7 @@ async def test_f24_verification_date(chat, api, repo, user):
         await chat.text(bad)
         assert api.last_text() == T.VERIF_ERRORS[err] and buttons(api) == [T.BTN_LATER]
     await chat.text("15.03.2030")
-    assert api.last_text() == "Записали: поверка до 15 марта 2030. Напомним заранее."
+    assert api.last_text() == "Записали: поверка до **15 марта 2030**. Напомним заранее."
     (m,) = await repo.address_meters(user[1])
     assert (m["verification_due"], m["verification_source"]) == ("2030-03-15", "user")
     assert (await state(repo)).state == S.IDLE and buttons(api) == [C.BTN_MENU, T.BTN_MORE]
@@ -1106,7 +1106,7 @@ async def test_serial_not_a_serial_is_dropped(chat, api, repo, deps, user):
     await to_review(chat)
     assert (await state(repo)).state == S.SUB_SERIAL_MISSING and "2018" not in api.last_text()
     await give_serial(chat, "Серийный номер 18-246810")
-    assert (await state(repo)).state == S.SUB_REVIEW and "Серийный номер: 18-246810 — сохраним" in api.last_text()
+    assert (await state(repo)).state == S.SUB_REVIEW and "Серийный номер: **18-246810** — сохраним" in api.last_text()
     await chat.press(T.BTN_SEND)
     assert (await repo.get_meter(mid))["serial"] == "18-246810"
 
@@ -1116,7 +1116,7 @@ async def test_serial_unusual_length_warns_but_saves(chat, api, repo, deps, user
     deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="№ 12345")
     await to_review(chat)
     text = api.last_text()
-    assert "Серийный номер: 12345 — сохраним" in text and "обычно 8 цифр" in text and "№" not in text
+    assert "Серийный номер: **12345** — сохраним" in text and "обычно 8 цифр" in text and "№" not in text
     await chat.press(T.BTN_SEND)
     assert (await repo.get_meter(mid))["serial"] == "12345"
 
@@ -1125,7 +1125,7 @@ async def test_serial_display_formatted_by_type(chat, api, repo, deps, user):
     await meter(repo, user, "electricity", serial="0112 3456 7890")
     deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="№ 011234567890")
     await to_review(chat, "Свет · Арбат 47к1, кв 32")
-    assert "Серийный номер: 011234567890 — совпадает" in api.last_text()
+    assert "Серийный номер: **011234567890** — совпадает" in api.last_text()
 
 
 async def test_tariff_question_has_where_to_look_hint(chat, api, repo, user):

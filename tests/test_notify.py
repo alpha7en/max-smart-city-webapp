@@ -41,7 +41,7 @@ async def test_submission_window_notifications(deps, repo, api):
     mid = await add_meter(repo, user, aid)
     assert await tick(deps, at(2026, 10, 14, 12)) == []  # окно ещё закрыто
     ((text, kb),) = await tick(deps, at(2026, 10, 15, 10))
-    assert text.startswith("Открыт приём показаний за октябрь — до 25 октября.")
+    assert text.startswith("Открыт приём показаний за октябрь — до **25 октября**.")
     assert "Ещё не подано: Хол. вода · Арбат 47к1, кв 32." in text
     assert labels(kb) == [["Подать показания"], [C.BTN_MENU]]
     assert [b[0]["payload"] for b in rows(kb)] == ["g|n_submit|", "g|menu|"]
@@ -49,7 +49,7 @@ async def test_submission_window_notifications(deps, repo, api):
     assert await tick(deps, at(2026, 10, 22, 22)) == []  # тихие часы
     assert await tick(deps, at(2026, 10, 22, 8)) == []
     ((text, _),) = await tick(deps, at(2026, 10, 22, 9))
-    assert text.startswith("Приём показаний за октябрь заканчивается 25 октября — осталось 3 дня.")
+    assert text.startswith("Приём показаний за октябрь заканчивается **25 октября** — осталось **3 дня**.")
     assert await tick(deps, at(2026, 10, 24, 12)) == []
     # Всё подано → ничего.
     await repo.add_reading(mid, user["id"], "2026-11", {"t1": 1000}, "manual")
@@ -69,19 +69,19 @@ async def test_verification_notifications(deps, repo, api):
 
     assert await tick(deps, at(2026, 11, 19)) == []  # 31 день
     ((text, kb),) = await tick(deps, at(2026, 11, 20))
-    assert text.startswith("Поверка счётчика холодной воды (Арбат 47к1, кв 32) — до 20 декабря, осталось 30 дней.")
+    assert text.startswith("Поверка счётчика холодной воды (Арбат 47к1, кв 32) — до **20 декабря**, осталось **30 дней**.")
     assert "по нормативу" in text and "смоделирована" not in text
     assert labels(kb) == [["Записаться на поверку"], [C.BTN_MENU]]
     assert rows(kb)[0][0]["payload"] == f"g|verify|{mid}"
     assert await tick(deps, at(2026, 11, 25)) == []
     await repo.add_reading(mid, user["id"], "2026-12", {"t1": 125000}, "manual")
     ((text, _),) = await tick(deps, at(2026, 12, 13))
-    assert "осталось 7 дней" in text
+    assert "осталось **7 дней**" in text
     ((text, _),) = await tick(deps, at(2026, 12, 19))
-    assert "остался 1 день" in text
+    assert "остался **1 день**" in text
     assert await tick(deps, at(2026, 12, 20)) == []  # тот же этап «1»
     ((text, _),) = await tick(deps, at(2026, 12, 21))
-    assert text.startswith("Срок поверки счётчика холодной воды (Арбат 47к1, кв 32) истёк 20 декабря.")
+    assert text.startswith("Срок поверки счётчика холодной воды (Арбат 47к1, кв 32) истёк **20 декабря**.")
     assert await tick(deps, at(2026, 12, 28)) == []
     stages = [k.split(":")[-1] for kind, k in await sent_kinds(repo) if kind == "verification"]
     assert stages == ["30", "7", "1", "overdue"]
@@ -96,13 +96,13 @@ async def test_bill_notifications(deps, repo, api):
     (bill,) = await repo.unpaid_bills(user["id"])
     assert await tick(deps, at(2026, 11, 4)) == []
     ((text, kb),) = await tick(deps, at(2026, 11, 5))
-    assert text.startswith("Счёт за сентябрь по адресу Арбат 47к1, кв 32: 5 918 ₽ — оплатить до 10 ноября, "
-                           "осталось 5 дней.")
+    assert text.startswith("Счёт за сентябрь по адресу Арбат 47к1, кв 32: **5 918 ₽** — оплатить до **10 ноября**, "
+                           "осталось **5 дней**.")
     assert "Счёт демонстрационный." in text
     assert labels(kb) == [["Оплатить"], [C.BTN_MENU]] and rows(kb)[0][0]["payload"] == f"g|pay|{bill['id']}"
     assert await tick(deps, at(2026, 11, 6)) == []
     ((text, _),) = await tick(deps, at(2026, 11, 9))
-    assert "остался 1 день" in text
+    assert "остался **1 день**" in text
     assert await tick(deps, at(2026, 11, 11)) == []  # просрочку по счёту не шлём
     await repo.set_bill_status(bill["id"], "paid")
     assert await tick(deps, at(2026, 11, 10)) == []
@@ -122,7 +122,7 @@ async def test_notice_buttons_when_already_done(chat, api, repo, hooks):  # noqa
     assert api.named("answer")[0]["message"] is None  # уведомление не затираем
     (sent,) = api.named("send")
     assert sent["text"].startswith("Показания за октябрь уже поданы — спасибо.\n\nПоказания за октябрь")
-    assert sent["text"].endswith(MT.FOOTER) and hooks == ["submission.start"]
+    assert sent["text"].endswith(f"{MT.FOOTER}\n\n> {MT.BILL_NOTE}") and hooks == ["submission.start"]
 
     (bill,) = await repo.unpaid_bills(user["id"])
     await repo.set_bill_status(bill["id"], "paid")
@@ -151,13 +151,13 @@ async def test_demo_notifications(chat, api, repo):
     mid = await add_meter(repo, user, aid)
     await chat.press("О поверке")
     text, kb = api.outgoing()[-1]
-    assert "до 8 ноября, осталось 20 дней" in text and T.VERIFICATION_MODEL in text
+    assert "до **8 ноября**, осталось **20 дней**" in text and text.endswith(f"> {T.VERIFICATION_MODEL}")
     assert rows(kb)[0][0]["payload"] == f"g|verify|{mid}"
     meter = await repo.get_meter(mid)
     assert (meter["verification_due"], meter["verification_source"]) == ("2026-11-08", "model")
 
     await chat.press("О подаче")
-    assert api.last_text().startswith("Открыт приём показаний за октябрь — до 25 октября.")
+    assert api.last_text().startswith("Открыт приём показаний за октябрь — до **25 октября**.")
     await chat.press("О счёте")
     assert "5 918 ₽" in api.last_text() and T.BILL_DEMO in api.last_text()
     assert await sent_kinds(repo) == []  # демо не пишет дедуп
@@ -171,7 +171,7 @@ async def test_demo_keeps_user_verification_date_and_disabled(chat, api, repo, d
     mid = await add_meter(repo, user, aid, verif=date(2027, 1, 10))
     await chat.payload("g|demo|verify")
     assert (await repo.get_meter(mid))["verification_due"] == "2027-01-10"
-    assert "до 10 января" in api.last_text()
+    assert "до **10 января**" in api.last_text()
 
     off = Chat(Router(replace(deps, settings=replace(deps.settings, demo_mode=False))), api)
     await off.text("/demo")

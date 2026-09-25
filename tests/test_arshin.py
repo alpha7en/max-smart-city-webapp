@@ -218,7 +218,7 @@ async def test_found_no_date_question(deps, api, repo, user):
     chat, seen = arshin_chat(deps, api, lambda r: ok(WATER))
     await new_water_meter(chat)
     text = api.last_text()
-    assert "Поверка по данным ФГИС «Аршин»: до 18.10.2029." in text and T.ASK_VERIF not in text
+    assert "Поверка по данным ФГИС «Аршин»: до **18.10.2029**" in text and T.ASK_VERIF not in text
     assert buttons(api) == [C.BTN_MENU, T.BTN_MORE, TA.BTN_CARD]
     link = api.outgoing()[-1][1]["payload"]["buttons"][1][0]
     assert link == {"type": "link", "text": TA.BTN_CARD, "url": "https://fgis.gost.ru/fundmetrology/cm/results/1-331"}
@@ -236,7 +236,7 @@ async def test_brand_from_photo_resolves_collision(deps, api, repo, user):
     await chat.press("Хол. вода")
     await chat.press("Арбат 47к1, кв 32")
     await chat.press(T.BTN_SEND)
-    assert "до 18.10.2029" in api.last_text()
+    assert "до **18.10.2029**" in api.last_text()
     assert (await repo.address_meters(user[1]))[0]["arshin_vri_id"] == "1-331"
 
 
@@ -249,7 +249,7 @@ async def test_low_asks_which_and_pick(deps, api, repo, user):
     assert (await state(repo)).state == S.SUB_VERIF_DATE
     assert (await repo.address_meters(user[1]))[0]["verification_due"] is None  # без подтверждения не пишем
     await chat.press("ВСКМ · до 09.03.2028")
-    assert api.last_text() == "Записали: поверка до 09.03.2028 по данным ФГИС «Аршин». Напомним заранее."
+    assert api.last_text() == "Записали: поверка до **09.03.2028** по данным ФГИС «Аршин». Напомним заранее."
     (m,) = await repo.address_meters(user[1])
     assert (m["verification_due"], m["verification_source"], m["arshin_vri_id"]) == ("2028-03-09", "arshin", "1-332")
     assert (await state(repo)).state == S.IDLE
@@ -272,7 +272,7 @@ async def test_none_honest_text_and_date_question(deps, api, repo, user):
     await new_water_meter(chat)
     text = api.last_text()
     assert TA.NOT_FOUND.format(serial="18-765432") in text and "40 рабочих дней" in text
-    assert text.endswith(T.ASK_VERIF) and (await state(repo)).state == S.SUB_VERIF_DATE
+    assert text.endswith(f"{T.ASK_VERIF}\n\n> {T.UK_MOCK}") and (await state(repo)).state == S.SUB_VERIF_DATE
     assert (await repo.address_meters(user[1]))[0]["arshin_checked_at"]
 
 
@@ -280,20 +280,20 @@ async def test_error_is_quiet(deps, api, repo, user):
     chat, _ = arshin_chat(deps, api, lambda r: httpx.Response(503))
     await new_water_meter(chat)
     text = api.last_text()
-    assert "ФГИС" not in text and text.endswith(T.ASK_VERIF)
+    assert "ФГИС" not in text and text.endswith(f"{T.ASK_VERIF}\n\n> {T.UK_MOCK}")
     assert (await repo.address_meters(user[1]))[0]["arshin_checked_at"] is None  # перепроверит планировщик
 
 
 async def test_off_as_before(deps, api, repo, user):
     chat, seen = arshin_chat(deps, api, lambda r: ok(WATER), mode="off")
     await new_water_meter(chat)
-    assert api.last_text().endswith(T.ASK_VERIF) and "ФГИС" not in api.last_text() and seen == []
+    assert api.last_text().endswith(f"{T.ASK_VERIF}\n\n> {T.UK_MOCK}") and "ФГИС" not in api.last_text() and seen == []
 
 
 async def test_fixtures_marked_demo(deps, api, repo, user):
     chat, _ = arshin_chat(deps, api, lambda r: ok(WATER), mode="fixtures")
     await new_water_meter(chat, "18-765431")
-    assert "демо-данным ФГИС" in api.last_text() and "не из реестра" in api.last_text()
+    assert api.last_text().endswith(f"> {T.UK_MOCK}\n> {TA.DEMO_NOTE}")  # демо — последней цитатой
     assert buttons(api) == [C.BTN_MENU, T.BTN_MORE]  # у демо-записи нет ссылки на реестр
     m = (await repo.address_meters(user[1]))[0]
     assert m["verification_source"] == "arshin" and AS.source_label(m) == TA.SOURCE_DEMO
@@ -307,7 +307,7 @@ async def test_timeout_continues_in_background(deps, api, repo, user, monkeypatc
         return ok(WATER)
     chat, _ = arshin_chat(deps, api, slow)
     await new_water_meter(chat)
-    assert api.last_text().endswith(T.ASK_VERIF) and "ФГИС" not in api.last_text()
+    assert api.last_text().endswith(f"{T.ASK_VERIF}\n\n> {T.UK_MOCK}") and "ФГИС" not in api.last_text()
     await asyncio.gather(*AS._BACKGROUND)
     m = (await repo.address_meters(user[1]))[0]
     assert (m["verification_due"], m["verification_source"]) == ("2029-10-18", "arshin")
@@ -399,7 +399,7 @@ async def test_my_meters_source_and_antifraud(chat, api, repo, user):
     await repo.set_arshin(mid, due="2029-10-18", vri_id="1-331", mit_title="Счетчики воды", checked_at=NOW)
     await chat.payload(f"g|{menu_flow.METERS}|")
     text = api.last_text()
-    assert "поверка до 18.10.2029 (по данным ФГИС «Аршин»)" in text
+    assert "поверка до **18.10.2029** (по данным ФГИС «Аршин»)" in text
     assert text.endswith(TA.ANTIFRAUD.format(date="18.10.2029"))
     await repo.set_verification(mid, (TODAY + timedelta(days=100)).isoformat(), "user")
     await chat.payload(f"g|{menu_flow.METERS}|")
@@ -413,7 +413,8 @@ async def test_demo_button_runs_check(deps, api, repo, user):
     await chat.text("/demo")
     assert TA.BTN_DEMO in buttons(api)
     await chat.press(TA.BTN_DEMO)
-    assert "Поверка по демо-данным ФГИС «Аршин»" in api.last_text()
+    assert "Поверка по данным ФГИС «Аршин»" in api.last_text()
+    assert api.last_text().endswith(f"\n\n> {TA.DEMO_NOTE}")
 
 
 # --- Реальные фикстуры ФГИС «Аршин» ---
@@ -473,7 +474,7 @@ async def test_real_water_fixture_bot_flow(deps, api, repo, user):
     chat, _ = arshin_chat(deps, api, lambda r: httpx.Response(200, json=water_data))
     await new_water_meter(chat, "18-452178")
     text = api.last_text()
-    assert "Поверка по данным ФГИС «Аршин»: до 13.11.2029." in text
+    assert "Поверка по данным ФГИС «Аршин»: до **13.11.2029**" in text
     assert buttons(api) == [C.BTN_MENU, T.BTN_MORE, TA.BTN_CARD]
     link = api.outgoing()[-1][1]["payload"]["buttons"][1][0]
     assert link["url"] == "https://fgis.gost.ru/fundmetrology/cm/results/1-333392815"
@@ -487,7 +488,7 @@ async def test_real_collision_unfit_bot_flow(deps, api, repo, user):
     chat, seen = arshin_chat(deps, api, lambda r: httpx.Response(200, json=collision_data))
     await new_water_meter(chat, "0112456")
     text = api.last_text()
-    assert "По данным ФГИС «Аршин» последняя поверка (08.05.2024) признала счётчик непригодным" in text
+    assert "По данным ФГИС «Аршин» последняя поверка (**08.05.2024**) признала счётчик непригодным" in text
     assert buttons(api) == [C.BTN_MENU, T.BTN_MORE, TA.BTN_CARD]
     link = api.outgoing()[-1][1]["payload"]["buttons"][1][0]
     assert link["url"] == "https://fgis.gost.ru/fundmetrology/cm/results/1-340080782"
@@ -501,17 +502,39 @@ async def test_real_collision_unfit_bot_flow(deps, api, repo, user):
     assert not any("1-390257330" in r.url.path for r in seen)
 
 
-async def test_dns_fallback_socket_and_anyio_backend():
+@pytest.fixture
+def dns_fallback(monkeypatch):
+    """socket.getaddrinfo не резолвит fgis.gost.ru; перехват снимается после теста."""
+    import socket
+    real = socket.getaddrinfo
+
+    def broken(host, port, *args, **kwargs):
+        if host in ("fgis.gost.ru", b"fgis.gost.ru"):
+            raise socket.gaierror("no DNS")
+        return real(host, port, *args, **kwargs)
+
+    monkeypatch.setattr(socket, "getaddrinfo", broken)
+    yield
+    A.uninstall_dns_fallback()
+
+
+async def test_dns_fallback_socket_and_anyio_backend(dns_fallback):
     import socket
     from anyio._backends._asyncio import AsyncIOBackend
 
-    # Проверяем, что при сбое DNS резолвер возвращает fallback IP
-    res_sock = socket.getaddrinfo("fgis.gost.ru", 443)
-    ips_sock = [r[4][0] for r in res_sock]
-    assert any(ip in A.FGIS_FALLBACK_IPS for ip in ips_sock)
+    ips = ("127.0.0.2", "127.0.0.3")
+    ArshinClient("off", fallback_ips=ips)  # не live — перехват не ставится
+    ArshinClient("live", "https://example.test/eapi")  # без IP — тоже
+    with pytest.raises(socket.gaierror):
+        socket.getaddrinfo("fgis.gost.ru", 443)
 
-    res_anyio = await AsyncIOBackend.getaddrinfo("fgis.gost.ru", 443)
-    ips_anyio = [r[4][0] for r in res_anyio]
-    assert any(ip in A.FGIS_FALLBACK_IPS for ip in ips_anyio)
+    ArshinClient("live", fallback_ips=ips)
+    A.install_dns_fallback("fgis.gost.ru", ips)  # повторно — без второго слоя
+    assert {r[4][0] for r in socket.getaddrinfo("fgis.gost.ru", 443)} == {"127.0.0.2"}
+    assert {r[4][0] for r in await AsyncIOBackend.getaddrinfo("fgis.gost.ru", 443)} == {"127.0.0.2"}
+    with pytest.raises(socket.gaierror):  # другие хосты не подменяются
+        socket.getaddrinfo("nonexistent.invalid", 443)
 
-
+    A.uninstall_dns_fallback()
+    with pytest.raises(socket.gaierror):
+        socket.getaddrinfo("fgis.gost.ru", 443)

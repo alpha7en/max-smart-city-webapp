@@ -9,14 +9,14 @@ import logging
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx
 from app.bot.flows import invite
-from app.bot.flows.registration import AddressFlow, address_notes, parse_phone, phone_line, said
+from app.bot.flows.registration import AddressFlow, address_notes, parse_phone, phone_line, said, split_notes
 from app.bot.router import drop_scenario, on_global, on_hook, on_repeat, on_state, show_menu
 from app.bot.states import S
 from app.bot.texts import common as C
 from app.bot.texts import invite as IT
 from app.bot.texts import profile as T
 from app.bot.texts import registration as RT
-from app.bot.texts.fmt import esc
+from app.bot.texts.fmt import esc, with_notes
 from app.domain.addresses import AddressCandidate, norm_key
 from app.integrations.max_api import MaxApiError
 from app.repo import Row
@@ -33,7 +33,8 @@ def _menu_kb(*rows) -> dict:
 # === Профиль ===
 
 @on_global("profile")
-async def show_profile(ctx: Ctx) -> None:
+async def show_profile(ctx: Ctx, footnotes: list[str] | tuple = ()) -> None:
+    """Профиль; footnotes — демо-оговорки (цитатой в конце)."""
     ctx.session.reset()
     u = ctx.user
     addrs = await ctx.repo.user_addresses(u["id"])
@@ -51,8 +52,9 @@ async def show_profile(ctx: Ctx) -> None:
     arg = owned[0] if len(owned) == 1 else ""  # несколько адресов — спросим, какой
     access = [K.gbtn(IT.BTN_INVITE, "inv_new", arg), shared and K.gbtn(IT.BTN_MANAGE, "acc_list", arg)] if owned else []
     await ctx.reply(
-        T.PROFILE.format(name=esc(u.get("full_name")), phone=phone_line(u.get("phone"), u.get("phone_verified")),
-                         addresses="\n".join(lines) or T.NO_ADDRESSES),
+        with_notes(T.PROFILE.format(name=esc(u.get("full_name")),
+                                    phone=phone_line(u.get("phone"), u.get("phone_verified")),
+                                    addresses="\n".join(lines) or T.NO_ADDRESSES), *footnotes),
         _menu_kb([K.gbtn(T.BTN_EDIT_PHONE, "prof_phone"), K.gbtn(T.BTN_ADD_ADDRESS, "prof_addr")],
                  access, *req, [K.gbtn(T.BTN_DELETE, "prof_del")]),
     )
@@ -117,12 +119,13 @@ async def _address_chosen(ctx: Ctx, c: AddressCandidate) -> None:
         return
     res = await ctx.repo.add_user_address(uid, c.to_dict(), key, raw, ctx.now.date())
     ctx.note(T.ADDRESS_SAVED.format(label=esc(res["label"])))
-    for n in notes:
+    inline, demo = split_notes(notes)
+    for n in inline:
         ctx.note(n)
     if res["access"] == "granted":
-        await show_profile(ctx)
+        await show_profile(ctx, footnotes=demo)
     else:
-        await send_no_access(ctx, res["address_id"])
+        await send_no_access(ctx, res["address_id"], footnotes=demo)
 
 
 PROFILE_ADDRESS = AddressFlow(
@@ -160,8 +163,9 @@ async def got_delete(ctx: Ctx) -> None:
 # === Нет прав (§5.8) ===
 
 @on_hook("access.no_access")
-async def send_no_access(ctx: Ctx, address_id: int | None = None, **_) -> None:
-    """Сообщение «нет прав» по адресу; сценарий сбрасывается (фото подачи удаляется)."""
+async def send_no_access(ctx: Ctx, address_id: int | None = None, footnotes: list[str] | tuple = (), **_) -> None:
+    """Сообщение «нет прав» по адресу; сценарий сбрасывается (фото подачи удаляется).
+    footnotes — демо-оговорки сверх модели прав (цитатой в конце)."""
     await drop_scenario(ctx)
     ua = await ctx.repo.user_address(ctx.user["id"], address_id) if address_id else None
     if ua is None or ua["access"] == "granted":
@@ -171,7 +175,7 @@ async def send_no_access(ctx: Ctx, address_id: int | None = None, **_) -> None:
         await ctx.reply(T.NO_ACCESS_DENIED.format(label=esc(ua["label"])), _menu_kb([K.gbtn(T.BTN_PROFILE, "profile")]))
         return
     demo = K.gbtn(T.BTN_DEMO_GRANT, "acc_demo", ua["id"]) if ctx.settings.demo_mode else None
-    await ctx.reply(T.NO_ACCESS.format(label=esc(ua["label"])), K.kb(
+    await ctx.reply(with_notes(T.NO_ACCESS.format(label=esc(ua["label"])), *footnotes, T.RIGHTS_MODEL), K.kb(
         [K.gbtn(T.BTN_REQUEST, "acc_req", ua["id"])],
         demo,
         [K.gbtn(T.BTN_PROFILE, "profile"), K.gbtn(C.BTN_MENU, "menu")],
@@ -193,7 +197,7 @@ async def demo_grant(ctx: Ctx) -> None:
     await ctx.repo.set_access(ctx.user["id"], aid, "granted")
     # Собственник позже нажмёт «Разрешить» — «уже решено», без второго сообщения арендатору.
     await ctx.repo.try_mark_sent(ctx.user["id"], DECISION_KIND, f"{ctx.user['id']}:{aid}", ctx.now)
-    await ctx.reply(T.DEMO_GRANTED, K.kb([K.gbtn(T.BTN_SUBMIT, "submit"), K.gbtn(C.BTN_MENU, "menu")]))
+    await ctx.reply(with_notes(T.DEMO_GRANTED, T.DEMO_GRANTED_NOTE), K.kb([K.gbtn(T.BTN_SUBMIT, "submit"), K.gbtn(C.BTN_MENU, "menu")]))
 
 
 # === Запрос доступа у собственника (C10) ===
@@ -214,7 +218,7 @@ async def request_access(ctx: Ctx) -> None:
     owner = await ctx.repo.address_owner(aid)
     if owner is None:  # собственник удалил свои данные — модель прав отдаёт адрес первому
         await ctx.repo.claim_address(u["id"], aid)
-        await ctx.reply(T.ACCESS_CLAIMED.format(label=esc(ua["label"])), _menu_kb([K.gbtn(T.BTN_SUBMIT, "submit")]))
+        await ctx.reply(with_notes(T.ACCESS_CLAIMED.format(label=esc(ua["label"])), T.RIGHTS_MODEL), _menu_kb([K.gbtn(T.BTN_SUBMIT, "submit")]))
         return
     key = f"{u['id']}:{aid}"
     if not await ctx.repo.try_mark_sent(u["id"], ACCESS_KIND, key, ctx.now):

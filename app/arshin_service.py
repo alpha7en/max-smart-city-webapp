@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import Any, Literal
 
 from app.bot.texts import arshin as T
-from app.bot.texts.fmt import full_date
+from app.bot.texts.fmt import full_date, with_notes
 from app.domain.verification import Match, Record, card_url, choose, is_demo_id, short_title
 
 log = logging.getLogger(__name__)
@@ -55,19 +55,23 @@ def _d(d: date | None) -> str:
     return full_date(d) if d else "—"
 
 
-def result_line(rec: Record, demo: bool, today: date) -> str:
-    """Строка для «Готово»: срок поверки, истёкший срок или «непригоден»."""
+def result_line(rec: Record, today: date) -> str:
+    """Строка для «Готово» (markdown): срок поверки, истёкший срок или «непригоден».
+    Демо-данные помечает вызывающий: T.DEMO_NOTE последней цитатой (fmt.with_notes)."""
     if rec.unfit or rec.valid_date is None:
-        return T.UNFIT.format(date=_d(rec.verification_date)) + (f" {T.PICK_DEMO}" if demo else "")
+        return T.UNFIT.format(date=_d(rec.verification_date))
     if rec.valid_date < today:
-        return (T.EXPIRED_DEMO if demo else T.EXPIRED).format(date=_d(rec.valid_date))
-    return (T.FOUND_DEMO if demo else T.FOUND).format(date=_d(rec.valid_date))
+        return T.EXPIRED.format(date=_d(rec.valid_date))
+    return T.FOUND.format(date=_d(rec.valid_date))
 
 
 def picked_line(rec: Record, demo: bool) -> str:
+    """«Записали: поверка до …» (+ оговорка-цитата о демо-данных)."""
     if rec.unfit or rec.valid_date is None:
-        return T.PICKED_UNFIT.format(date=_d(rec.verification_date))
-    return (T.PICKED_DEMO if demo else T.PICKED).format(date=_d(rec.valid_date))
+        line = T.PICKED_UNFIT.format(date=_d(rec.verification_date))
+    else:
+        line = T.PICKED.format(date=_d(rec.valid_date))
+    return with_notes(line, T.DEMO_NOTE if demo else None)
 
 
 def option_text(rec: Record) -> str:
@@ -87,7 +91,7 @@ async def check_meter(deps: Any, meter_id: int, today: date, now: datetime,
     """Найти запись о поверке и (при высокой уверенности) записать срок. Не бросает."""
     client, repo = _client(deps), deps.repo
     meter = await repo.get_meter(meter_id)
-    if client is None or not meter or not meter["serial"]:
+    if client is None or not meter or not meter["active"] or not meter["serial"]:  # удалённый — не проверяем
         return Outcome("off")
     try:
         if brand is None and model is None:
@@ -130,15 +134,6 @@ async def check_within(deps: Any, meter_id: int, today: date, now: datetime, bra
         task.add_done_callback(_BACKGROUND.discard)
         log.info("arshin check meter=%s continues in background", meter_id)
         return Outcome("timeout")
-
-
-def background_check(deps: Any, meter_id: int, today: date, now: datetime) -> None:
-    """Проверка без ожидания (подача из мини-приложения)."""
-    if _client(deps) is None:
-        return
-    task = asyncio.create_task(check_meter(deps, meter_id, today, now))
-    _BACKGROUND.add(task)
-    task.add_done_callback(_BACKGROUND.discard)
 
 
 async def refresh_tick(deps: Any, now: datetime, limit: int = REFRESH_LIMIT) -> int:

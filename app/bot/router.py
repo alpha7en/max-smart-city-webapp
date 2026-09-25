@@ -60,11 +60,13 @@ ACCEPTS: dict[S, frozenset[str]] = {}
 #   "submission.manual"    — ручной ввод: выбор счётчика без фото (S2).
 #   "submission.add_meter" — «Добавить счётчик» из «Мои счётчики» (S2).
 #   "submission.with_photo"— начать подачу с уже сохранённым фото, kw photo_id (S2; вызывает S1 после регистрации).
+#   "submission.for_meter" — подача по выбранному счётчику, kw meter_id, label (S2; вызывает карточка счётчика).
 #   "access.no_access"     — сообщение «нет прав» по адресу, kw address_id (S1; вызывает S2).
 #   "invite.start"         — диплинк с префиксом из START_PREFIXES, kw arg (S1; вызывает роутер).
 HOOK_NAMES = (
     "menu", "registration.begin", "submission.photo",
     "submission.start", "submission.manual", "submission.add_meter", "submission.with_photo",
+    "submission.for_meter",
     "access.no_access", "invite.start",
 )
 DEDUP_SIZE = 2000

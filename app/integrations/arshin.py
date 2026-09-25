@@ -10,6 +10,7 @@ Circuit breaker: BREAKER_FAILS сбоев подряд → BREAKER_PAUSE не х
 
 Режимы (ARSHIN_MODE): live — настоящий API; fixtures — демо-записи в формате документации (arshin_demo.json,
 в текстах помечены «демо-данные ФГИС»); off — проверка выключена. Кэш — таблица arshin_cache (repo).
+ARSHIN_FALLBACK_IPS — резервные IP хоста, если DNS в контейнере его не резолвит (install_dns_fallback).
 """
 from __future__ import annotations
 
@@ -18,7 +19,7 @@ import json
 import logging
 import socket
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -41,57 +42,6 @@ from app.integrations.max_api import ssl_context
 
 log = logging.getLogger(__name__)
 DEFAULT_BASE = "https://fgis.gost.ru/fundmetrology/eapi"
-FGIS_HOST = "fgis.gost.ru"
-FGIS_FALLBACK_IPS = ("212.164.138.19", "212.164.138.14")
-_orig_getaddrinfo = getattr(socket, "_orig_getaddrinfo", socket.getaddrinfo)
-if not hasattr(socket, "_orig_getaddrinfo"):
-    socket._orig_getaddrinfo = _orig_getaddrinfo
-
-
-def _fgis_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
-    try:
-        return _orig_getaddrinfo(host, port, family, type, proto, flags)
-    except socket.gaierror:
-        h = host.decode() if isinstance(host, bytes) else host
-        if h == FGIS_HOST:
-            for ip in FGIS_FALLBACK_IPS:
-                try:
-                    target_ip = ip.encode() if isinstance(host, bytes) else ip
-                    return _orig_getaddrinfo(target_ip, port, family, type, proto, flags)
-                except Exception:
-                    continue
-        raise
-
-
-if socket.getaddrinfo is not _fgis_getaddrinfo:
-    socket.getaddrinfo = _fgis_getaddrinfo
-
-try:
-    from anyio._backends._asyncio import AsyncIOBackend
-
-    if not hasattr(AsyncIOBackend, "_orig_getaddrinfo"):
-        _orig_backend_gai = AsyncIOBackend.getaddrinfo
-        AsyncIOBackend._orig_getaddrinfo = _orig_backend_gai
-
-        @classmethod
-        async def _fgis_backend_getaddrinfo(cls, host, port, *args, **kwargs):
-            try:
-                return await _orig_backend_gai(host, port, *args, **kwargs)
-            except Exception:
-                h = host.decode() if isinstance(host, bytes) else host
-                if h == FGIS_HOST:
-                    for ip in FGIS_FALLBACK_IPS:
-                        try:
-                            target_ip = ip.encode() if isinstance(host, bytes) else ip
-                            return await _orig_backend_gai(target_ip, port, *args, **kwargs)
-                        except Exception:
-                            continue
-                raise
-
-        AsyncIOBackend.getaddrinfo = _fgis_backend_getaddrinfo
-except Exception:
-    pass
-
 USER_AGENT = "max-smart-city-bot/1.0 (+https://github.com/alpha7en/max-smart-city-webapp)"
 MIN_INTERVAL = 0.6          # с между запросами (лимит API — 2 в секунду)
 MAX_REQUESTS = 4            # на одну проверку, вместе с повтором
@@ -120,8 +70,11 @@ class ArshinClient:
     def __init__(self, mode: str = "live", base: str = DEFAULT_BASE, repo: Any = None, *,
                  transport: httpx.AsyncBaseTransport | None = None,
                  sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
-                 monotonic: Callable[[], float] = time.monotonic, timeout: float = 10.0):
+                 monotonic: Callable[[], float] = time.monotonic, timeout: float = 10.0,
+                 fallback_ips: Sequence[str] = ()):
         self.mode: Mode = mode if mode in ("live", "fixtures", "off") else "live"  # type: ignore[assignment]
+        if self.mode == "live" and fallback_ips:
+            install_dns_fallback(httpx.URL(base).host, fallback_ips)
         self.repo = repo
         self._base, self._transport, self._timeout = base.rstrip("/"), transport, timeout
         self._http: httpx.AsyncClient | None = None  # создаём при первом запросе (off/fixtures сеть не трогают)
@@ -308,6 +261,74 @@ def _retry_after(resp: httpx.Response) -> float:
         return min(max(float(resp.headers.get("Retry-After", "2")), 0.0), RETRY_AFTER_MAX)
     except ValueError:
         return 2.0
+
+
+# --- DNS-обход (ARSHIN_FALLBACK_IPS) ---
+# У владельца DNS в Docker-контейнере не резолвил fgis.gost.ru, и проверка поверки всегда падала.
+# Если резолв имени не удался, подставляем известные IP этого хоста. TLS не трогаем: SNI и сертификат
+# проверяются по имени. Перехват нужен в двух местах: socket.getaddrinfo (обычный asyncio-цикл) и
+# anyio AsyncIOBackend.getaddrinfo (httpx под uvloop в uvicorn резолвит мимо socket).
+
+_dns_fallback: dict[str, tuple[str, ...]] = {}
+_dns_saved: dict[str, Any] = {}
+
+
+def _fallback_ips(host: str | bytes) -> list:
+    name = host.decode() if isinstance(host, bytes) else host
+    ips = _dns_fallback.get(name, ())
+    return [ip.encode() for ip in ips] if isinstance(host, bytes) else list(ips)
+
+
+def install_dns_fallback(host: str, ips: Sequence[str]) -> None:
+    """Резервные IP для одного host. Идемпотентно: перехват ставится один раз на процесс."""
+    if not host or not ips:
+        return
+    _dns_fallback[host] = tuple(ips)
+    if _dns_saved:
+        return
+    orig_sock = socket.getaddrinfo
+
+    def sock_gai(host, port, *args, **kwargs):
+        try:
+            return orig_sock(host, port, *args, **kwargs)
+        except socket.gaierror:
+            for ip in _fallback_ips(host):
+                try:
+                    return orig_sock(ip, port, *args, **kwargs)
+                except OSError:
+                    continue
+            raise
+
+    _dns_saved["socket"] = orig_sock
+    socket.getaddrinfo = sock_gai
+    try:
+        from anyio._backends._asyncio import AsyncIOBackend
+    except ImportError:
+        return
+    orig_anyio = AsyncIOBackend.getaddrinfo
+
+    async def anyio_gai(cls, host, port, *args, **kwargs):
+        try:
+            return await orig_anyio(host, port, *args, **kwargs)
+        except Exception:
+            for ip in _fallback_ips(host):
+                try:
+                    return await orig_anyio(ip, port, *args, **kwargs)
+                except Exception:  # noqa: BLE001
+                    continue
+            raise
+
+    _dns_saved["anyio"] = (AsyncIOBackend, AsyncIOBackend.__dict__["getaddrinfo"])
+    AsyncIOBackend.getaddrinfo = classmethod(anyio_gai)
+
+
+def uninstall_dns_fallback() -> None:
+    """Снять перехват (для тестов)."""
+    _dns_fallback.clear()
+    if orig := _dns_saved.pop("socket", None):
+        socket.getaddrinfo = orig
+    if saved := _dns_saved.pop("anyio", None):
+        saved[0].getaddrinfo = saved[1]
 
 
 # --- Демо-режим (fixtures) ---

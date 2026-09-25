@@ -18,7 +18,7 @@ from app.bot.router import call_hook, on_command, on_global
 from app.bot.texts import arshin as TA
 from app.bot.texts import common as C
 from app.bot.texts import notify as T
-from app.bot.texts.fmt import day_month, esc, left_days, meter_of, money, month_name
+from app.bot.texts.fmt import day_month, esc, left_days, meter_of, money, month_name, with_notes
 from app.domain.dashboard import DashboardData, load_data, meter_names, submitted
 from app.domain.meters import current_period, days_left, submission_window
 from app.domain.serials import format_serial
@@ -54,7 +54,7 @@ def submit_notice(meters: list[Row], today: date, day_from: int, day_to: int, st
     if not w.is_open:  # /demo вне окна — говорим, когда откроется
         head = T.SUBMIT_NEXT.format(month=month, start=day_month(w.start), deadline=day_month(w.end))
     elif stage == "last":
-        head = T.SUBMIT_LAST.format(month=month, deadline=day_month(w.end), left=left_days(w.days_left))
+        head = T.SUBMIT_LAST.format(month=month, deadline=day_month(w.end), left=left_days(w.days_left, bold=True))
     else:
         head = T.SUBMIT_OPEN.format(month=month, deadline=day_month(w.end))
     lines = [head]
@@ -75,28 +75,29 @@ def verification_notice(meter: Row, name: str, today: date, stage: str = "") -> 
     elif n == 0:
         head = T.VERIFICATION_TODAY.format(meter=full)
     else:
-        head = T.VERIFICATION_SOON.format(meter=full, date=day_month(due), left=left_days(n))
-    lines = [head, T.VERIFICATION_WHY]
+        head = T.VERIFICATION_SOON.format(meter=full, date=day_month(due), left=left_days(n, bold=True))
+    lines, notes = [head, T.VERIFICATION_WHY], []
     if meter.get("verification_source") == "model":
-        lines.append(T.VERIFICATION_MODEL)
+        notes.append(T.VERIFICATION_MODEL)
     url = None
     if meter.get("verification_source") == "arshin":
-        demo = is_demo_id(meter.get("arshin_vri_id"))
-        lines.append(TA.NOTICE_SOURCE_DEMO if demo else TA.NOTICE_SOURCE)
+        lines.append(TA.NOTICE_SOURCE)
+        notes += [TA.DEMO_NOTE] if is_demo_id(meter.get("arshin_vri_id")) else []
         url = card_url(meter.get("arshin_vri_id"))
     lines.append(TA.NOTICE_ANTIFRAUD)
     kb = K.kb(K.gbtn(T.BTN_VERIFY, VERIFY, meter["id"]), K.link(TA.BTN_CARD, url) if url else None,
               K.gbtn(C.BTN_MENU, MENU))
-    return Notice("verification", f"{meter['id']}:{due.isoformat()}:{stage}", "\n\n".join(lines), kb)
+    return Notice("verification", f"{meter['id']}:{due.isoformat()}:{stage}",
+                  with_notes("\n\n".join(lines), *notes), kb)
 
 
 def bill_notice(bill: Row, today: date, stage: str = "") -> Notice:
     due = date.fromisoformat(bill["due_date"])
     n = days_left(today, due)
     fields = {"month": month_name(bill["period"]), "address": esc(bill.get("address_label") or ""),
-              "amount": money(bill["amount_kop"]), "date": day_month(due), "left": left_days(n)}
+              "amount": money(bill["amount_kop"]), "date": day_month(due), "left": left_days(n, bold=True)}
     head = (T.BILL_OVERDUE if n < 0 else T.BILL_DUE).format(**fields)
-    return Notice("bill", f"{bill['id']}:{stage}", f"{head}\n\n{T.BILL_DEMO}", _kb(K.gbtn(T.BTN_PAY, PAY, bill["id"])))
+    return Notice("bill", f"{bill['id']}:{stage}", with_notes(head, T.BILL_DEMO), _kb(K.gbtn(T.BTN_PAY, PAY, bill["id"])))
 
 
 # --- Что положено отправить ---
@@ -248,15 +249,14 @@ async def _demo_arshin(ctx: Ctx) -> None:
     out = await AS.check_within(ctx.deps, meter["id"], ctx.now.date(), ctx.now)
     serial = esc(format_serial(meter["serial"], meter["type"]))
     head = esc(meter_names([meter])[meter["id"]])
-    url = None
+    url, demo = None, out.demo
     if out.level == "high":
-        body = AS.result_line(out.match.best, out.demo, ctx.now.date())
+        body = AS.result_line(out.match.best, ctx.now.date())
         url = card_url(out.match.best.vri_id)
     elif out.level == "low":
         body = "\n".join([TA.PICK_MANY.format(serial=serial), *(esc(AS.option_text(r)) for r in out.match.options)])
-        body += ("\n\n" + TA.PICK_DEMO) if out.demo else ""
     elif out.status in ("found", "none"):
-        body = TA.NOT_FOUND.format(serial=serial) + ((" " + TA.PICK_DEMO) if out.demo else "")
+        body = TA.NOT_FOUND.format(serial=serial)
     else:
-        body = TA.DEMO_UNAVAILABLE
-    await ctx.reply(f"{head}\n\n{body}", K.kb(K.link(TA.BTN_CARD, url) if url else None, K.gbtn(C.BTN_MENU, MENU)))
+        body, demo = TA.DEMO_UNAVAILABLE, False
+    await ctx.reply(with_notes(f"{head}\n\n{body}", TA.DEMO_NOTE if demo else None), K.kb(K.link(TA.BTN_CARD, url) if url else None, K.gbtn(C.BTN_MENU, MENU)))
