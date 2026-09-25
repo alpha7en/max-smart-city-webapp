@@ -10,7 +10,7 @@ from app.bot import keyboards as K
 from app.bot.events import Event
 from app.bot.session import Session
 from app.config import Settings
-from app.integrations.max_api import MaxApi, MaxApiError, message_body
+from app.integrations.max_api import KEEP, MaxApi, MaxApiError, message_body
 from app.integrations.recognizer import Recognizer
 from app.repo import Repo, Row
 
@@ -26,6 +26,7 @@ class Deps:
     recognizer: Recognizer
     addresses: Any = None      # AddressService (поток S3); None — сервис не подключён
     bot_username: str = ""     # для кнопок open_app
+    arshin: Any = None         # ArshinClient (ФГИС «Аршин»); None — проверка выключена
 
 
 @dataclass
@@ -97,19 +98,44 @@ class Ctx:
 
     async def reply(self, text: str, keyboard: dict | None = None, *, new: bool = False) -> str | None:
         """Ответ пользователю. На callback — замена сообщения с кнопкой (POST /answers),
-        иначе (или new=True, или уже ответили) — новое сообщение. → mid нового сообщения или None."""
+        иначе (или new=True, или уже ответили) — новое сообщение. → mid отправленного/изменённого сообщения."""
         text = self._with_notes(text)
         ev = self.event
         if ev.kind == "callback" and not self.answered and not new and ev.message_mid:
             self.answered = True
             await self.api.answer(ev.callback_id, message=message_body(text, keyboard, clear_keyboard=True))
-            return None
+            return ev.message_mid
         return await self.send(text, keyboard)
 
     async def send(self, text: str, keyboard: dict | None = None) -> str | None:
         """Всегда новое сообщение. → mid."""
         msg = await self.api.send(self._with_notes(text), user_id=self.event.user_id, keyboard=keyboard)
         return (msg.get("body") or {}).get("mid")
+
+    async def delete(self, mid: str | None = None) -> bool:
+        """Удалить сообщение по mid (или сообщение текущего callback-события).
+        Безопасен к ошибкам API/сети, возвращает True при успехе."""
+        target = mid or (self.event.message_mid if self.event else None)
+        if not target:
+            return False
+        try:
+            await self.api.delete(target)
+            return True
+        except MaxApiError as e:
+            log.info("delete message %s failed: %s", target, e)
+            return False
+
+    async def edit(self, mid: str, text: str | None = None, keyboard: dict | None | object = KEEP,
+                   fmt: str | None = "markdown") -> bool:
+        """Отредактировать сообщение по mid. Безопасен к ошибкам, возвращает True при успехе."""
+        if not mid:
+            return False
+        try:
+            await self.api.edit(mid, text=text, keyboard=keyboard, fmt=fmt)
+            return True
+        except MaxApiError as e:
+            log.info("edit message %s failed: %s", mid, e)
+            return False
 
     async def flush_notes(self) -> None:
         """Отправить накопленные note() отдельным сообщением, если они никуда не попали."""

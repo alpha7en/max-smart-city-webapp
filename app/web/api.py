@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app import arshin_service as AS
 from app import clock
 from app.bot import keyboards as K
 from app.bot import photos
@@ -109,9 +110,16 @@ def meter_json(m: Row, today: date) -> dict:
         "id": m["id"], "type": m["type"], "type_label": M.TYPE_LABELS[m["type"]], "unit": M.UNITS[m["type"]],
         "tariffs": m["tariffs"], "address_id": m["address_id"], "address_label": m["address_label"],
         "serial": M.format_serial(m["serial"], m["type"]),
-        "verification_due": m["verification_due"], "last": last,
+        "verification_due": m["verification_due"], **verification_json(m), "last": last,
         "submitted_this_period": m.get("last_period") == M.current_period(today),
     }
+
+
+def verification_json(m: Row) -> dict:
+    """Источник срока поверки: 'user' (паспорт) | 'model' (ориентировочно) | 'arshin' (ФГИС) | None;
+    arshin_url — карточка поверки на fgis.gost.ru (нет у демо-данных), arshin_demo — демо-данные ФГИС."""
+    return {"verification_source": m.get("verification_source"), "arshin_url": AS.meter_url(m),
+            "arshin_demo": m.get("verification_source") == "arshin" and AS.is_demo(m)}
 
 
 def address_json(a: Row) -> dict:
@@ -233,6 +241,12 @@ async def post_reading(body: ReadingIn, request: Request, background: Background
         raise api_error(ERROR_STATUS.get(res.status, 422), res.status, res.message)
     reading = await deps.repo.get_reading(res.reading_id)
     background.add_task(notify_chat, deps, user, meter, reading, values)
+    needs_arshin = serial or (
+        meter.get("serial") and not meter.get("arshin_checked_at") and meter.get("verification_source") != "user"
+    )
+    if needs_arshin:  # номер есть и поверка в ФГИС ещё не проверялась — сверим в фоне
+        now = clock.now()
+        background.add_task(AS.check_meter, deps, meter["id"], now.date(), now)
     out = {"status": res.status, "reading": reading_json(reading)}
     if serial:
         out["serial"] = M.format_serial(serial, meter["type"])

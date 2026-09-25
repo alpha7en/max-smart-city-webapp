@@ -12,6 +12,7 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from app import clock
+from app.bot.texts import arshin as TA
 from app.bot.texts import menu as T
 from app.bot.texts.fmt import day_month, days, money, month_name, n_days, short_date
 from app.domain.meters import (
@@ -26,6 +27,7 @@ from app.domain.meters import (
     submission_window,
 )
 from app.domain.serials import format_serial
+from app.domain.verification import is_demo_id
 
 UrgentKind = Literal["verification", "bill", "submit"]
 MAX_LINES = 9                  # непустых строк в тексте дашборда
@@ -133,7 +135,7 @@ def _api_meter(m: Row, period: str) -> dict:
         "id": m["id"], "type": m["type"], "type_label": TYPE_LABELS[m["type"]], "unit": UNITS[m["type"]],
         "tariffs": m["tariffs"], "address_label": m.get("address_label") or "", "serial": format_serial(m.get("serial"), m["type"]),
         "last": last, "submitted_this_period": submitted(m, period),
-        "verification_due": m.get("verification_due"),
+        "verification_due": m.get("verification_due"), "verification_source": m.get("verification_source"),
     }
 
 
@@ -224,6 +226,8 @@ def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to
         d, m = verif_soon[0]
         tpl = T.VERIFICATION_OVERDUE if d < today else T.VERIFICATION
         line = tpl.format(meter=names[m["id"]], date=day_month(d))
+        if m.get("verification_source") == "arshin":
+            line += ", " + (TA.SOURCE_DEMO if is_demo_id(m.get("arshin_vri_id")) else TA.SOURCE)
         info.append(line + (T.MORE.format(n=len(verif_soon) - 1) if len(verif_soon) > 1 else ""))
     if len(bills) == 1:
         d, b = bills[0]

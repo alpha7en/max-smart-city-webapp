@@ -160,7 +160,8 @@ def test_a3_me_contract_and_dashboard(client):
     by_id = {m["id"]: m for m in d["meters"]}
     water, power = by_id[m1], by_id[m2]
     assert set(water) == {"id", "type", "type_label", "unit", "tariffs", "address_id", "address_label", "serial", "last",
-                          "submitted_this_period", "verification_due"}
+                          "submitted_this_period", "verification_due", "verification_source", "arshin_url",
+                          "arshin_demo"}
     assert water["type_label"] == "Хол. вода" and water["unit"] == "м³" and water["address_label"] == u["label"]
     assert water["address_id"] == u["address_id"]
     assert water["serial"] == "18-123456" and water["submitted_this_period"] is True

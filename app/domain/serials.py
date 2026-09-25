@@ -25,7 +25,8 @@ _PREFIX = re.compile(
     r"\s*[:.]?\s*)+",
     re.I,
 )
-_EDGES = " \t\r\n.,:;\"'«»()[]"
+_EDGES = " \t\r\n.,:;\"'«»()[]\ufeff\ufffc\u200b\u200c\u200d\u200e\u200f"
+_UNICODE_GARBAGE = re.compile(r"[\ufeff\ufffc\u200b-\u200f]")
 _NOT_SERIAL = re.compile(
     r"гост|gost|\bту\b|\bqn|\bq[1-4]\b|qmax|qmin|\bdn\s*\d|\bду\s*\d|класс|class|\bip\s*\d|имп|imp|"
     r"квт|kwh|гкал|gcal|м3|m3|°|пломб|seal",
@@ -48,7 +49,8 @@ def clean_serial(raw: str | None) -> str | None:
     тире — «-» без пробелов вокруг. Пусто → None."""
     if not raw:
         return None
-    s = " ".join(str(raw).split()).strip(_EDGES)
+    s = _UNICODE_GARBAGE.sub("", str(raw))
+    s = " ".join(s.split()).strip(_EDGES)
     s = _PREFIX.sub("", s).strip(_EDGES)
     s = _DASHES.sub("-", s).strip("-")
     return s or None

@@ -3,7 +3,7 @@
     python -m tools.transcript > docs/DIALOG_EXAMPLE.md
 
 Сеть и токен не нужны: MAX подменён FakeMaxApi из tests/fakes.py, адреса разбираются локально
-(без DaData), распознавание — демо-заглушка. Время заморожено: 19.10.2026 12:00 МСК (окно подачи открыто).
+(без DaData), распознавание — демо-заглушка, ФГИС «Аршин» — демо-данные (ARSHIN_MODE=fixtures). Время заморожено: 19.10.2026 12:00 МСК (окно подачи открыто).
 """
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from app.bot.flows import invite
 from app.bot.events import parse_update
 from app.bot.router import Router
 from app.config import Settings
+from app.integrations.arshin import ArshinClient
 from app.integrations.recognizer import StubRecognizer
 from app.repo import Repo
 from tests import fakes
@@ -102,10 +103,12 @@ def section(title: str, note: str = "") -> None:
 async def main() -> None:
     clock.set_now(NOW)
     with tempfile.TemporaryDirectory() as tmp:
-        settings = Settings(bot_token="demo", bot_username=BOT, data_dir=Path(tmp))
+        settings = Settings(bot_token="demo", bot_username=BOT, data_dir=Path(tmp), arshin_mode="fixtures")
         repo = await Repo.open(settings.db_path)
         api = fakes.FakeMaxApi()
-        router = Router(Deps(api=api, repo=repo, settings=settings, recognizer=StubRecognizer(), bot_username=BOT))
+        arshin = ArshinClient("fixtures", repo=repo)
+        router = Router(Deps(api=api, repo=repo, settings=settings, recognizer=StubRecognizer(), bot_username=BOT,
+                             arshin=arshin))
         d = Dialog(router, api)
         invite.new_token = lambda: INVITE_TOKEN
         try:
@@ -120,7 +123,8 @@ async def run(d: Dialog) -> None:
     print("Сгенерировано командой `python -m tools.transcript > docs/DIALOG_EXAMPLE.md`: сообщения прошли "
           "через настоящий роутер бота, вместо MAX — тестовый двойник. Дата — 19 октября 2026, окно подачи "
           "открыто. Без ключа DaData адрес разбирается локально, без `RECOGNIZER_URL` цифры подставляет "
-          "демо-распознавание. Кнопки показаны как `[Текст]`, ряды разделены переносом.\n")
+          "демо-распознавание, а срок поверки берётся из демо-данных ФГИС «Аршин» (ARSHIN_MODE=fixtures; "
+          "номер на «0» — записи нет). Кнопки показаны как `[Текст]`, ряды разделены переносом.\n")
 
     section("1. Регистрация и подача показаний по фото")
     await d.text(ANNA, "привет")
@@ -135,9 +139,9 @@ async def run(d: Dialog) -> None:
     await d.press(ANNA, "Ввести номер")  # демо-распознавание номер не читает
     await d.text(ANNA, "18-452178")
     await d.press(ANNA, "Отправить")
-    await d.text(ANNA, "15.03.2030")
 
-    section("2. Ручной ввод", "Новый счётчик без фото: тип, адрес, показание.")
+    section("2. Ручной ввод", "Новый счётчик без фото: тип, адрес, показание. Номер на «0» — в демо-данных "
+            "ФГИС записи нет, бот спрашивает дату из паспорта.")
     await d.press(ANNA, "Подать ещё")
     await d.press(ANNA, "Ввести вручную")
     await d.press(ANNA, "Новый счётчик")
@@ -177,6 +181,8 @@ async def run(d: Dialog) -> None:
     await d.press(ANNA, "О поверке")
     await d.press(ANNA, "О счёте")
     await d.press(ANNA, "Оплатить")
+    await d.text(ANNA, "/demo")
+    await d.press(ANNA, "Поверка в ФГИС")
 
     section("6. Приглашение жильца и отзыв доступа",
             "Собственник создаёт одноразовую ссылку на 7 дней и пересылает её. Новый человек открывает её, "
