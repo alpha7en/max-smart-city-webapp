@@ -501,3 +501,17 @@ async def test_real_collision_unfit_bot_flow(deps, api, repo, user):
     assert not any("1-390257330" in r.url.path for r in seen)
 
 
+async def test_dns_fallback_socket_and_anyio_backend():
+    import socket
+    from anyio._backends._asyncio import AsyncIOBackend
+
+    # Проверяем, что при сбое DNS резолвер возвращает fallback IP
+    res_sock = socket.getaddrinfo("fgis.gost.ru", 443)
+    ips_sock = [r[4][0] for r in res_sock]
+    assert any(ip in A.FGIS_FALLBACK_IPS for ip in ips_sock)
+
+    res_anyio = await AsyncIOBackend.getaddrinfo("fgis.gost.ru", 443)
+    ips_anyio = [r[4][0] for r in res_anyio]
+    assert any(ip in A.FGIS_FALLBACK_IPS for ip in ips_anyio)
+
+

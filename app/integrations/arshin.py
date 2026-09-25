@@ -66,6 +66,32 @@ def _fgis_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
 if socket.getaddrinfo is not _fgis_getaddrinfo:
     socket.getaddrinfo = _fgis_getaddrinfo
 
+try:
+    from anyio._backends._asyncio import AsyncIOBackend
+
+    if not hasattr(AsyncIOBackend, "_orig_getaddrinfo"):
+        _orig_backend_gai = AsyncIOBackend.getaddrinfo
+        AsyncIOBackend._orig_getaddrinfo = _orig_backend_gai
+
+        @classmethod
+        async def _fgis_backend_getaddrinfo(cls, host, port, *args, **kwargs):
+            try:
+                return await _orig_backend_gai(host, port, *args, **kwargs)
+            except Exception:
+                h = host.decode() if isinstance(host, bytes) else host
+                if h == FGIS_HOST:
+                    for ip in FGIS_FALLBACK_IPS:
+                        try:
+                            target_ip = ip.encode() if isinstance(host, bytes) else ip
+                            return await _orig_backend_gai(target_ip, port, *args, **kwargs)
+                        except Exception:
+                            continue
+                raise
+
+        AsyncIOBackend.getaddrinfo = _fgis_backend_getaddrinfo
+except Exception:
+    pass
+
 USER_AGENT = "max-smart-city-bot/1.0 (+https://github.com/alpha7en/max-smart-city-webapp)"
 MIN_INTERVAL = 0.6          # с между запросами (лимит API — 2 в секунду)
 MAX_REQUESTS = 4            # на одну проверку, вместе с повтором
