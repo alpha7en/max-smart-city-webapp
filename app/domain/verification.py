@@ -78,7 +78,7 @@ def parse_item(item: Any) -> Record | None:
     """Элемент ответа → Record; без vri_id — None. Некоторых полей в ответе может не быть."""
     if not isinstance(item, dict) or not item.get("vri_id"):
         return None
-    s = lambda k: str(item.get(k) or "").strip()  # noqa: E731
+    s = lambda k: re.sub(r"[\ufeff\ufffc\u200b-\u200f]", "", str(item.get(k) or "")).strip()  # noqa: E731
     applicable = item.get("applicability")
     return Record(
         vri_id=s("vri_id"), mit_number=s("mit_number"), mit_title=s("mit_title"), mit_notation=s("mit_notation"),
@@ -203,7 +203,10 @@ def is_demo_id(vri_id: str | None) -> bool:
 
 def short_title(r: Record, limit: int = 22) -> str:
     """Короткое имя типа для кнопки: обозначение (СГВ-15) или начало наименования."""
-    name = r.mit_notation or r.mi_modification or r.mit_title or r.mit_number or "Прибор"
+    name = r.mit_notation or ""
+    if (len(name) > limit or "," in name) and r.mi_modification:
+        name = r.mi_modification
+    name = name or r.mi_modification or r.mit_title or r.mit_number or "Прибор"
     name = " ".join(name.split())
     return name if len(name) <= limit else name[: limit - 1].rstrip() + "…"
 

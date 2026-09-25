@@ -64,3 +64,11 @@ def test_validate_serial(raw, mtype, level, code):
     assert (check.level, check.code) == (level, code)
     assert check.usable == (level != "bad")
     assert (usable_serial(raw, mtype) is None) == (level == "bad")
+
+
+def test_clean_serial_unicode_artifacts():
+    assert clean_serial("\ufffc598048919") == "598048919"
+    assert clean_serial("\ufeff18-452178") == "18-452178"
+    assert normalize_serial("\ufffc598048919") == "598048919"
+    assert normalize_serial("\u200b0112456\u200c") == "0112456"
+

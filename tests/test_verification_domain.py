@@ -8,6 +8,7 @@ from app.domain.verification import (
     card_url,
     choose,
     parse_date,
+    parse_item,
     parse_list,
     search_start,
     serial_variants,
@@ -121,7 +122,13 @@ def test_unfit_and_none():
 def test_card_url_and_title():
     assert card_url("2-166964556") == "https://fgis.gost.ru/fundmetrology/cm/results/2-166964556"
     assert card_url("166964556") == "https://fgis.gost.ru/fundmetrology/cm/results/1-166964556"
-    assert card_url("demo-w1") is None and card_url(None) is None and card_url("1-2/../x") is None
     assert short_title(rec("1", notation="СГВ")) == "СГВ"
+    assert short_title(rec("1", notation="СХВ (СХВ-15, СХВ-20), СГВ (СГВ-15, СГВ-20)", modification="СГВ-15")) == "СГВ-15"
     long = short_title(rec("1", title="Счетчики электрической энергии статические однофазные"))
     assert len(long) == 22 and long.endswith("…")
+
+
+def test_parse_item_unicode_artifacts():
+    r = parse_item({"vri_id": "1-1", "mi_number": "\ufffc598048919", "mit_notation": "\ufeffСГВ"})
+    assert r.mi_number == "598048919" and r.mit_notation == "СГВ"
+

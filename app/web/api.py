@@ -241,7 +241,10 @@ async def post_reading(body: ReadingIn, request: Request, background: Background
         raise api_error(ERROR_STATUS.get(res.status, 422), res.status, res.message)
     reading = await deps.repo.get_reading(res.reading_id)
     background.add_task(notify_chat, deps, user, meter, reading, values)
-    if serial:  # номер ввели только что — сверим поверку с ФГИС «Аршин» в фоне
+    needs_arshin = serial or (
+        meter.get("serial") and not meter.get("arshin_checked_at") and meter.get("verification_source") != "user"
+    )
+    if needs_arshin:  # номер есть и поверка в ФГИС ещё не проверялась — сверим в фоне
         now = clock.now()
         background.add_task(AS.check_meter, deps, meter["id"], now.date(), now)
     out = {"status": res.status, "reading": reading_json(reading)}

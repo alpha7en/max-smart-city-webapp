@@ -461,6 +461,8 @@ async def test_real_collision_and_inapplicable_fixture():
     assert card_url("2-120021534") == "https://fgis.gost.ru/fundmetrology/cm/results/2-120021534"
     unfit_rec = next(r for r in res.records if r.vri_id == "1-340080782")
     assert unfit_rec.unfit is True and unfit_rec.valid_date is None
+    # Запросы деталей для термометра 1-390257330 не должны отправляться
+    assert not any("1-390257330" in r.url.path for r in seen)
     gas_match = choose(res.records, "gas")
     assert gas_match.level == "high" and gas_match.best.vri_id == "1-368481110"
     assert gas_match.best.valid_date == date(2032, 9, 5)
@@ -478,4 +480,24 @@ async def test_real_water_fixture_bot_flow(deps, api, repo, user):
     (m,) = await repo.address_meters(user[1])
     assert m["verification_due"] == "2029-11-13" and m["verification_source"] == "arshin"
     assert m["arshin_vri_id"] == "1-333392815"
+
+
+async def test_real_collision_unfit_bot_flow(deps, api, repo, user):
+    collision_data = _fixture("search_collision_0112456.json")
+    chat, seen = arshin_chat(deps, api, lambda r: httpx.Response(200, json=collision_data))
+    await new_water_meter(chat, "0112456")
+    text = api.last_text()
+    assert "По данным ФГИС «Аршин» последняя поверка (08.05.2024) признала счётчик непригодным" in text
+    assert buttons(api) == [C.BTN_MENU, T.BTN_MORE, TA.BTN_CARD]
+    link = api.outgoing()[-1][1]["payload"]["buttons"][1][0]
+    assert link["url"] == "https://fgis.gost.ru/fundmetrology/cm/results/1-340080782"
+    (m,) = await repo.address_meters(user[1])
+    assert m["verification_due"] is None
+    assert m["verification_source"] == "arshin"
+    assert m["arshin_vri_id"] == "1-340080782"
+    assert AS.meter_url(m) == "https://fgis.gost.ru/fundmetrology/cm/results/1-340080782"
+    assert AS.source_label(m) == TA.SOURCE
+    # Убеждаемся, что на посторонние приборы (термометр 1-390257330) запросы карточки не уходили
+    assert not any("1-390257330" in r.url.path for r in seen)
+
 

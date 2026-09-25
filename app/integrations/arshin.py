@@ -43,7 +43,9 @@ log = logging.getLogger(__name__)
 DEFAULT_BASE = "https://fgis.gost.ru/fundmetrology/eapi"
 FGIS_HOST = "fgis.gost.ru"
 FGIS_FALLBACK_IPS = ("212.164.138.19", "212.164.138.14")
-_orig_getaddrinfo = socket.getaddrinfo
+_orig_getaddrinfo = getattr(socket, "_orig_getaddrinfo", socket.getaddrinfo)
+if not hasattr(socket, "_orig_getaddrinfo"):
+    socket._orig_getaddrinfo = _orig_getaddrinfo
 
 
 def _fgis_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
@@ -62,7 +64,6 @@ def _fgis_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
 
 
 if socket.getaddrinfo is not _fgis_getaddrinfo:
-    import socket
     socket.getaddrinfo = _fgis_getaddrinfo
 
 USER_AGENT = "max-smart-city-bot/1.0 (+https://github.com/alpha7en/max-smart-city-webapp)"
@@ -185,14 +186,15 @@ class ArshinClient:
             if any(type_fit(r.mit_title, meter_type) >= 0 for r in recs):
                 break
         if found:
-            return Lookup("found", await self._fill_unknown(found, budget))
+            return Lookup("found", await self._fill_unknown(found, meter_type, budget))
         return Lookup("none" if conclusive else "error")
 
-    async def _fill_unknown(self, records: list[Record], budget: list[int]) -> list[Record]:
-        """Нет ни срока, ни признака пригодности в списке — смотрим карточку (applicable/inapplicable)."""
+    async def _fill_unknown(self, records: list[Record], meter_type: str, budget: list[int]) -> list[Record]:
+        """Нет ни срока, ни признака пригодности в списке — смотрим карточку (applicable/inapplicable).
+        Запрашиваем только приборы подходящего типа (не тратим бюджет на термометры/манометры)."""
         out = []
         for r in records:
-            if r.valid_date is None and r.applicable is True and budget[0] > 0:
+            if type_fit(r.mit_title, meter_type) >= 0 and r.valid_date is None and r.applicable is True and budget[0] > 0:
                 res = await self.details(r.vri_id, budget) or {}
                 info = res.get("vriInfo") or {}
                 if "inapplicable" in info:

@@ -666,7 +666,7 @@ class Repo:
         await self._exec(
             "UPDATE meters SET verification_due=?, verification_source=?, arshin_vri_id=?, arshin_mit_title=?, "
             "arshin_checked_at=? WHERE id=?",
-            (due, "arshin" if due else None, vri_id, mit_title, ts(checked_at), meter_id),
+            (due, "arshin" if (due or vri_id) else None, vri_id, mit_title, ts(checked_at), meter_id),
         )
 
     async def mark_arshin_checked(self, meter_id: int, checked_at: datetime) -> None:
