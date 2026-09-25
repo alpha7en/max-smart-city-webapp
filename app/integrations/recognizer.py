@@ -1,7 +1,7 @@
 """Распознавание показаний по фото: HTTP-клиент микросервиса services/meter_reader или демо-заглушка.
 
 Контракт микросервиса (services/meter_reader/README.md; маппинг только в HttpRecognizer._parse):
-POST {RECOGNIZER_URL} multipart: image=<фото> (+ meter_type, tariffs как подсказка, сервис их пока не читает)
+POST {RECOGNIZER_URL} multipart: image=<фото> (+ meter_type, tariffs: по ним сервис берёт промпт типа и отмечает wrong_type)
 → 200 JSON {"meter_type": "hot_water", "reading_text": "00595.825", "integer_digits": "00595",
             "fraction_digits": "825", "tariff": null, "serial_number": "123456", "confidence": 0.95,
             "readable": true, "issues": [], "issue_note": null, ...}

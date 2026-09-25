@@ -10,7 +10,7 @@ from app.bot import keyboards as K
 from app.bot.events import Event
 from app.bot.session import Session
 from app.config import Settings
-from app.integrations.max_api import KEEP, MaxApi, MaxApiError, message_body
+from app.integrations.max_api import MaxApi, MaxApiError, message_body
 from app.integrations.recognizer import Recognizer
 from app.repo import Repo, Row
 
@@ -123,18 +123,6 @@ class Ctx:
             return True
         except MaxApiError as e:
             log.info("delete message %s failed: %s", target, e)
-            return False
-
-    async def edit(self, mid: str, text: str | None = None, keyboard: dict | None | object = KEEP,
-                   fmt: str | None = "markdown") -> bool:
-        """Отредактировать сообщение по mid. Безопасен к ошибкам, возвращает True при успехе."""
-        if not mid:
-            return False
-        try:
-            await self.api.edit(mid, text=text, keyboard=keyboard, fmt=fmt)
-            return True
-        except MaxApiError as e:
-            log.info("edit message %s failed: %s", mid, e)
             return False
 
     async def flush_notes(self) -> None:

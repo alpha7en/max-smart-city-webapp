@@ -132,15 +132,6 @@ async def check_within(deps: Any, meter_id: int, today: date, now: datetime, bra
         return Outcome("timeout")
 
 
-def background_check(deps: Any, meter_id: int, today: date, now: datetime) -> None:
-    """Проверка без ожидания (подача из мини-приложения)."""
-    if _client(deps) is None:
-        return
-    task = asyncio.create_task(check_meter(deps, meter_id, today, now))
-    _BACKGROUND.add(task)
-    task.add_done_callback(_BACKGROUND.discard)
-
-
 async def refresh_tick(deps: Any, now: datetime, limit: int = REFRESH_LIMIT) -> int:
     """Раз в сутки: перепроверить счётчики без даты из ФГИС или с устаревшей проверкой. Только live:
     демо-данные в базу массово не пишем. → сколько проверили."""

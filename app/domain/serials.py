@@ -26,7 +26,7 @@ _PREFIX = re.compile(
     re.I,
 )
 _EDGES = " \t\r\n.,:;\"'«»()[]\ufeff\ufffc\u200b\u200c\u200d\u200e\u200f"
-_UNICODE_GARBAGE = re.compile(r"[\ufeff\ufffc\u200b-\u200f]")
+_INVISIBLE = re.compile(r"[\ufeff\ufffc\u200b-\u200f]")  # BOM, U+FFFC, нулевой ширины, метки направления
 _NOT_SERIAL = re.compile(
     r"гост|gost|\bту\b|\bqn|\bq[1-4]\b|qmax|qmin|\bdn\s*\d|\bду\s*\d|класс|class|\bip\s*\d|имп|imp|"
     r"квт|kwh|гкал|gcal|м3|m3|°|пломб|seal",
@@ -44,12 +44,17 @@ MAX_LETTERS = 4         # буквы производителя: «ВК», «А�
 MAX_LEN = 32            # длиннее — точно не номер (вставили текст)
 
 
+def strip_invisible(s: str) -> str:
+    """Убрать невидимые символы (встречаются в ответах ФГИС и в скопированном тексте)."""
+    return _INVISIBLE.sub("", s)
+
+
 def clean_serial(raw: str | None) -> str | None:
     """Номер для хранения и показа: без «№»/«S/N» в начале, без мусора по краям, пробелы схлопнуты,
     тире — «-» без пробелов вокруг. Пусто → None."""
     if not raw:
         return None
-    s = _UNICODE_GARBAGE.sub("", str(raw))
+    s = strip_invisible(str(raw))
     s = " ".join(s.split()).strip(_EDGES)
     s = _PREFIX.sub("", s).strip(_EDGES)
     s = _DASHES.sub("-", s).strip("-")

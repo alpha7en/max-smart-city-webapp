@@ -475,14 +475,6 @@ class Repo:
              ts(expires_at) if expires_at else None),
         )
 
-    async def delete_session(self, user_id: int) -> None:
-        await self._exec("DELETE FROM sessions WHERE user_id=?", (user_id,))
-
-    async def expired_sessions(self, now: datetime) -> list[Row]:
-        return await self._all(
-            "SELECT * FROM sessions WHERE expires_at IS NOT NULL AND expires_at<?", (ts(now),)
-        )
-
     # === Временные фото ===
 
     async def add_photo(self, photo_id: str, user_id: int, path: str, now: datetime, expires_at: datetime) -> None:

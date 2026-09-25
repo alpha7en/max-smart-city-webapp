@@ -423,12 +423,6 @@ async def test_max_api_client():
     with pytest.raises(MaxApiError) as e:
         await api.delete("mid.1")
     assert (e.value.status, e.value.code) == (400, "proto.payload")
-    # safe_delete suppresses MaxApiError
-    assert await api.safe_delete("mid.1") is False
-    assert await api.safe_delete("") is False
-    assert await api.safe_edit("mid.1", "hello") is False
-    assert await api.safe_edit("", "hello") is False
-    assert await api.delete_messages(["", "mid.1"]) == []
     await api.close()
 
 
@@ -437,20 +431,18 @@ async def test_max_api_delete_and_edit_success():
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        if request.url.path == "/messages":
-            if request.method in ("DELETE", "PUT"):
-                return httpx.Response(200, json={"success": True})
+        if request.url.path == "/messages" and request.method in ("DELETE", "PUT"):
+            return httpx.Response(200, json={"success": True})
         return httpx.Response(400, json={"code": "bad"})
 
     api = MaxApi("TKN", client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-    assert await api.safe_delete("mid.ok") is True
+    await api.delete("mid.ok")
     assert seen[-1].method == "DELETE" and seen[-1].url.params["message_id"] == "mid.ok"
-
-    assert await api.safe_edit("mid.ok", "new text") is True
+    await api.edit("mid.ok", "new text")
     assert seen[-1].method == "PUT" and seen[-1].url.params["message_id"] == "mid.ok"
-
-    deleted = await api.delete_messages(["mid.1", "mid.2"])
-    assert deleted == ["mid.1", "mid.2"]
+    n = len(seen)
+    await api.delete("")
+    assert len(seen) == n
     await api.close()
 
 
