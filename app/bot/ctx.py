@@ -26,6 +26,7 @@ class Deps:
     recognizer: Recognizer
     addresses: Any = None      # AddressService (поток S3); None — сервис не подключён
     bot_username: str = ""     # для кнопок open_app
+    arshin: Any = None         # ArshinClient (ФГИС «Аршин»); None — проверка выключена
 
 
 @dataclass

@@ -15,6 +15,7 @@ app/
   db.py, schema.sql    подключение SQLite (WAL, foreign_keys) и миграции по PRAGMA user_version
   repo.py              все SQL-запросы; транзакции через repo.tx()
   readings.py          submit_reading(): общие проверки и запись показания для бота и API
+  arshin_service.py    поверка по ФГИС «Аршин»: проверка после подачи (≤6 с, дальше в фоне), выбор записи, суточное обновление
   scheduler.py         раз в минуту удаляет просроченные фото, раз в ~10 минут (9–21 МСК) шлёт уведомления
   domain/
     meters.py          типы счётчиков, разбор и формат значений, окно подачи, демо-счёт, пороги прироста
@@ -22,11 +23,13 @@ app/
     people.py          проверка ФИО, нормализация телефона, телефон из vCard
     access.py          модель прав: первый по адресу собственник, остальные ждут разрешения
     dashboard.py       строки меню-дашборда и срочное действие (общие для бота и /api/me)
+    verification.py    записи ФГИС: даты ISO и dd.mm.yyyy, варианты номера, выбор записи (high/low/none)
   integrations/
     max_api.py         клиент MAX Bot API (httpx, повторы при 429/5xx, TLS с сертификатом Минцифры)
     certs/             russian_trusted_ca.pem
     address_service.py DaData suggest или локальный разбор адреса
     recognizer.py      HttpRecognizer (RECOGNIZER_URL → services/meter_reader) или StubRecognizer (демо)
+    arshin.py          клиент ФГИС «Аршин» /eapi/vri: троттлинг 0,6 с, ≤4 запроса, повтор, breaker, кэш; fixtures — демо
   bot/
     events.py          сырой update MAX → Event (текст, фото, контакт, кнопка, bot_started)
     poller.py          long polling GET /updates, маркер в kv, отдельная задача на каждый апдейт

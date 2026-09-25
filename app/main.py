@@ -16,6 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.bot.ctx import Deps
 from app.bot.texts.api import MSG
 from app.config import Settings, load_settings
+from app.integrations.arshin import ArshinClient
 from app.integrations.max_api import MaxApi
 from app.integrations.recognizer import get_recognizer
 from app.repo import Repo
@@ -64,8 +65,10 @@ async def lifespan(app: FastAPI):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     repo = await Repo.open(settings.db_path)
     api_client = MaxApi(settings.bot_token, settings.max_api_base) if settings.bot_token else None
+    arshin = ArshinClient(settings.arshin_mode, settings.arshin_base, repo)
+    log.info("ARSHIN_MODE=%s", arshin.mode)
     deps = Deps(api=api_client, repo=repo, settings=settings, recognizer=get_recognizer(settings),
-                addresses=_address_service(settings), bot_username=settings.bot_username)
+                addresses=_address_service(settings), bot_username=settings.bot_username, arshin=arshin)
     app.state.repo, app.state.deps = repo, deps
     tasks: list[asyncio.Task] = [asyncio.create_task(run_scheduler(deps), name="scheduler")]
     if api_client:
@@ -84,6 +87,7 @@ async def lifespan(app: FastAPI):
                 await t
         if api_client:
             await api_client.close()
+        await arshin.close()
         await repo.close()
 
 

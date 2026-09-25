@@ -11,7 +11,7 @@ import json
 from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import fields
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -647,3 +647,49 @@ class Repo:
 
     async def get_reading(self, reading_id: int) -> Row | None:
         return await self._one("SELECT * FROM readings WHERE id=?", (reading_id,))
+
+    # === ФГИС «Аршин» ===
+
+    async def arshin_cache_get(self, key: str) -> Row | None:
+        return await self._one("SELECT * FROM arshin_cache WHERE key=?", (key,))
+
+    async def arshin_cache_put(self, key: str, payload: str, status: str, fetched_at: str) -> None:
+        await self._exec(
+            "INSERT INTO arshin_cache(key, payload, status, fetched_at) VALUES(?, ?, ?, ?) ON CONFLICT(key) "
+            "DO UPDATE SET payload=excluded.payload, status=excluded.status, fetched_at=excluded.fetched_at",
+            (key, payload, status, fetched_at),
+        )
+
+    async def set_arshin(self, meter_id: int, *, due: str | None, vri_id: str | None, mit_title: str | None,
+                         checked_at: datetime) -> None:
+        """Запись ФГИС: срок (None — последняя поверка «непригоден») и source='arshin'."""
+        await self._exec(
+            "UPDATE meters SET verification_due=?, verification_source=?, arshin_vri_id=?, arshin_mit_title=?, "
+            "arshin_checked_at=? WHERE id=?",
+            (due, "arshin" if due else None, vri_id, mit_title, ts(checked_at), meter_id),
+        )
+
+    async def mark_arshin_checked(self, meter_id: int, checked_at: datetime) -> None:
+        await self._exec("UPDATE meters SET arshin_checked_at=? WHERE id=?", (ts(checked_at), meter_id))
+
+    async def arshin_refresh_candidates(self, now: datetime, limit: int) -> list[Row]:
+        """Счётчики с номером без даты от пользователя, которые пора (пере)проверить в ФГИС:
+        не проверяли; нет arshin-даты — 3 дня; есть — 30 дней. Давно не проверенные — первыми."""
+        return await self._all(
+            "SELECT * FROM meters WHERE active=1 AND serial_norm IS NOT NULL "
+            "AND (verification_source IS NULL OR verification_source IN ('model','arshin')) "
+            "AND (arshin_checked_at IS NULL OR arshin_checked_at < CASE WHEN verification_source='arshin' "
+            "THEN ? ELSE ? END) ORDER BY arshin_checked_at IS NOT NULL, arshin_checked_at, id LIMIT ?",
+            (ts(now - timedelta(days=30)), ts(now - timedelta(days=3)), limit),
+        )
+
+    async def meter_photo_hint(self, meter_id: int) -> tuple[str | None, str | None]:
+        """Марка и модель с последнего фото счётчика (readings.recognized_json) — для выбора записи ФГИС."""
+        rows = await self._all(
+            "SELECT recognized_json FROM readings WHERE meter_id=? AND recognized_json IS NOT NULL "
+            "ORDER BY id DESC LIMIT 5", (meter_id,))
+        for r in rows:
+            rec = json.loads(r["recognized_json"])
+            if rec.get("brand") or rec.get("model"):
+                return rec.get("brand"), rec.get("model")
+        return None, None

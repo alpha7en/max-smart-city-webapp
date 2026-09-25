@@ -794,6 +794,13 @@
           h('i', { style: 'height:' + Math.max(6, Math.round(x.v / max * 100)) + '%' }), h('span', {}, pr ? SHORT[pr.mo - 1] : ''));
       })));
   }
+  // Откуда срок поверки: ФГИС «Аршин» (ссылка на карточку), паспорт или модель.
+  function verifSource(m) {
+    const src = m.verification_source === 'arshin' ? (m.arshin_demo ? 'демо-данные ФГИС' : 'по данным ФГИС «Аршин»')
+      : m.verification_source === 'user' ? 'из паспорта' : m.verification_source === 'model' ? 'ориентировочно' : null;
+    if (!src) return null;
+    return h('small', {}, m.arshin_url ? h('a', { href: m.arshin_url, target: '_blank', rel: 'noopener' }, src) : src);
+  }
   function drawMeter(m) {
     const hist = (m.history || []).slice(0, 12);
     const vd = daysUntil(m.verification_due), n = tariffCount(m);
@@ -804,7 +811,8 @@
       h('div', { class: 'tiles' },
         h('div', { class: 'tile t-' + vt }, h('span', { class: 'th' }, ibox('shield', vt, 16), 'Поверка'),
           h('b', { class: 'v' }, m.verification_due ? fmtDate(m.verification_due) : 'не указана'),
-          h('small', {}, vd == null ? 'есть в паспорте' : vd < 0 ? 'просрочена' : vd <= 60 ? leftWord(vd) + ' ' + days(vd) : 'в порядке')),
+          h('small', {}, vd == null ? 'есть в паспорте' : vd < 0 ? 'просрочена' : vd <= 60 ? leftWord(vd) + ' ' + days(vd) : 'в порядке'),
+          m.verification_due && verifSource(m)),
         h('div', { class: 'tile t-accent' },
           h('span', { class: 'th' }, ibox('hash', 'accent', 16), 'Номер'),
           h('b', { class: 'v mono' }, m.serial || '—'),

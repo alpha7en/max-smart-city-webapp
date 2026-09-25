@@ -26,7 +26,9 @@ app/
   scheduler.py       уведомления и чистка фото/сессий
   domain/            чистые функции без I/O: meters, people, addresses, access (+dashboard)
   integrations/      ВЕСЬ внешний HTTP: max_api.py (клиент MAX + certs/ Минцифры),
-                     recognizer.py (клиент meter-reader или демо-заглушка), address_service.py (DaData/локально)
+                     recognizer.py (клиент meter-reader или демо-заглушка), address_service.py (DaData/локально),
+                     arshin.py (ФГИС «Аршин», поверка по заводскому номеру; ARSHIN_MODE=live|fixtures|off)
+  arshin_service.py  проверка поверки после подачи и раз в сутки; выбор записи — domain/verification.py
   bot/
     events.py        сырой update MAX → Event        poller.py   long polling, marker в kv
     router.py        глобальные правила + @on_state/@on_repeat/@on_global/@on_command/@on_hook
@@ -97,6 +99,9 @@ sqlite3 data/bot.db 'select user_id,state,data from sessions'  # состоян�
 - ФИО из Госуслуг MAX боту не отдаёт. Телефон берётся кнопкой `request_contact` (vcf_info + max_info).
 - URL мини-приложения закреплён в MAX организаторами: `https://alpha7en.github.io/max-smart-city-webapp/`.
   НЕ МЕНЯТЬ. Бэкенд для него должен быть на постоянном HTTPS (переменная `MINIAPP_API_BASE`), не на туннеле.
+- ФГИС «Аршин» доступен только с российских IP: из облачных агентов не проверялся. Лимит 2 rps, без
+  `verification_date_start`/`year` ищет только текущий год. Проверка с сервера:
+  `curl -sS -G https://fgis.gost.ru/fundmetrology/eapi/vri --data-urlencode mi_number=<номер> --data-urlencode verification_date_start=2015-01-01`.
 - Живьём ещё НЕ проверено: приходит ли `initData`; формат `request_contact` (TEL в vcf, max_info, hash);
   скачивается ли фото по `image.payload.url`; `start_param` из `open_app` с payload; пустой ответ
   `{}` на callback. Пока не проверено, не строить на этом логику без запасного пути.

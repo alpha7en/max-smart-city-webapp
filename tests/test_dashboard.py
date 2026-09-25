@@ -152,6 +152,7 @@ def test_api_payload():
     assert m1 == {
         "id": 1, "type": "cold_water", "type_label": "Хол. вода", "unit": "м³", "tariffs": 1,
         "address_label": ARBAT, "serial": None, "submitted_this_period": True, "verification_due": None,
+        "verification_source": None,
         "last": {"period": "2026-10", "values": {"t1": "123,456"}, "created_at": "2026-10-12T12:00:00+03:00"},
     }
     assert m2["last"] is None and m2["submitted_this_period"] is False and m2["tariffs"] == 2
