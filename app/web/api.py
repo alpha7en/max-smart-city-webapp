@@ -36,6 +36,7 @@ from app.bot.texts import submission as TS
 from app.bot.texts.api import BTN_MORE, CHAT_FLAGGED, CHAT_MOCK, CHAT_SAVED, MSG
 from app.domain import meters as M
 from app.domain.dashboard import Dashboard, load_dashboard
+from app.domain.people import short_name
 from app.domain.serials import clean_serial, usable_serial, validate_serial
 from app.integrations.recognizer import Recognition
 from app.readings import submit_reading
@@ -119,6 +120,14 @@ def address_json(a: Row) -> dict:
             "role": a["role"], "verified": a["status"] != "unverified"}
 
 
+async def _with_members(repo: Repo, a: dict) -> dict:
+    """Собственнику — кто ещё привязан к адресу: только «Имя Ф.» и статус, без телефонов."""
+    if a["role"] == "owner":
+        a["members"] = [{"name_short": short_name(m["full_name"]), "access": m["access"]}
+                        for m in await repo.address_members(a["id"])]
+    return a
+
+
 # === Доступ ===
 
 def _deps(request: Request) -> Deps:
@@ -167,7 +176,7 @@ async def me(request: Request, init: InitData = Depends(current_user)) -> dict:
                  "phone_verified": bool(user["phone_verified"])},
         "dashboard": (await dashboard(deps, user["id"], today)).to_api(),
         "meters": [meter_json(m, today) for m in meters],
-        "addresses": [address_json(a) for a in addresses],
+        "addresses": [await _with_members(deps.repo, address_json(a)) for a in addresses],
         "bot_username": deps.bot_username,
     }
 

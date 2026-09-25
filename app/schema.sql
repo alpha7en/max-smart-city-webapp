@@ -1,4 +1,4 @@
--- Схема v1. Значения показаний — INTEGER в тысячных долях.
+-- Схема v1 (дальнейшие версии — MIGRATIONS в db.py). Значения показаний — INTEGER в тысячных долях.
 CREATE TABLE users(
   id INTEGER PRIMARY KEY, max_user_id INTEGER UNIQUE NOT NULL, chat_id INTEGER,
   full_name TEXT, phone TEXT, phone_verified INTEGER NOT NULL DEFAULT 0,

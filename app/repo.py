@@ -573,6 +573,63 @@ class Repo:
             )
             return True
 
+    # --- Приглашения жильцов и список доступа ---
+
+    async def address_members(self, address_id: int) -> list[Row]:
+        """Все привязанные к адресу, кроме собственника: user_id, full_name, access — по дате привязки."""
+        return await self._all(
+            "SELECT u.id AS user_id, u.full_name, ua.access FROM user_addresses ua JOIN users u ON u.id=ua.user_id "
+            "WHERE ua.address_id=? AND ua.role!='owner' ORDER BY ua.created_at, u.id",
+            (address_id,),
+        )
+
+    async def active_invites(self, address_id: int, now: datetime) -> list[Row]:
+        """Действующие (не использованы и не истекли) приглашения адреса, старые первыми."""
+        return await self._all(
+            "SELECT * FROM invites WHERE address_id=? AND used_at IS NULL AND expires_at>? ORDER BY created_at",
+            (address_id, ts(now)),
+        )
+
+    async def create_invite(self, token: str, address_id: int, owner_user_id: int, now: datetime,
+                            expires_at: datetime, limit: int) -> bool:
+        """Новое приглашение; False — у адреса уже `limit` действующих."""
+        async with self.tx():
+            if len(await self.active_invites(address_id, now)) >= limit:
+                return False
+            await self._exec(
+                "INSERT INTO invites(token, address_id, owner_user_id, created_at, expires_at) VALUES(?, ?, ?, ?, ?)",
+                (token, address_id, owner_user_id, ts(now), ts(expires_at)),
+            )
+            return True
+
+    async def get_invite(self, token: str) -> Row | None:
+        return await self._one("SELECT * FROM invites WHERE token=?", (token,))
+
+    async def use_invite(self, token: str, user_id: int, now: datetime) -> int | None:
+        """Принять приглашение одной транзакцией: отметить использованным и открыть доступ
+        (нет связи с адресом — tenant/granted, есть — access=granted). → address_id или None,
+        если приглашение не действует или пользователь — собственник этого адреса."""
+        async with self.tx():
+            inv = await self.get_invite(token)
+            if inv is None or inv["used_at"] or inv["expires_at"] <= ts(now):
+                return None
+            aid = inv["address_id"]
+            ua = await self.user_address(user_id, aid)
+            if ua and ua["role"] == "owner":
+                return None
+            await self._exec("UPDATE invites SET used_by=?, used_at=? WHERE token=?", (user_id, ts(now), token))
+            if ua:
+                await self.set_access(user_id, aid, "granted")
+            else:
+                await self._exec(
+                    "INSERT INTO user_addresses(user_id, address_id, role, access, label, created_at) "
+                    "VALUES(?, ?, 'tenant', 'granted', '', ?)",
+                    (user_id, aid, _now()),
+                )
+                await self.ensure_demo_bill(aid, now.date())
+                await self.relabel(user_id)
+            return aid
+
     # === S2 (submission) ===
 
     async def meter_access(self, user_id: int, meter_id: int) -> Row | None:
