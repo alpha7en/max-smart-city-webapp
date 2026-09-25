@@ -1,6 +1,12 @@
-"""Форматирование для текстов: экранирование, числа, деньги, даты по-русски."""
+"""Форматирование для текстов: экранирование, разметка MAX, числа, деньги, даты по-русски.
+
+Разметка сообщений (format=markdown): **жирный** — показания, суммы, даты, сроки, номера (1–3 на сообщение);
+демо- и MVP-оговорки — последним блоком-цитатой «> …» через пустую строку (with_notes).
+Предупреждения, важные для действия (блики, номер не совпадает), остаются в тексте.
+"""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date
 
 from app.domain.meters import format_value, format_stored, spec
@@ -16,6 +22,27 @@ _MD = str.maketrans({c: "\\" + c for c in "\\*_~`[]"})
 def esc(text: str | None) -> str:
     """Экранирует пользовательский текст для markdown MAX."""
     return (text or "").translate(_MD)
+
+
+def b(text: object) -> str:
+    """Жирный фрагмент: '4 312 ₽' → '**4 312 ₽**'. Текст экранируем; пустое — без звёздочек."""
+    s = esc("" if text is None else str(text)).strip()
+    return f"**{s}**" if s else ""
+
+
+def quote(text: str | Iterable[str | None]) -> str:
+    """Цитата MAX: каждая непустая строка с «> ». Строка или список строк (в них тоже могут быть переносы)."""
+    parts = [text] if isinstance(text, str) else [t for t in text if t]
+    return "\n".join(f"> {line.strip()}" for part in parts for line in part.splitlines() if line.strip())
+
+
+def with_notes(text: str, *notes: str | None) -> str:
+    """Сообщение + оговорки (демо, модель, «не сверен с ФИАС») последним блоком-цитатой через пустую строку.
+    Пустые и повторы пропускаем; без оговорок — текст как есть."""
+    block = quote(dict.fromkeys(n for n in notes if n))
+    if not block:
+        return text
+    return f"{text.rstrip()}\n\n{block}" if text.strip() else block
 
 
 def value(v: int | None, meter_type: str, unit: bool = True) -> str:
@@ -80,16 +107,18 @@ def n_days(n: int) -> str:
     return f"{n} {plural(n, 'день', 'дня', 'дней')}"
 
 
-def left_days(n: int) -> str:
-    """'остался 1 день', 'осталось 3 дня'; 0 → 'сегодня последний день'."""
+def left_days(n: int, bold: bool = False) -> str:
+    """'остался 1 день', 'осталось 3 дня'; 0 → 'сегодня последний день'. bold — 'осталось **3 дня**'."""
     if n <= 0:
-        return "сегодня последний день"
-    return f"{plural(n, 'остался', 'осталось', 'осталось')} {n_days(n)}"
+        return f"сегодня {b('последний день')}" if bold else "сегодня последний день"
+    return f"{plural(n, 'остался', 'осталось', 'осталось')} {b(n_days(n)) if bold else n_days(n)}"
 
 
-def days(n: int) -> str:
+def days(n: int, bold: bool = False) -> str:
     """'осталось 6 дней', 'остался 1 день'; 0 → 'сегодня последний день'; <0 → 'просрочено на 3 дня'."""
-    return left_days(n) if n >= 0 else f"просрочено на {n_days(-n)}"
+    if n >= 0:
+        return left_days(n, bold)
+    return f"просрочено на {b(n_days(-n)) if bold else n_days(-n)}"
 
 
 def flats(n: int) -> str:
@@ -100,6 +129,18 @@ def flats(n: int) -> str:
 # Названия типов счётчиков для полных предложений (сокращения «Хол. вода» — только на кнопках и в списках).
 TYPE_GEN = {"cold_water": "холодной воды", "hot_water": "горячей воды", "electricity": "электричества",
             "gas": "газа", "heat": "отопления"}
+
+
+# Полные названия типов для заголовка счётчика: «Горячая вода · Дубнинская 37к1, кв 198».
+TYPE_NOM = {"cold_water": "Холодная вода", "hot_water": "Горячая вода", "electricity": "Электричество",
+            "gas": "Газ", "heat": "Отопление"}
+
+
+def meter_title(meter_type: str, label: str | None) -> str:
+    """Подпись из списка → заголовок с полным типом: 'Гор. вода · Арбат 47к1, кв 32' → 'Горячая вода · Арбат 47к1, кв 32'."""
+    rest = (label or "").partition(" · ")[2].strip()
+    name = TYPE_NOM.get(meter_type, "")
+    return f"{name} · {rest}" if rest and name else name or rest or (label or "")
 
 
 def meter_of(meter_type: str, label: str | None) -> str:

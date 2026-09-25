@@ -18,7 +18,7 @@ from app.bot.states import S
 from app.bot.texts import common as C
 from app.bot.texts import invite as IT
 from app.bot.texts import registration as T
-from app.bot.texts.fmt import esc, flats, format_phone
+from app.bot.texts.fmt import esc, flats, format_phone, with_notes
 from app.db import ts
 from app.domain.addresses import AddressCandidate, button_text, house_short, norm_key
 from app.domain.people import first_name, normalize_name, normalize_phone, validate_name
@@ -74,13 +74,19 @@ def address_notes(ctx: Ctx, c: AddressCandidate, shown: list[str] | tuple = ()) 
     return [n for n in notes if n not in shown]
 
 
+def split_notes(notes: list[str]) -> tuple[list[str], list[str]]:
+    """Пометки к адресу → (важные для действия — в тексте, демо-оговорки — цитатой в конце)."""
+    return [n for n in notes if n != T.LOCAL_NOTE], [n for n in notes if n == T.LOCAL_NOTE]
+
+
 def _with_notes(text: str, notes: list[str]) -> str:
-    return "\n\n".join([text, *notes])
+    inline, demo = split_notes(notes)
+    return with_notes("\n\n".join([text, *inline]), *demo)
 
 
 def notes_block(notes: list[str]) -> str:
-    """Пометки перед вопросом «Верно?»: 'пометка\n\n' или ''."""
-    return "".join(f"{n}\n\n" for n in notes)
+    """Пометки перед вопросом «Верно?»: 'пометка\n\n' или '' (демо-оговорки сюда не входят)."""
+    return "".join(f"{n}\n\n" for n in split_notes(notes)[0])
 
 
 def _house(c: AddressCandidate) -> str:
@@ -190,7 +196,8 @@ class AddressFlow:
             c = cands[0]
             notes = self.draft(ctx)["shown"] = address_notes(ctx, c)
             await ctx.reply(
-                T.ADDRESS_ONE.format(address=esc(c.full_text), notes=notes_block(notes)),
+                with_notes(T.ADDRESS_ONE.format(address=esc(c.full_text), notes=notes_block(notes)),
+                           *split_notes(notes)[1]),
                 K.kb([ctx.btn(T.BTN_YES, "yes")], [ctx.btn(T.BTN_NO_OTHER, "no")], [self._back(ctx)]),
             )
             return

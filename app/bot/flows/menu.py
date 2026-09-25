@@ -16,7 +16,7 @@ from app.bot.texts import arshin as TA
 from app.bot.texts import common as C
 from app.bot.texts import menu as T
 from app.bot.texts import notify as N
-from app.bot.texts.fmt import esc, full_date, short_date
+from app.bot.texts.fmt import esc, full_date, short_date, with_notes
 from app.domain.dashboard import (
     VERIFICATION_SHOW_DAYS,
     Dashboard,
@@ -57,11 +57,8 @@ def urgent_button(u: Urgent) -> K.Button:
 
 
 def render(d: Dashboard) -> str:
-    """Строки дашборда → markdown: пользовательское экранируем, срочное — жирным."""
-    lines = [esc(x) for x in d.lines]
-    if d.urgent:
-        lines[0] = f"**{lines[0]}**"
-    return "\n".join(lines)
+    """Дашборд в разметке MAX (собирает domain/dashboard: срочное и сроки жирным, демо — цитатой в конце)."""
+    return d.markdown
 
 
 @on_hook("menu")
@@ -157,7 +154,7 @@ async def my_meters(ctx: Ctx) -> None:
     meters = await ctx.repo.user_meters(ctx.user["id"])
     addresses = await ctx.repo.user_addresses(ctx.user["id"])
     names = meter_names(meters)
-    blocks = []
+    blocks, notes = [], []
     for m in meters:
         if m.get("last_id"):
             when = local_time(m.get("last_created_at"))
@@ -166,12 +163,13 @@ async def my_meters(ctx: Ctx) -> None:
             info = T.METERS_NO_READINGS
         if m.get("verification_due"):
             info += ", " + T.METERS_VERIFICATION.format(date=full_date(date.fromisoformat(m["verification_due"])))
-            if source := AS.source_label(m):
-                info += TA.METERS_SOURCE.format(source=source)
+            if AS.source_label(m):
+                info += TA.METERS_SOURCE.format(source=TA.SOURCE)
+                notes += [TA.DEMO_NOTE] if AS.is_demo(m) else []
         blocks.append(f"{esc(names[m['id']])}\n{info}")
     text = T.METERS_TITLE + "\n\n" + "\n\n".join(blocks) if meters else T.NO_METERS
     if line := _antifraud(meters, ctx.now.date()):
         text += "\n\n" + line
     if any(a["access"] == "pending" for a in addresses):
         text += "\n\n" + T.METERS_PENDING
-    await ctx.reply(text, K.kb([K.gbtn(T.BTN_ADD_METER, ADD_METER), K.gbtn(C.BTN_MENU, MENU)]))
+    await ctx.reply(with_notes(text, *notes), K.kb([K.gbtn(T.BTN_ADD_METER, ADD_METER), K.gbtn(C.BTN_MENU, MENU)]))

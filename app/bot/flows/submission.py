@@ -43,7 +43,7 @@ from app.bot.texts import arshin as TA
 from app.bot.texts import common as C
 from app.bot.texts import fmt
 from app.bot.texts import submission as T
-from app.bot.texts.fmt import esc
+from app.bot.texts.fmt import esc, with_notes
 from app.domain.access import can_submit
 from app.domain.addresses import AddressCandidate, button_text, clean_flat, norm_key
 from app.domain.meters import (
@@ -570,8 +570,8 @@ async def ask_address_pick(ctx: Ctx) -> None:
         await ctx.reply(T.ADDRESS_NOT_IN_REGISTRY.format(address=esc(cands[0].full_text)), K.kb(
             _row(ctx, (T.BTN_SAVE_AS_IS, "c", 0), (T.BTN_FIX, "again")), _row(ctx, back)))
     elif len(cands) == 1:
-        note = f"{T.ADDRESS_LOCAL_NOTE}\n\n" if cands[0].source == "local" else ""
-        await ctx.reply(T.ADDRESS_ONE.format(address=esc(cands[0].full_text), notes=note), K.kb(
+        note = T.ADDRESS_LOCAL_NOTE if cands[0].source == "local" else None
+        await ctx.reply(with_notes(T.ADDRESS_ONE.format(address=esc(cands[0].full_text), notes=""), note), K.kb(
             _row(ctx, (T.BTN_YES, "c", 0), (T.BTN_REENTER, "again")), _row(ctx, back)))
     else:
         rows = [[ctx.btn(button_text(c), "c", i)] for i, c in enumerate(cands)]
@@ -978,18 +978,17 @@ async def ask_review(ctx: Ctx) -> None:
             lines += warnings
         elif LOW_CONFIDENCE <= rec.get("confidence", 1) < CHECK_CONFIDENCE:
             lines.append(T.CHECK_DIGITS)
-        if rec.get("stub"):
-            lines.append(T.STUB_NOTE)
     other_type = d.get("source") == "photo" and "wrong_type" in (rec.get("issues") or []) and _is_photo_path(ctx)
     if other_type:
         lines.append(T.WRONG_TYPE_WARN)
     lines += ["", T.REVIEW_QUESTION]
+    stub = T.STUB_NOTE if d.get("source") == "photo" and rec.get("stub") else None
     second = [(T.BTN_EDIT, "edit")] + ([(T.BTN_RETAKE, "retake")] if _is_photo_path(ctx) else [])
     rows = [_row(ctx, (T.BTN_SEND, "send")), _row(ctx, *second)]
     if other_type:
         rows.append(_row(ctx, (T.BTN_PICK_OTHER, "pick_other")))
     rows.append(_row(ctx, (C.BTN_CANCEL, "cancel")))
-    await ctx.reply("\n".join(lines), K.kb(*rows))
+    await ctx.reply(with_notes("\n".join(lines), stub), K.kb(*rows))
 
 
 @on_state(S.SUB_REVIEW)
@@ -1249,24 +1248,29 @@ async def _done(ctx: Ctx, m: Meter, res: SubmitResult) -> None:
         label = dict(zip([x["id"] for x in meters], meter_labels(meters), strict=True)).get(res.meter_id, m.label)
     else:
         label = m.label
-    lines = [T.DONE.format(meter=esc(fmt.meter_of(m.type, label)), month=fmt.month_name(res.period),
-                           value=_shown_all(ctx, m, res.values)), T.UK_MOCK]
+    lines = [T.DONE.format(meter=esc(fmt.meter_title(m.type, label)), month=fmt.month_name(res.period),
+                           value=_shown_all(ctx, m, res.values))]
     if res.status == "flagged":
         lines.append(T.FLAGGED_DONE)
+    blocks, notes = ["\n".join(lines)], [T.UK_MOCK]
     await drop_scenario(ctx)  # фото удалено, новый flow — кнопки проверки устарели
     meter = await ctx.repo.get_meter(res.meter_id)
     ask_verif_date = created and meter and not meter["verification_due"]
     out = await _arshin_check(ctx, meter)
     url, options = None, []
+    told = True  # сказали о ФГИС — демо-данные помечаем оговоркой
     if out and out.level == "high":
-        lines.append(AS.result_line(out.match.best, out.demo, ctx.now.date()))
+        blocks.append(AS.result_line(out.match.best, ctx.now.date()))
         url = card_url(out.match.best.vri_id)
         ask_verif_date = False
     elif out and out.level == "low":
         options = out.match.options
     elif out and out.status in ("found", "none") and ask_verif_date:
-        serial = esc(format_serial(meter["serial"], m.type))
-        lines += [TA.NOT_FOUND.format(serial=serial)] + ([TA.PICK_DEMO] if out.demo else [])
+        blocks.append(TA.NOT_FOUND.format(serial=esc(format_serial(meter["serial"], m.type))))
+    else:
+        told = False
+    if told and out.demo:
+        notes.append(TA.DEMO_NOTE)
     if options:
         ctx.session.go(S.SUB_VERIF_DATE, meter_id=res.meter_id, arshin_opts=[r.to_dict() for r in options],
                        arshin_demo=out.demo, arshin_serial=meter["serial"])
@@ -1276,11 +1280,12 @@ async def _done(ctx: Ctx, m: Meter, res: SubmitResult) -> None:
     # и старое «Отправить» не должно записать показание второй раз (QA-1).
     await save_session(ctx.repo, ctx.session, ctx.now)
     if options:
-        await ctx.reply("\n".join(lines) + "\n\n" + _pick_text(ctx, m.type), _pick_kb(ctx))
+        blocks.append(_pick_text(ctx, m.type))
     elif ask_verif_date:
-        await ctx.reply("\n".join(lines) + "\n\n" + T.ASK_VERIF, _verif_kb(ctx))
-    else:
-        await ctx.reply("\n".join(lines), _after_kb(url))
+        blocks.append(T.ASK_VERIF)
+    text = with_notes("\n\n".join(blocks), *notes)  # оговорки — последней цитатой, после вопроса
+    kb = _pick_kb(ctx) if options else _verif_kb(ctx) if ask_verif_date else _after_kb(url)
+    await ctx.reply(text, kb)
 
 
 async def _arshin_check(ctx: Ctx, meter: dict | None) -> AS.Outcome | None:
@@ -1307,12 +1312,12 @@ def _options(ctx: Ctx) -> list[Record]:
 
 
 def _pick_text(ctx: Ctx, meter_type: str) -> str:
-    """«Это ваш счётчик?» по записям ФГИС с низкой уверенностью (коллизия номеров, тип не подтверждён)."""
+    """«Это ваш счётчик?» по записям ФГИС с низкой уверенностью (коллизия номеров, тип не подтверждён).
+    Оговорку о демо-данных добавляет вызывающий (последней цитатой)."""
     opts, serial = _options(ctx), esc(format_serial(ctx.data.get("arshin_serial"), meter_type))
     head = (TA.PICK_ONE.format(serial=serial, title=esc(opts[0].mit_title or short_title(opts[0])))
             if len(opts) == 1 else TA.PICK_MANY.format(serial=serial))
-    demo = [TA.PICK_DEMO] if ctx.data.get("arshin_demo") else []
-    return "\n\n".join([head, *demo, TA.PICK_OR_DATE])
+    return f"{head}\n\n{TA.PICK_OR_DATE}"
 
 
 def _pick_kb(ctx: Ctx) -> dict:
@@ -1325,7 +1330,8 @@ def _pick_kb(ctx: Ctx) -> dict:
 async def ask_verif(ctx: Ctx) -> None:
     if ctx.data.get("arshin_opts"):
         meter = await ctx.repo.get_meter(ctx.data.get("meter_id") or 0)
-        await ctx.reply(_pick_text(ctx, meter["type"] if meter else ""), _pick_kb(ctx))
+        demo = TA.DEMO_NOTE if ctx.data.get("arshin_demo") else None
+        await ctx.reply(with_notes(_pick_text(ctx, meter["type"] if meter else ""), demo), _pick_kb(ctx))
         return
     await ctx.reply(T.ASK_VERIF, _verif_kb(ctx))
 

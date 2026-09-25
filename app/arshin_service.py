@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import Any, Literal
 
 from app.bot.texts import arshin as T
-from app.bot.texts.fmt import full_date
+from app.bot.texts.fmt import full_date, with_notes
 from app.domain.verification import Match, Record, card_url, choose, is_demo_id, short_title
 
 log = logging.getLogger(__name__)
@@ -55,19 +55,23 @@ def _d(d: date | None) -> str:
     return full_date(d) if d else "—"
 
 
-def result_line(rec: Record, demo: bool, today: date) -> str:
-    """Строка для «Готово»: срок поверки, истёкший срок или «непригоден»."""
+def result_line(rec: Record, today: date) -> str:
+    """Строка для «Готово» (markdown): срок поверки, истёкший срок или «непригоден».
+    Демо-данные помечает вызывающий: T.DEMO_NOTE последней цитатой (fmt.with_notes)."""
     if rec.unfit or rec.valid_date is None:
-        return T.UNFIT.format(date=_d(rec.verification_date)) + (f" {T.PICK_DEMO}" if demo else "")
+        return T.UNFIT.format(date=_d(rec.verification_date))
     if rec.valid_date < today:
-        return (T.EXPIRED_DEMO if demo else T.EXPIRED).format(date=_d(rec.valid_date))
-    return (T.FOUND_DEMO if demo else T.FOUND).format(date=_d(rec.valid_date))
+        return T.EXPIRED.format(date=_d(rec.valid_date))
+    return T.FOUND.format(date=_d(rec.valid_date))
 
 
 def picked_line(rec: Record, demo: bool) -> str:
+    """«Записали: поверка до …» (+ оговорка-цитата о демо-данных)."""
     if rec.unfit or rec.valid_date is None:
-        return T.PICKED_UNFIT.format(date=_d(rec.verification_date))
-    return (T.PICKED_DEMO if demo else T.PICKED).format(date=_d(rec.valid_date))
+        line = T.PICKED_UNFIT.format(date=_d(rec.verification_date))
+    else:
+        line = T.PICKED.format(date=_d(rec.valid_date))
+    return with_notes(line, T.DEMO_NOTE if demo else None)
 
 
 def option_text(rec: Record) -> str:
