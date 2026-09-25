@@ -14,6 +14,7 @@ from pathlib import Path
 
 from app import clock
 from app.bot.ctx import Deps
+from app.bot.flows import invite
 from app.bot.events import parse_update
 from app.bot.router import Router
 from app.config import Settings
@@ -23,9 +24,11 @@ from tests import fakes
 
 NOW = datetime(2026, 10, 19, 12, 0, tzinfo=clock.TZ)
 BOT = "t226_hakaton_max_bot"
-ANNA, OLEG = 5273381, 5273382
+ANNA, OLEG, MARIA = 5273381, 5273382, 5273383
 # uid → (имя, фамилия в профиле MAX, «кому» в подписи сообщения)
-PEOPLE = {ANNA: ("Анна", "Иванова", "Анне"), OLEG: ("Олег", "Петров", "Олегу")}
+PEOPLE = {ANNA: ("Анна", "Иванова", "Анне"), OLEG: ("Олег", "Петров", "Олегу"),
+          MARIA: ("Мария", "Смирнова", "Марии")}
+INVITE_TOKEN = "k3v9q2m7x4t8w1z6p5r0"  # в боте токен случайный; здесь постоянный, чтобы пример не менялся
 ADDRESS = "Москва, Арбат 47к1, кв 32"
 
 
@@ -39,7 +42,8 @@ class Dialog:
     async def _feed(self, uid: int, update: dict, said: str) -> None:
         self.speaker = uid
         first, last, _ = PEOPLE[uid]
-        who = update["callback"]["user"] if "callback" in update else update["message"]["sender"]
+        who = (update["callback"]["user"] if "callback" in update else
+               update["user"] if "user" in update else update["message"]["sender"])
         who.update(first_name=first, last_name=last)  # имя профиля MAX (для кнопки «Это я: …»)
         print(f"**{first}:** {said}\n")
         await self.router.handle(parse_update(update))
@@ -73,6 +77,9 @@ class Dialog:
         payload = self.api.button(button)["payload"]
         await self._feed(uid, fakes.message_callback(uid, payload), f"нажимает `[{button}]`")
 
+    async def open_link(self, uid: int, payload: str) -> None:
+        await self._feed(uid, fakes.bot_started(uid, payload), f"открывает ссылку-приглашение (`start={payload}`)")
+
     async def contact(self, uid: int) -> None:
         phone = "79123456789" if uid == ANNA else "79161234567"
         await self._feed(uid, fakes.message_created(uid, None, [fakes.contact(uid, phone)]),
@@ -100,6 +107,7 @@ async def main() -> None:
         api = fakes.FakeMaxApi()
         router = Router(Deps(api=api, repo=repo, settings=settings, recognizer=StubRecognizer(), bot_username=BOT))
         d = Dialog(router, api)
+        invite.new_token = lambda: INVITE_TOKEN
         try:
             await run(d)
         finally:
@@ -169,6 +177,21 @@ async def run(d: Dialog) -> None:
     await d.press(ANNA, "О поверке")
     await d.press(ANNA, "О счёте")
     await d.press(ANNA, "Оплатить")
+
+    section("6. Приглашение жильца и отзыв доступа",
+            "Собственник создаёт одноразовую ссылку на 7 дней и пересылает её. Новый человек открывает её, "
+            "регистрируется, выбирает адрес из приглашения — и сразу получает доступ. Отзыв — с подтверждением.")
+    await d.press(ANNA, "В меню")
+    await d.press(ANNA, "Профиль")
+    await d.press(ANNA, "Пригласить жильца")
+    await d.open_link(MARIA, "inv_" + INVITE_TOKEN)
+    await d.text(MARIA, "Смирнова Мария Павловна")
+    await d.text(MARIA, "+7 903 222-33-44")
+    await d.press(MARIA, "Да, этот")
+    await d.press(MARIA, "Всё верно")
+    await d.press(ANNA, "Управлять доступом")
+    await d.press(ANNA, "Отозвать: Мария С.")
+    await d.press(ANNA, "Отозвать")
 
 
 if __name__ == "__main__":
