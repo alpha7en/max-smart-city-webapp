@@ -276,6 +276,8 @@ body.has-bar main { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px
 .acc-chat { align-self: center; padding: 8px; font-size: 14px; }
 .item .chev { flex: none; color: var(--dim); }
 .btn.danger { color: var(--bad); }
+.btn.quiet { min-height: 44px; margin-top: 6px; font-size: 15px; font-weight: 550; }
+.btn.del { background: var(--card2); color: var(--bad); }
 .shoot { display: grid; grid-template-columns: 1fr 54px; gap: 10px; }
 .btn.sq { padding: 0; }
 .acts-list .item + .item::before { left: 58px; }

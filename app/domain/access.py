@@ -17,3 +17,13 @@ def decide_role(existing_owner: bool) -> tuple[Role, Access]:
 
 def can_submit(access: str | None) -> bool:
     return access == "granted"
+
+
+def meter_delete_denial(role: str | None, access: str | None, others_granted: int) -> str | None:
+    """Кто может удалить счётчик: None — можно; 'no_access' — нет доступа к адресу;
+    'not_owner' — по адресу есть другие жильцы с доступом, а удаляет не собственник."""
+    if access != "granted":
+        return "no_access"
+    if role != "owner" and others_granted > 0:
+        return "not_owner"
+    return None

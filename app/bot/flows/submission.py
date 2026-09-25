@@ -42,6 +42,7 @@ from app.bot.states import S
 from app.bot.texts import arshin as TA
 from app.bot.texts import common as C
 from app.bot.texts import fmt
+from app.bot.texts import meters as TM
 from app.bot.texts import submission as T
 from app.bot.texts.fmt import esc
 from app.domain.access import can_submit
@@ -182,6 +183,11 @@ async def _meter(ctx: Ctx) -> Meter | None:
                 return Meter(m["id"], m["type"], tariffs_of(m["type"], m["tariffs"]), m["address_id"], label,
                              m["serial"])
         row = await ctx.repo.get_meter(d["meter_id"])
+        if row and not row["active"]:  # счётчик удалили (в боте или мини-приложении), пока шла подача
+            await drop_scenario(ctx)
+            ctx.note(TM.SUBMIT_GONE)
+            await show_menu(ctx)
+            return None
         await _no_access(ctx, row["address_id"] if row else None)
         return None
     draft = d.get("draft") or {}
@@ -255,6 +261,18 @@ async def start_add_meter(ctx: Ctx, **_) -> None:
     await _begin(ctx, "add")
     ctx.session.go(S.SUB_NEW_TYPE)
     await ask_type(ctx)
+
+
+@on_hook("submission.for_meter")
+async def start_for_meter(ctx: Ctx, meter_id: int | None = None, label: str = "", **_) -> None:
+    """«Подать показания» из карточки счётчика: инструкция к фото, счётчик уже выбран."""
+    await _begin(ctx, "photo")
+    ctx.data["meter_id"] = meter_id
+    if await _meter(ctx) is None:
+        return
+    ctx.note(TM.SUBMIT_FOR.format(meter=esc(label)))
+    ctx.session.go(S.SUB_AWAIT_PHOTO, await_mode="instruction")
+    await ask_photo(ctx)
 
 
 @on_hook("submission.with_photo")

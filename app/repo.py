@@ -19,7 +19,7 @@ import aiosqlite
 
 from app import clock
 from app.db import init_db, ts
-from app.domain.access import decide_role
+from app.domain.access import decide_role, meter_delete_denial
 from app.domain.meters import FIELDS, demo_bill, normalize_serial
 
 Row = dict[str, Any]
@@ -693,3 +693,28 @@ class Repo:
             if rec.get("brand") or rec.get("model"):
                 return rec.get("brand"), rec.get("model")
         return None, None
+
+    # === Управление счётчиками ===
+
+    async def address_granted_others(self, address_id: int, user_id: int) -> int:
+        """Сколько других пользователей с доступом granted привязано к адресу."""
+        row = await self._one(
+            "SELECT COUNT(*) AS n FROM user_addresses WHERE address_id=? AND user_id!=? AND access='granted'",
+            (address_id, user_id),
+        )
+        return row["n"] if row else 0
+
+    async def delete_meter(self, user_id: int, meter_id: int) -> str:
+        """Мягкое удаление счётчика одной транзакцией → 'ok' | 'not_found' | 'no_access' | 'not_owner'.
+        active=0: счётчик пропадает из всех выборок (user_meters, address_meters, поиск по номеру, ФГИС),
+        показания остаются в БД. serial_norm освобождаем: тот же номер по адресу можно добавить заново —
+        это будет новый счётчик (с верным типом и тарифами), serial остаётся для истории."""
+        async with self.tx():
+            m = await self.meter_access(user_id, meter_id)
+            if not m or not m["active"]:
+                return "not_found"
+            others = await self.address_granted_others(m["address_id"], user_id)
+            if denial := meter_delete_denial(m["role"], m["access"], others):
+                return denial
+            await self._exec("UPDATE meters SET active=0, serial_norm=NULL WHERE id=? AND active=1", (meter_id,))
+            return "ok"

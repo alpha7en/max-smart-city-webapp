@@ -15,6 +15,7 @@ from app import arshin_service as AS
 from app.bot.texts import arshin as TA
 from app.bot.texts import common as C
 from app.bot.texts import menu as T
+from app.bot.texts import meters as TM
 from app.bot.texts import notify as N
 from app.bot.texts.fmt import esc, full_date, short_date
 from app.domain.dashboard import (
@@ -34,6 +35,8 @@ SUBMIT, METERS, PROFILE, ADD_METER, VERIFY, PAY, MENU = (
     "submit", "meters", "profile", "add_meter", "verify", "pay", "menu",
 )
 ANTIFRAUD_DAYS = 365
+METER_CARD = "meter"   # карточка счётчика (flows/meters.py)
+METER_BUTTONS = 25     # кнопок-счётчиков в «Мои счётчики» (лимит MAX — 30 рядов)
 URGENT_ACTIONS = {"verification": VERIFY, "bill": PAY, "submit": SUBMIT}
 
 
@@ -132,7 +135,7 @@ async def pay(ctx: Ctx) -> None:
     await ctx.reply(T.PAY_STUB, back_to_menu())
 
 
-def _values(m: dict) -> str:
+def last_values(m: dict) -> str:
     """Последнее показание: '123,456 м³' или 'Т1 день 1234,56 · Т2 ночь 234,50 кВт·ч'."""
     labels = field_labels(m["type"], m["tariffs"])
     parts = [
@@ -153,7 +156,7 @@ def _antifraud(meters: list[dict], today: date) -> str | None:
 
 @on_global(METERS)
 async def my_meters(ctx: Ctx) -> None:
-    """Список счётчиков: тип · адрес, последнее показание, поверка."""
+    """Список счётчиков: тип · адрес, последнее показание, поверка; кнопки счётчиков → карточка."""
     meters = await ctx.repo.user_meters(ctx.user["id"])
     addresses = await ctx.repo.user_addresses(ctx.user["id"])
     names = meter_names(meters)
@@ -161,7 +164,7 @@ async def my_meters(ctx: Ctx) -> None:
     for m in meters:
         if m.get("last_id"):
             when = local_time(m.get("last_created_at"))
-            info = T.METERS_LAST.format(value=_values(m), date=short_date(when.date()) if when else m["last_period"])
+            info = T.METERS_LAST.format(value=last_values(m), date=short_date(when.date()) if when else m["last_period"])
         else:
             info = T.METERS_NO_READINGS
         if m.get("verification_due"):
@@ -169,9 +172,12 @@ async def my_meters(ctx: Ctx) -> None:
             if source := AS.source_label(m):
                 info += TA.METERS_SOURCE.format(source=source)
         blocks.append(f"{esc(names[m['id']])}\n{info}")
-    text = T.METERS_TITLE + "\n\n" + "\n\n".join(blocks) if meters else T.NO_METERS
+    text = T.METERS_TITLE + "\n\n" + "\n\n".join(blocks) + "\n\n" + TM.LIST_HINT if meters else T.NO_METERS
     if line := _antifraud(meters, ctx.now.date()):
         text += "\n\n" + line
     if any(a["access"] == "pending" for a in addresses):
         text += "\n\n" + T.METERS_PENDING
-    await ctx.reply(text, K.kb([K.gbtn(T.BTN_ADD_METER, ADD_METER), K.gbtn(C.BTN_MENU, MENU)]))
+    await ctx.reply(text, K.kb(
+        *[K.gbtn(names[m["id"]], METER_CARD, m["id"]) for m in meters[:METER_BUTTONS]],
+        [K.gbtn(T.BTN_ADD_METER, ADD_METER), K.gbtn(C.BTN_MENU, MENU)],
+    ))

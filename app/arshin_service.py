@@ -87,7 +87,7 @@ async def check_meter(deps: Any, meter_id: int, today: date, now: datetime,
     """Найти запись о поверке и (при высокой уверенности) записать срок. Не бросает."""
     client, repo = _client(deps), deps.repo
     meter = await repo.get_meter(meter_id)
-    if client is None or not meter or not meter["serial"]:
+    if client is None or not meter or not meter["active"] or not meter["serial"]:  # удалённый — не проверяем
         return Outcome("off")
     try:
         if brand is None and model is None:
