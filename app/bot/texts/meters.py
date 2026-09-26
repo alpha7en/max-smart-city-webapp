@@ -1,40 +1,40 @@
 """Тексты управления счётчиками: карточка счётчика и удаление (бот и API мини-приложения).
 
-Оформление: числа, даты и названия счётчиков — **жирным**; оговорки про демо — последней строкой-цитатой «> …».
+Текстовые значения вынесены в yaml/meters.yaml.
 """
+from app.bot.texts.loader import load_texts
+
+_D = load_texts("meters.yaml")
 
 # --- «Мои счётчики» ---
-LIST_HINT = "Нажмите на счётчик, чтобы открыть его карточку."
+LIST_HINT: str = _D["LIST_HINT"]
 
 # --- Карточка счётчика ---
-CARD_ADDRESS = "Адрес: {address}"
-CARD_SERIAL = "Номер: **{serial}**"
-CARD_NO_SERIAL = "Номер: не указан"
-CARD_LAST = "Последнее показание: **{value}**, **{date}**"
-CARD_NO_READINGS = "Показаний пока нет"
-CARD_VERIF = "Поверка: до **{date}**, {source}"
-CARD_NO_VERIF = "Поверка: срок не указан"
-VERIF_SOURCE = {"user": "из паспорта", "model": "ориентировочно"}
-VERIF_SOURCE_NONE = "источник не указан"
-NOTE_ADDRESS = "Адрес не сверен с ФИАС."
-NOTE_MODEL = "Срок поверки ориентировочный: точный — в паспорте счётчика."
-NOTE_ARSHIN_DEMO = "Срок поверки — из демо-данных ФГИС, не из реестра."
-NOTE = "> {text}"
+CARD_ADDRESS: str = _D["CARD_ADDRESS"]
+CARD_SERIAL: str = _D["CARD_SERIAL"]
+CARD_NO_SERIAL: str = _D["CARD_NO_SERIAL"]
+CARD_LAST: str = _D["CARD_LAST"]
+CARD_NO_READINGS: str = _D["CARD_NO_READINGS"]
+CARD_VERIF: str = _D["CARD_VERIF"]
+CARD_NO_VERIF: str = _D["CARD_NO_VERIF"]
+VERIF_SOURCE: dict[str, str] = _D["VERIF_SOURCE"]
+VERIF_SOURCE_NONE: str = _D["VERIF_SOURCE_NONE"]
+NOTE_ADDRESS: str = _D["NOTE_ADDRESS"]
+NOTE_MODEL: str = _D["NOTE_MODEL"]
+NOTE_ARSHIN_DEMO: str = _D["NOTE_ARSHIN_DEMO"]
+NOTE: str = _D["NOTE"]
 
-BTN_SUBMIT = "Подать показания"
-BTN_DELETE = "Удалить счётчик"
-SUBMIT_FOR = "Счётчик: **{meter}**"
+BTN_SUBMIT: str = _D["BTN_SUBMIT"]
+BTN_DELETE: str = _D["BTN_DELETE"]
+SUBMIT_FOR: str = _D["SUBMIT_FOR"]
 
 # --- Удаление ---
-ASK_DELETE = (
-    "Удалить счётчик **{meter}**?\n\n"
-    "Переданные показания сохранятся, но подавать новые по этому счётчику будет нельзя."
-)
-BTN_DELETE_YES = "Да, удалить"
-DELETED = "Удалили счётчик **{meter}**. Понадобится снова — пришлите его фото."
-GONE = "Этого счётчика уже нет в списке — возможно, его удалили."
-NOT_OWNER = "Удалить счётчик может собственник: по этому адресу есть и другие жильцы."
-SUBMIT_GONE = "Счётчик удалили — показания по нему больше не принимаем."
+ASK_DELETE: str = _D["ASK_DELETE"]
+BTN_DELETE_YES: str = _D["BTN_DELETE_YES"]
+DELETED: str = _D["DELETED"]
+GONE: str = _D["GONE"]
+NOT_OWNER: str = _D["NOT_OWNER"]
+SUBMIT_GONE: str = _D["SUBMIT_GONE"]
 
 # --- API мини-приложения ---
-API_NOT_OWNER = NOT_OWNER  # обычный текст, без разметки
+API_NOT_OWNER: str = _D["API_NOT_OWNER"]

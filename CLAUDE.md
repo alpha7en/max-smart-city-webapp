@@ -35,7 +35,7 @@ app/
     router.py        глобальные правила + @on_state/@on_repeat/@on_global/@on_command/@on_hook
     states.py session.py ctx.py photos.py keyboards.py (кнопки + payload "flow|action|arg")
     flows/           registration, profile, invite, submission, menu, notify
-    texts/           ВСЕ тексты бота; fmt.py: esc(), числа, деньги, даты
+    texts/           ВСЕ тексты бота (значения в texts/yaml/*.yaml, для редактора); fmt.py
   web/               auth.py (initData), api.py (/api/*), static/ (мини-приложение, vanilla JS)
 tests/               pytest; conftest.py (фикстура chat), fakes.py (FakeMaxApi + апдейты в формате MAX)
 services/meter_reader/  сервис распознавания (автор — коллега, свой README): POST /recognize, фото → Qwen
@@ -60,7 +60,8 @@ sqlite3 data/bot.db 'select user_id,state,data from sessions'  # состоян�
 ```
 
 ## Правила кода
-- Тексты бота только в `app/bot/texts/*`. Стиль: «мы», к пользователю «вы», не длиннее 8 строк, без
+- Тексты бота только в `app/bot/texts/*` (сами строки вынесены в `app/bot/texts/yaml/*.yaml` для удобной правки редактором). Стиль: «мы», к пользователю «вы», не длиннее 8 строк, без
+
   эмодзи, без канцелярита («успешно», «данный»), без CAPS (кроме строки «ПРИШЛИТЕ ВАШЕ ФОТО В ЧАТ»),
   без служебных тегов и сырых URL. Пользовательский ввод пропускать через `fmt.esc()`.
 - Кнопки только через `app/bot/keyboards.py` (`kb`, `callback`, `gbtn`, `open_app`, `request_contact`, `link`).

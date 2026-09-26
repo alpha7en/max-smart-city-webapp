@@ -1,44 +1,42 @@
 """Тексты проверки поверки по ФГИС «Аршин» (app/arshin_service.py, подача, меню, уведомления).
 
-Демо-режим (ARSHIN_MODE=fixtures) помечаем прямо оговоркой-цитатой в конце сообщения (DEMO_NOTE).
+Текстовые значения вынесены в yaml/arshin.yaml.
 """
+from app.bot.texts.loader import load_texts
+
+_D = load_texts("arshin.yaml")
 
 # --- После подачи ({date} — 18.10.2029) ---
-FOUND = "Поверка по данным ФГИС «Аршин»: до **{date}**"
-EXPIRED = "По данным ФГИС «Аршин» поверка действовала до **{date}** — срок истёк."
-UNFIT = ("По данным ФГИС «Аршин» последняя поверка (**{date}**) признала счётчик непригодным. "
-         "Уточните в управляющей компании, примут ли показания.")
-NOT_FOUND = ("В ФГИС «Аршин» пока нет записи о поверке счётчика № {serial}. Так бывает: поверитель передаёт "
-             "сведения до 40 рабочих дней.")
-# Оговорка демо-режима — последним блоком-цитатой (fmt.with_notes).
-DEMO_NOTE = "Данные ФГИС «Аршин» демонстрационные, не из реестра."
+FOUND: str = _D["FOUND"]
+EXPIRED: str = _D["EXPIRED"]
+UNFIT: str = _D["UNFIT"]
+NOT_FOUND: str = _D["NOT_FOUND"]
+DEMO_NOTE: str = _D["DEMO_NOTE"]
 
 # --- «Это ваш счётчик?» ---
-PICK_ONE = "В ФГИС «Аршин» нашли запись о поверке прибора № {serial}: {title}. Это ваш счётчик?"
-PICK_MANY = "В ФГИС «Аршин» с номером {serial} есть разные приборы. Какой из них ваш?"
-PICK_DEMO = DEMO_NOTE
-PICK_OR_DATE = "Или напишите дату следующей поверки из паспорта, например: 15.03.2030"
-OPTION = "{title} · до {date}"        # кнопка ≤ 40
-OPTION_UNFIT = "{title} · непригоден"
-BTN_NONE = "Ни один"
-BTN_NOT_MINE = "Нет, не мой"
-PICKED = "Записали: поверка до **{date}** по данным ФГИС «Аршин». Напомним заранее."
-PICKED_UNFIT = UNFIT
-BTN_CARD = "Запись в ФГИС"            # link на карточку поверки
+PICK_ONE: str = _D["PICK_ONE"]
+PICK_MANY: str = _D["PICK_MANY"]
+PICK_DEMO: str = _D["PICK_DEMO"]
+PICK_OR_DATE: str = _D["PICK_OR_DATE"]
+OPTION: str = _D["OPTION"]
+OPTION_UNFIT: str = _D["OPTION_UNFIT"]
+BTN_NONE: str = _D["BTN_NONE"]
+BTN_NOT_MINE: str = _D["BTN_NOT_MINE"]
+PICKED: str = _D["PICKED"]
+PICKED_UNFIT: str = _D["PICKED_UNFIT"]
+BTN_CARD: str = _D["BTN_CARD"]
 
 # --- Меню, дашборд, уведомления ---
-SOURCE = "по данным ФГИС «Аршин»"
-SOURCE_DEMO = "демо-данные ФГИС"             # простой текст (/api/me); в боте — DEMO_NOTE
-METERS_SOURCE = " ({source})"
-ANTIFRAUD = ("Счётчик поверен до **{date}**. Листовки о «срочной обязательной поверке» — повод насторожиться: "
-             "проверить можно у нас.")
-ANTIFRAUD_MANY = ("Счётчики поверены минимум до **{date}**. Листовки о «срочной обязательной поверке» — повод "
-                  "насторожиться: проверить можно у нас.")
-NOTICE_SOURCE = "Срок — по данным ФГИС «Аршин»."
-NOTICE_ANTIFRAUD = "Листовки о «срочной обязательной поверке» — повод насторожиться: срок можно проверить у нас."
+SOURCE: str = _D["SOURCE"]
+SOURCE_DEMO: str = _D["SOURCE_DEMO"]
+METERS_SOURCE: str = _D["METERS_SOURCE"]
+ANTIFRAUD: str = _D["ANTIFRAUD"]
+ANTIFRAUD_MANY: str = _D["ANTIFRAUD_MANY"]
+NOTICE_SOURCE: str = _D["NOTICE_SOURCE"]
+NOTICE_ANTIFRAUD: str = _D["NOTICE_ANTIFRAUD"]
 
 # --- /demo ---
-BTN_DEMO = "Поверка в ФГИС"
-DEMO_NO_SERIAL = "Сначала добавьте счётчик с заводским номером — пришлите его фото."
-DEMO_OFF = "Проверка по ФГИС «Аршин» сейчас выключена."
-DEMO_UNAVAILABLE = "ФГИС «Аршин» сейчас не отвечает. Попробуем позже."
+BTN_DEMO: str = _D["BTN_DEMO"]
+DEMO_NO_SERIAL: str = _D["DEMO_NO_SERIAL"]
+DEMO_OFF: str = _D["DEMO_OFF"]
+DEMO_UNAVAILABLE: str = _D["DEMO_UNAVAILABLE"]

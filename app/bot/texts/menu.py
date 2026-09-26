@@ -1,57 +1,54 @@
-"""Тексты меню-дашборда и экранов из меню (поток S4)."""
-from app.bot.texts.fmt import with_notes
+"""Тексты меню-дашборда и экранов из меню (поток S4).
 
-# --- Дашборд (строки; собирает domain/dashboard.py; жирное подставляет он же) ---
-PERIOD_OPEN = "Показания за {month} — до {deadline}, {left}"  # left: «осталось 6 дней»
-PERIOD_NEXT = "Следующая подача — с {start}"
-METER_SUBMITTED = "{meter} — подано {date}"
-METER_NOT_SUBMITTED = "{meter} — не подано"
-METERS_SUMMARY = "Счётчиков: {total}, не подано: {left}"
-METERS_ALL_DONE = "Счётчиков: {total}, всё подано"
-NO_METERS = "Счётчиков пока нет — пришлите фото любого, и мы его добавим."
-VERIFICATION = "Поверка: {meter} — до {date}"
-VERIFICATION_OVERDUE = "Поверка: {meter} — срок истёк {date}"
-MORE = ", и ещё {n}"
-BILL = "Счёт: {amount} до {date}"
-BILL_OVERDUE = "Счёт: {amount}, срок был {date}"
-BILLS = "Счета: {count} на {amount}, ближайший до {date}"
-DEMO_MARK = " (демо)"                     # в простом тексте /api/me — у строки счёта
-BILL_NOTE = "Счета в боте демонстрационные."  # в боте — оговоркой-цитатой в конце
-PENDING = "По адресу «{label}» передавать показания можно после одобрения собственника."
-PENDING_MANY = "По {n} адресам передавать показания можно после одобрения собственников."
-FOOTER = "Подробнее — в мини-приложении."
+Текстовые значения вынесены в yaml/menu.yaml.
+"""
+from app.bot.texts.loader import load_texts
 
-# --- Срочное действие (строка дашборда и кнопка, ≤ 32) ---
-URGENT_VERIFICATION = "Запишитесь на поверку: {n}"  # n: «20 дней»
-URGENT_VERIFICATION_TODAY = "Запишитесь на поверку сегодня"
-URGENT_VERIFICATION_OVERDUE = "Поверка просрочена — запишитесь"
-URGENT_BILL = "Оплатите счёт: {n}"
-URGENT_BILL_TODAY = "Оплатите счёт сегодня"
-URGENT_BILL_OVERDUE = "Счёт просрочен — оплатите"
-URGENT_SUBMIT = "Подайте показания: {n}"
-URGENT_SUBMIT_TODAY = "Подайте показания сегодня"
+_D = load_texts("menu.yaml")
+
+# --- Дашборд ---
+PERIOD_OPEN: str = _D["PERIOD_OPEN"]
+PERIOD_NEXT: str = _D["PERIOD_NEXT"]
+METER_SUBMITTED: str = _D["METER_SUBMITTED"]
+METER_NOT_SUBMITTED: str = _D["METER_NOT_SUBMITTED"]
+METERS_SUMMARY: str = _D["METERS_SUMMARY"]
+METERS_ALL_DONE: str = _D["METERS_ALL_DONE"]
+NO_METERS: str = _D["NO_METERS"]
+VERIFICATION: str = _D["VERIFICATION"]
+VERIFICATION_OVERDUE: str = _D["VERIFICATION_OVERDUE"]
+MORE: str = _D["MORE"]
+BILL: str = _D["BILL"]
+BILL_OVERDUE: str = _D["BILL_OVERDUE"]
+BILLS: str = _D["BILLS"]
+DEMO_MARK: str = _D["DEMO_MARK"]
+BILL_NOTE: str = _D["BILL_NOTE"]
+PENDING: str = _D["PENDING"]
+PENDING_MANY: str = _D["PENDING_MANY"]
+FOOTER: str = _D["FOOTER"]
+
+# --- Срочное действие ---
+URGENT_VERIFICATION: str = _D["URGENT_VERIFICATION"]
+URGENT_VERIFICATION_TODAY: str = _D["URGENT_VERIFICATION_TODAY"]
+URGENT_VERIFICATION_OVERDUE: str = _D["URGENT_VERIFICATION_OVERDUE"]
+URGENT_BILL: str = _D["URGENT_BILL"]
+URGENT_BILL_TODAY: str = _D["URGENT_BILL_TODAY"]
+URGENT_BILL_OVERDUE: str = _D["URGENT_BILL_OVERDUE"]
+URGENT_SUBMIT: str = _D["URGENT_SUBMIT"]
+URGENT_SUBMIT_TODAY: str = _D["URGENT_SUBMIT_TODAY"]
 
 # --- Кнопки меню ---
-BTN_SUBMIT = "Подать показания"
-BTN_METERS = "Мои счётчики"
-BTN_PROFILE = "Профиль"
-BTN_ADD_METER = "Добавить счётчик"
+BTN_SUBMIT: str = _D["BTN_SUBMIT"]
+BTN_METERS: str = _D["BTN_METERS"]
+BTN_PROFILE: str = _D["BTN_PROFILE"]
+BTN_ADD_METER: str = _D["BTN_ADD_METER"]
 
 # --- Мои счётчики ---
-METERS_TITLE = "Ваши счётчики:"
-METERS_LAST = "Последнее: **{value}** ({date})"
-METERS_NO_READINGS = "Показаний пока нет"
-METERS_VERIFICATION = "поверка до **{date}**"
-METERS_PENDING = "Счётчики адресов, где нужен доступ собственника, появятся после его одобрения."
+METERS_TITLE: str = _D["METERS_TITLE"]
+METERS_LAST: str = _D["METERS_LAST"]
+METERS_NO_READINGS: str = _D["METERS_NO_READINGS"]
+METERS_VERIFICATION: str = _D["METERS_VERIFICATION"]
+METERS_PENDING: str = _D["METERS_PENDING"]
 
 # --- Честные заглушки ---
-VERIFICATION_STUB = (
-    "Записаться на поверку через бота пока нельзя — эта функция появится позже.\n\n"
-    "Сейчас позвоните в управляющую компанию или аккредитованную организацию: "
-    "специалист приедет и поверит счётчик на месте."
-)
-PAY_STUB = with_notes(
-    "Оплатить через бота пока нельзя — эта функция появится позже.\n\n"
-    "Сейчас оплатить можно по квитанции: в банке или в его приложении.",
-    "Счёт в боте демонстрационный.",
-)
+VERIFICATION_STUB: str = _D["VERIFICATION_STUB"]
+PAY_STUB: str = _D["PAY_STUB"]

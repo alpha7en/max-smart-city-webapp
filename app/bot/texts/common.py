@@ -1,39 +1,38 @@
-"""Общие тексты бота (правила роутера, ошибки, общие кнопки)."""
+"""Общие тексты бота (правила роутера, ошибки, общие кнопки).
 
-WELCOME = (
-    "Здравствуйте! Это единый бот ЖКХ.\n\n"
-    "Принимаем показания воды, электричества, газа и отопления. "
-    "Достаточно просто **сфотографировать счётчик** — цифры распознаем сами.\n\n"
-    "Напомним, когда передавать показания и оплачивать счета.\n"
-    "Подскажем, когда пора на поверку, и поможем записаться.\n\n"
-    "Следим за сроком службы ваших счётчиков."
-)
+Текстовые значения вынесены в yaml/common.yaml.
+"""
+from app.bot.texts.loader import load_texts
 
-ERROR = "Что-то пошло не так на нашей стороне. Ваши данные на месте — попробуйте ещё раз."
-STALE_BUTTON = "Кнопка уже неактуальна"
-FINISH_REG_FIRST = "Сначала закончим регистрацию"
-CONTINUE_REG = "Продолжим с того же места."
-REG_CANCEL_HINT = "Регистрацию можно начать заново или продолжить с того же места."
-UNSUPPORTED = "Пока понимаем текст, фото и кнопки."
-UNKNOWN_COMMAND = "Такой команды нет."
-SUB_CANCELLED = "Предыдущую подачу отменили."
-PROFILE_CANCELLED = "Изменение профиля отменили."
-SUB_EXPIRED = "Прошлая подача прервалась — долго не было ответа."
-PROFILE_EXPIRED = "Изменение профиля прервалось — долго не было ответа."
-PHOTO_SAVED = "Фото запомнили — разберём сразу после регистрации."
-PHOTO_REPLACED_PENDING = "Запомнили новое фото — разберём его после регистрации."
-PHOTO_FAILED = "Не получилось загрузить фото. Пришлите его ещё раз."
-FIRST_PHOTO_ONLY = "Взяли первое фото из нескольких."
+_D = load_texts("common.yaml")
 
-BTN_RETRY = "Повторить"
-BTN_MENU = "В меню"
-BTN_RESTART = "Начать заново"
-BTN_CONTINUE = "Продолжить"
-BTN_BACK = "Назад"
-BTN_CANCEL = "Отмена"
-BTN_MINIAPP = "Мини-приложение"
+WELCOME: str = _D["WELCOME"]
 
-MENU_WORDS = {"/start", "/menu", "меню", "старт", "главное меню"}
-CANCEL_WORDS = {"отмена", "/cancel", "отменить", "стоп"}
-SUB_CANCELLED_BY_USER = "Подачу отменили."
-PROFILE_CANCELLED_BY_USER = "Изменение профиля отменили."
+ERROR: str = _D["ERROR"]
+STALE_BUTTON: str = _D["STALE_BUTTON"]
+FINISH_REG_FIRST: str = _D["FINISH_REG_FIRST"]
+CONTINUE_REG: str = _D["CONTINUE_REG"]
+REG_CANCEL_HINT: str = _D["REG_CANCEL_HINT"]
+UNSUPPORTED: str = _D["UNSUPPORTED"]
+UNKNOWN_COMMAND: str = _D["UNKNOWN_COMMAND"]
+SUB_CANCELLED: str = _D["SUB_CANCELLED"]
+PROFILE_CANCELLED: str = _D["PROFILE_CANCELLED"]
+SUB_EXPIRED: str = _D["SUB_EXPIRED"]
+PROFILE_EXPIRED: str = _D["PROFILE_EXPIRED"]
+PHOTO_SAVED: str = _D["PHOTO_SAVED"]
+PHOTO_REPLACED_PENDING: str = _D["PHOTO_REPLACED_PENDING"]
+PHOTO_FAILED: str = _D["PHOTO_FAILED"]
+FIRST_PHOTO_ONLY: str = _D["FIRST_PHOTO_ONLY"]
+
+BTN_RETRY: str = _D["BTN_RETRY"]
+BTN_MENU: str = _D["BTN_MENU"]
+BTN_RESTART: str = _D["BTN_RESTART"]
+BTN_CONTINUE: str = _D["BTN_CONTINUE"]
+BTN_BACK: str = _D["BTN_BACK"]
+BTN_CANCEL: str = _D["BTN_CANCEL"]
+BTN_MINIAPP: str = _D["BTN_MINIAPP"]
+
+MENU_WORDS: set[str] = set(_D["MENU_WORDS"])
+CANCEL_WORDS: set[str] = set(_D["CANCEL_WORDS"])
+SUB_CANCELLED_BY_USER: str = _D["SUB_CANCELLED_BY_USER"]
+PROFILE_CANCELLED_BY_USER: str = _D["PROFILE_CANCELLED_BY_USER"]

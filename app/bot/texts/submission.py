@@ -1,106 +1,74 @@
-"""Тексты подачи показаний (бот) и сообщения сервиса подачи (app/readings.py, для API)."""
+"""Тексты подачи показаний (бот) и сообщения сервиса подачи (app/readings.py, для API).
+
+Текстовые значения вынесены в yaml/submission.yaml.
+"""
+from __future__ import annotations
+
 import re
 
-from app.bot.texts import registration as _reg
 from app.bot.texts.fmt import TYPE_GEN, esc
+from app.bot.texts.loader import load_texts
 
-# Общая оговорка про смоделированную передачу (бот, сервис подачи, сообщение из мини-приложения).
-# В боте — последним блоком-цитатой (fmt.with_notes), в мини-приложении — простым текстом.
-UK_MOCK = "Демо-версия: передача в управляющую компанию смоделирована."
+_D = load_texts("submission.yaml")
+
+# Общая оговорка про смоделированную передачу
+UK_MOCK: str = _D["UK_MOCK"]
 
 # --- Вход ---
-INSTRUCTION = (
-    "Пришлите фото счётчика — цифры распознаем сами.\n\n"
-    "Чтобы всё получилось:\n"
-    "— снимайте прямо, без бликов;\n"
-    "— в кадре должны быть все цифры и серийный номер или штрихкод.\n\n"
-    "**ПРИШЛИТЕ ВАШЕ ФОТО В ЧАТ**"
-)
-RETAKE = "Пришлите новое фото счётчика. Снимайте прямо, без бликов, чтобы в кадр попали все цифры."
-ADD_PROMPT = "Пришлите фото нового счётчика или введите показание вручную — так мы его добавим."
-PHOTO_RECEIVED = "Фото получили."
-PHOTO_REPLACED = "Взяли новое фото."
-PHOTO_FAILED = "Не получилось загрузить фото. Пришлите его ещё раз или введите показание вручную."
-PHOTO_GONE = "Фото уже не сохранилось. Пришлите его ещё раз или введите показание вручную."
-PENDING_PHOTO = "Теперь разберём фото, которое вы прислали."
+INSTRUCTION: str = _D["INSTRUCTION"]
+RETAKE: str = _D["RETAKE"]
+ADD_PROMPT: str = _D["ADD_PROMPT"]
+PHOTO_RECEIVED: str = _D["PHOTO_RECEIVED"]
+PHOTO_REPLACED: str = _D["PHOTO_REPLACED"]
+PHOTO_FAILED: str = _D["PHOTO_FAILED"]
+PHOTO_GONE: str = _D["PHOTO_GONE"]
+PENDING_PHOTO: str = _D["PENDING_PHOTO"]
 
 # --- Выбор счётчика ---
-PICK_PHOTO = "Какой это счётчик?"
-PICK_MANUAL = "Для какого счётчика вводим показание?"
-NO_METERS_PHOTO = "Счётчиков у вас пока нет — добавим этот."
-NO_METERS_MANUAL = "Счётчиков у вас пока нет — сначала добавим счётчик."
-ASK_TYPE = "Выберите тип счётчика."
-ASK_TARIFF = (
-    "Сколько тарифов у счётчика?\n\n"
-    "Где посмотреть: на табло по очереди горят Т1, Т2 (и Т3), в квитанции есть строки «день» и «ночь», "
-    "число тарифов указано и в паспорте счётчика."
-)
-ASK_ADDRESS = "По какому адресу этот счётчик?"
-NO_METER = "Этого счётчика уже нет среди ваших."
-PAGE_NOTE = "Показали {start}–{end} из {total}."
+PICK_PHOTO: str = _D["PICK_PHOTO"]
+PICK_MANUAL: str = _D["PICK_MANUAL"]
+NO_METERS_PHOTO: str = _D["NO_METERS_PHOTO"]
+NO_METERS_MANUAL: str = _D["NO_METERS_MANUAL"]
+ASK_TYPE: str = _D["ASK_TYPE"]
+ASK_TARIFF: str = _D["ASK_TARIFF"]
+ASK_ADDRESS: str = _D["ASK_ADDRESS"]
+NO_METER: str = _D["NO_METER"]
+PAGE_NOTE: str = _D["PAGE_NOTE"]
 
-# --- Новый адрес (те же тексты, что в регистрации) ---
-ASK_NEW_ADDRESS = f"Напишите адрес одной строкой: город, улица, дом, квартира.\n\n{_reg.ADDRESS_EXAMPLE}"
-ADDRESS_NOT_FOUND = _reg.ADDRESS_NOT_FOUND
-ADDRESS_NOT_IN_REGISTRY = _reg.ADDRESS_NOT_FOUND_ASIS
-ADDRESS_ONE = _reg.ADDRESS_ONE              # {address}, {notes}
-ADDRESS_LOCAL_NOTE = _reg.LOCAL_NOTE
-ADDRESS_MANY = _reg.ADDRESS_MANY
-ASK_FLAT = _reg.ASK_FLAT                    # {address}
-FLAT_ERROR = _reg.FLAT_ERROR
-ADDRESS_ALREADY = "Этот адрес уже есть у вас: {label}."
+# --- Новый адрес ---
+ASK_NEW_ADDRESS: str = _D["ASK_NEW_ADDRESS"]
+ADDRESS_NOT_FOUND: str = _D["ADDRESS_NOT_FOUND"]
+ADDRESS_NOT_IN_REGISTRY: str = _D["ADDRESS_NOT_IN_REGISTRY"]
+ADDRESS_ONE: str = _D["ADDRESS_ONE"]
+ADDRESS_LOCAL_NOTE: str = _D["ADDRESS_LOCAL_NOTE"]
+ADDRESS_MANY: str = _D["ADDRESS_MANY"]
+ASK_FLAT: str = _D["ASK_FLAT"]
+FLAT_ERROR: str = _D["FLAT_ERROR"]
+ADDRESS_ALREADY: str = _D["ADDRESS_ALREADY"]
 
 # --- Распознавание ---
-LOOKING = "Смотрим на фото…"
-RECOGNIZE_FAILED = (
-    "Не получилось разобрать цифры — так бывает из-за бликов или съёмки под углом.\n\n"
-    "Попробуйте переснять или введите показание вручную."
-)
-FAILED_HEAD = "Не получилось распознать показание."
-FAILED_TAIL = "Переснимите или введите показание вручную."
-FAILED_TAIL_SERVICE = "Введите показание вручную или попробуйте позже."
-# Коды проблем от сервиса распознавания (app/integrations/recognizer.ISSUES) → причина и совет.
-ISSUE_TEXTS = {
-    "no_meter": "Похоже, на фото нет счётчика — снимите его табло целиком.",
-    "wrong_type": "Похоже, это не счётчик {kind} — выберите другой счётчик.",
-    "digits_not_visible": "Цифры не видны — поднесите телефон ближе, чтобы в кадр целиком попал ряд цифр.",
-    "blurry": "Фото размыто — держите телефон неподвижно и дождитесь фокуса.",
-    "glare": "Блики — снимите под небольшим углом или без вспышки.",
-    "too_dark": "Слишком темно — включите свет или фонарик.",
-    "angle": "Снято под сильным углом — держите телефон прямо напротив табло.",
-    "partially_covered": "Часть цифр закрыта — уберите то, что мешает, и переснимите.",
-    "multiple_meters": "В кадре несколько счётчиков — снимите только нужный.",
-    "display_off": "Табло не горит — нажмите кнопку на счётчике, чтобы оно включилось.",
-    "other": "Не получилось разобрать цифры на фото.",
-    "service": "Сервис распознавания сейчас не отвечает.",
-    "low_confidence": "Мы не уверены в цифрах: фото нечёткое или мелкое — снимите ближе и ровнее.",
-    "few_digits": "Видно не все цифры показания — в кадр должен попасть весь ряд цифр табло.",
-}
-FAILED_SERIAL = "Серийный номер тоже не виден — пусть в кадр попадёт и он или штрихкод."
-MAX_ISSUES = 2
-NOTE_LIMIT = 160
-WRONG_TYPE_WARN = "Похоже, на фото счётчик другого типа — проверьте, тот ли счётчик выбран."
-SWITCHED_METER = "Этот счётчик у вас уже есть — {label}. Запишем показание для него."
-SERIAL_MISMATCH = (
-    "Номер на фото не совпадает с этим счётчиком.\n"
-    "На фото: **{photo}**\n"
-    "У счётчика «{label}»: **{saved}**\n\n"
-    "Если это другой счётчик — выберите его или добавьте новый. "
-    "Если номер распознан с ошибкой — продолжим с текущим."
-)
-SERIAL_OF_OTHER = (
-    "Номер на фото — **{photo}** — записан у другого вашего счётчика: «{other}».\n\n"
-    "Если на фото он — выберите его. Если номер распознан с ошибкой — продолжим с «{label}»."
-)
-# Мини-приложение (обычный текст, без разметки).
-API_UNREADABLE = "Не разобрали цифры. Переснимите прямо, без бликов, или введите вручную."
-API_SERIAL_MISMATCH = "Номер на фото — {photo}, у счётчика — {saved}. Проверьте, тот ли счётчик выбран."
-API_PARTIAL = "{fields}: на фото не видно — введите вручную."
-API_SERIAL_NOT_ON_PHOTO = "Номер на фото не виден — убедитесь, что это счётчик с номером {serial}."
-API_SERIAL_REQUIRED = ("Не разобрали серийный номер — он нужен, чтобы не перепутать счётчики. "
-                       "Введите номер с корпуса счётчика или переснимите так, чтобы он был в кадре.")
-API_SERIAL_BAD = "Это не похоже на серийный номер счётчика. Номер обычно рядом со штрихкодом, например: {example}"
-API_SERIAL_TAKEN = "Номер {serial} уже записан у другого вашего счётчика. Проверьте номер."
+LOOKING: str = _D["LOOKING"]
+RECOGNIZE_FAILED: str = _D["RECOGNIZE_FAILED"]
+FAILED_HEAD: str = _D["FAILED_HEAD"]
+FAILED_TAIL: str = _D["FAILED_TAIL"]
+FAILED_TAIL_SERVICE: str = _D["FAILED_TAIL_SERVICE"]
+ISSUE_TEXTS: dict[str, str] = _D["ISSUE_TEXTS"]
+FAILED_SERIAL: str = _D["FAILED_SERIAL"]
+MAX_ISSUES: int = _D["MAX_ISSUES"]
+NOTE_LIMIT: int = _D["NOTE_LIMIT"]
+WRONG_TYPE_WARN: str = _D["WRONG_TYPE_WARN"]
+SWITCHED_METER: str = _D["SWITCHED_METER"]
+SERIAL_MISMATCH: str = _D["SERIAL_MISMATCH"]
+SERIAL_OF_OTHER: str = _D["SERIAL_OF_OTHER"]
+
+# Мини-приложение
+API_UNREADABLE: str = _D["API_UNREADABLE"]
+API_SERIAL_MISMATCH: str = _D["API_SERIAL_MISMATCH"]
+API_PARTIAL: str = _D["API_PARTIAL"]
+API_SERIAL_NOT_ON_PHOTO: str = _D["API_SERIAL_NOT_ON_PHOTO"]
+API_SERIAL_REQUIRED: str = _D["API_SERIAL_REQUIRED"]
+API_SERIAL_BAD: str = _D["API_SERIAL_BAD"]
+API_SERIAL_TAKEN: str = _D["API_SERIAL_TAKEN"]
 
 
 def _stems(text: str) -> set[str]:
@@ -137,18 +105,9 @@ def recognize_failed(issues: list[str], note: str | None, meter_type: str, *, ne
     return "\n".join([FAILED_HEAD, "", *lines, "", tail])
 
 
-# Прочитали, но с оговорками (коды сервиса и наши) → предупреждение на экране проверки.
-REVIEW_WARN = {
-    "blurry": "Фото нечёткое — сверьте каждую цифру с табло.",
-    "glare": "На фото блики — сверьте каждую цифру с табло.",
-    "angle": "Снято под углом — сверьте каждую цифру с табло.",
-    "too_dark": "Фото тёмное — сверьте каждую цифру с табло.",
-    "partially_covered": "Часть табло закрыта — проверьте, все ли цифры на месте.",
-    "digits_not_visible": "Не все цифры видны чётко — сверьте показание с табло.",
-    "few_digits": "Разобрали меньше цифр до запятой, чем бывает у такого счётчика ({typical}), — сверьте с табло.",
-    "low_confidence": "Мы не уверены в цифрах: фото нечёткое или мелкое. Сверьте с табло.",
-}
-TYPICAL_WHOLE = {"cold_water": "обычно 5", "hot_water": "обычно 5", "electricity": "обычно 5–6", "gas": "обычно 5"}
+# Прочитали, но с оговорками
+REVIEW_WARN: dict[str, str] = _D["REVIEW_WARN"]
+TYPICAL_WHOLE: dict[str, str] = _D["TYPICAL_WHOLE"]
 
 
 def review_warnings(issues: list[str], meter_type: str) -> list[str]:
@@ -160,124 +119,83 @@ def review_warnings(issues: list[str], meter_type: str) -> list[str]:
 
 
 # --- Проверка ---
-VALUE_LINE = "Показание: **{value}**"
-TARIFF_LINE = "{label}: **{value}**"
-SERIAL_MATCH = "Серийный номер: **{serial}** — совпадает"
-SERIAL_NEW = "Серийный номер: **{serial}** — сохраним"
-SERIAL_IGNORED = "Серийный номер на фото: {serial} — оставили сохранённый"
-SERIAL_REJECTED = "Серийный номер на фото: {serial} — не сохраняем"
-# Номер необычный для типа (domain/serials.validate_serial → warning): сохраняем, но просим сверить.
-SERIAL_TYPICAL = {
-    "cold_water": "обычно 8 цифр", "hot_water": "обычно 8 цифр", "electricity": "обычно от 8 до 16 цифр",
-    "gas": "обычно 7–8 цифр", "heat": "обычно 6–10 цифр",
-}
-SERIAL_WARN = "Номер необычный для этого счётчика ({typical}) — сверьте с корпусом."
-SERIAL_NOT_ON_PHOTO = "Номер на фото не виден — убедитесь, что это счётчик с номером {serial}."
-# Номера нет ни у счётчика, ни на фото: без него не отправляем (счётчики легко перепутать).
-SERIAL_MISSING = (
-    "Не разобрали серийный номер — он нужен, чтобы не перепутать счётчики. "
-    "Переснимите так, чтобы в кадре был номер или штрихкод, или введите номер вручную."
-)
-ASK_SERIAL = (
-    "Напишите серийный номер счётчика — он на корпусе, рядом со штрихкодом. Например: {example}\n\n"
-    "Он нужен, чтобы не перепутать счётчики."
-)
-SERIAL_EXAMPLES = {"cold_water": "18-123456", "hot_water": "18-123456", "electricity": "01234567",
-                   "gas": "1234567", "heat": "12345678"}
-SERIAL_ERRORS = {
-    "empty": "Напишите номер с корпуса счётчика, например: {example}",
-    "not_serial": ("Это не похоже на серийный номер: год, ГОСТ, класс или номер пломбы не подходят. "
-                   "Номер обычно рядом со штрихкодом, например: {example}"),
-    "too_short": "Слишком короткий номер — в нём {typical}. Например: {example}",
-    "too_long": "Слишком длинный номер — в нём {typical}. Например: {example}",
-}
-SERIAL_TAKEN = "Номер {serial} уже записан у другого вашего счётчика: «{other}». Проверьте номер."
-PREV_LINE = "В прошлый раз: {value} ({delta})"
-PREV_LINE_MULTI = "В прошлый раз: {value}"
-CHECK_DIGITS = "Проверьте цифры внимательно."
-STUB_NOTE = "Демо-распознавание: значение подставлено, а не распознано."  # цитатой в конце экрана проверки
-REVIEW_QUESTION = "Всё верно?"
+VALUE_LINE: str = _D["VALUE_LINE"]
+TARIFF_LINE: str = _D["TARIFF_LINE"]
+SERIAL_MATCH: str = _D["SERIAL_MATCH"]
+SERIAL_NEW: str = _D["SERIAL_NEW"]
+SERIAL_IGNORED: str = _D["SERIAL_IGNORED"]
+SERIAL_REJECTED: str = _D["SERIAL_REJECTED"]
+SERIAL_TYPICAL: dict[str, str] = _D["SERIAL_TYPICAL"]
+SERIAL_WARN: str = _D["SERIAL_WARN"]
+SERIAL_NOT_ON_PHOTO: str = _D["SERIAL_NOT_ON_PHOTO"]
+SERIAL_MISSING: str = _D["SERIAL_MISSING"]
+ASK_SERIAL: str = _D["ASK_SERIAL"]
+SERIAL_EXAMPLES: dict[str, str] = _D["SERIAL_EXAMPLES"]
+SERIAL_ERRORS: dict[str, str] = _D["SERIAL_ERRORS"]
+SERIAL_TAKEN: str = _D["SERIAL_TAKEN"]
+PREV_LINE: str = _D["PREV_LINE"]
+PREV_LINE_MULTI: str = _D["PREV_LINE_MULTI"]
+CHECK_DIGITS: str = _D["CHECK_DIGITS"]
+STUB_NOTE: str = _D["STUB_NOTE"]
+REVIEW_QUESTION: str = _D["REVIEW_QUESTION"]
 
 # --- Ручной ввод ---
-ASK_VALUE = "Напишите показание с табло, например: {example}"
-ASK_TARIFF_VALUE = "{label} ({n} из {total}): напишите показание, например: {example}"
-RECOGNIZED_HINT = "На фото разобрали: **{value}**"
-# Многотарифный: на фото виден не каждый тариф — спрашиваем только недостающие.
-PARTIAL_GOT = "На фото разобрали: {got}. Остальные тарифы на табло не видны — допишите их."
-ASK_TARIFF_ONLY = "{label}: напишите показание, например: {example}"
-PREV_HINT = "В прошлый раз: {value}"
-PARSE_ERRORS = {
-    "empty": "Напишите показание цифрами, например: {example}",
-    "format": "Не похоже на показание. Напишите только цифры и запятую, например: {example}",
-    "too_many_digits": "Слишком много цифр до запятой — на табло их не больше {digits}. Например: {example}",
-    "too_many_decimals": "После запятой — не больше {decimals} цифр. Например: {example}",
-}
-EXAMPLES = {
-    "cold_water": "123,456", "hot_water": "123,456", "electricity": "12345,6",
-    "gas": "1234,567", "heat": "12,345",
-}
+ASK_VALUE: str = _D["ASK_VALUE"]
+ASK_TARIFF_VALUE: str = _D["ASK_TARIFF_VALUE"]
+RECOGNIZED_HINT: str = _D["RECOGNIZED_HINT"]
+PARTIAL_GOT: str = _D["PARTIAL_GOT"]
+ASK_TARIFF_ONLY: str = _D["ASK_TARIFF_ONLY"]
+PREV_HINT: str = _D["PREV_HINT"]
+PARSE_ERRORS: dict[str, str] = _D["PARSE_ERRORS"]
+EXAMPLES: dict[str, str] = _D["EXAMPLES"]
 
 # --- Правдоподобие и повторная подача ---
-LESS_THAN_PREV = (
-    "Показание меньше прошлого: было **{prev}**, сейчас **{new}**.\n\n"
-    "Счётчик не крутится назад — проверьте цифры."
-)
-TOO_BIG = (
-    "Большой прирост: **{delta}** за {months}. Обычно не больше {limit}.\n\n"
-    "Всё верно?"
-)
-ALREADY_SUBMITTED = "За {month} уже передано: **{old}**.\n\nЗаменить на **{new}**?"
-KEPT_OLD = "Оставили прежнее показание."
+LESS_THAN_PREV: str = _D["LESS_THAN_PREV"]
+TOO_BIG: str = _D["TOO_BIG"]
+ALREADY_SUBMITTED: str = _D["ALREADY_SUBMITTED"]
+KEPT_OLD: str = _D["KEPT_OLD"]
 
-# --- Готово ({meter} — «Холодная вода · Арбат 47к1, кв 32», fmt.meter_title) ---
-DONE = "Готово! Записали показание за **{month}**.\n{meter}\n**{value}**"
-FLAGGED_DONE = "Прирост больше обычного — отметили показание для проверки."
-ASK_VERIF = (
-    "Когда следующая поверка этого счётчика? Дата указана в его паспорте — напишите её, например: 15.03.2030\n\n"
-    "Не знаете — нажмите «Позже»."
-)
-VERIF_ERRORS = {
-    "format": "Напишите дату так: 15.03.2030",
-    "no_such_date": "Такой даты нет. Напишите, например: 15.03.2030",
-    "past": "Эта дата уже прошла. Напишите дату следующей поверки, например: 15.03.2030",
-    "too_far": "Дата слишком далеко. Проверьте год, например: 15.03.2030",
-}
-VERIF_SAVED = "Записали: поверка до **{date}**. Напомним заранее."
-VERIF_LATER = "Хорошо, пропустим дату поверки."
+# --- Готово ---
+DONE: str = _D["DONE"]
+FLAGGED_DONE: str = _D["FLAGGED_DONE"]
+ASK_VERIF: str = _D["ASK_VERIF"]
+VERIF_ERRORS: dict[str, str] = _D["VERIF_ERRORS"]
+VERIF_SAVED: str = _D["VERIF_SAVED"]
+VERIF_LATER: str = _D["VERIF_LATER"]
 
 # --- Кнопки ---
-BTN_MANUAL = "Ввести вручную"
-BTN_NEW_METER = "Новый счётчик"
-BTN_OTHER_ADDRESS = "Другой адрес"
-TARIFF_BUTTONS = {1: "1 тариф", 2: "День-ночь", 3: "3 тарифа"}
-BTN_YES = "Да"
-BTN_REENTER = "Нет, ввести иначе"
-BTN_NOT_MINE = "Моего нет — ввести иначе"
-BTN_SAVE_AS_IS = "Сохранить как есть"
-BTN_FIX = "Исправить"
-BTN_PRIVATE_HOUSE = "Частный дом"
-BTN_SEND = "Отправить"
-BTN_EDIT = "Исправить"
-BTN_RETAKE = "Переснять"
-BTN_OTHER_METER = "Это другой счётчик"
-BTN_SAME_METER = "Номер на фото неверный"
-BTN_SERIAL = "Ввести номер"
-BTN_PICK_OTHER = "Выбрать другой счётчик"
-BTN_CONFIRM_BIG = "Да, всё верно"
-BTN_REPLACE = "Заменить"
-BTN_KEEP_OLD = "Оставить старое"
-BTN_MORE = "Подать ещё"
-BTN_LATER = "Позже"
-BTN_PAGE_NEXT = "Показать ещё"
-BTN_PAGE_FIRST = "К началу списка"
-LATER_WORDS = {"позже", "потом", "пропустить", "не знаю"}
+BTN_MANUAL: str = _D["BTN_MANUAL"]
+BTN_NEW_METER: str = _D["BTN_NEW_METER"]
+BTN_OTHER_ADDRESS: str = _D["BTN_OTHER_ADDRESS"]
+TARIFF_BUTTONS: dict[int, str] = {int(k): v for k, v in _D["TARIFF_BUTTONS"].items()}
+BTN_YES: str = _D["BTN_YES"]
+BTN_REENTER: str = _D["BTN_REENTER"]
+BTN_NOT_MINE: str = _D["BTN_NOT_MINE"]
+BTN_SAVE_AS_IS: str = _D["BTN_SAVE_AS_IS"]
+BTN_FIX: str = _D["BTN_FIX"]
+BTN_PRIVATE_HOUSE: str = _D["BTN_PRIVATE_HOUSE"]
+BTN_SEND: str = _D["BTN_SEND"]
+BTN_EDIT: str = _D["BTN_EDIT"]
+BTN_RETAKE: str = _D["BTN_RETAKE"]
+BTN_OTHER_METER: str = _D["BTN_OTHER_METER"]
+BTN_SAME_METER: str = _D["BTN_SAME_METER"]
+BTN_SERIAL: str = _D["BTN_SERIAL"]
+BTN_PICK_OTHER: str = _D["BTN_PICK_OTHER"]
+BTN_CONFIRM_BIG: str = _D["BTN_CONFIRM_BIG"]
+BTN_REPLACE: str = _D["BTN_REPLACE"]
+BTN_KEEP_OLD: str = _D["BTN_KEEP_OLD"]
+BTN_MORE: str = _D["BTN_MORE"]
+BTN_LATER: str = _D["BTN_LATER"]
+BTN_PAGE_NEXT: str = _D["BTN_PAGE_NEXT"]
+BTN_PAGE_FIRST: str = _D["BTN_PAGE_FIRST"]
+LATER_WORDS: set[str] = set(_D["LATER_WORDS"])
 
-# --- Сообщения сервиса подачи (app/readings.py → API мини-приложения) ---
-API_ACCEPTED = f"Записали показание. {UK_MOCK}"
-API_FLAGGED = "Записали показание и отметили большой прирост для проверки."
-API_NO_ACCESS = "Нет доступа к передаче показаний по этому счётчику."
-API_BAD_FORMAT = "Не похоже на показание{field}. Напишите, например: {example}"
-API_EMPTY = "Не заполнено показание{field}. Напишите, например: {example}"
-API_LESS = "Показание меньше прошлого ({prev}). Проверьте цифры."
-API_NEEDS_CONFIRM = "Большой прирост: {delta} за {months}. Если всё верно — подтвердите."
-API_ALREADY = "За {month} показание уже передано: {old}. Заменить его?"
+# --- Сообщения сервиса подачи ---
+API_ACCEPTED: str = _D["API_ACCEPTED"]
+API_FLAGGED: str = _D["API_FLAGGED"]
+API_NO_ACCESS: str = _D["API_NO_ACCESS"]
+API_BAD_FORMAT: str = _D["API_BAD_FORMAT"]
+API_EMPTY: str = _D["API_EMPTY"]
+API_LESS: str = _D["API_LESS"]
+API_NEEDS_CONFIRM: str = _D["API_NEEDS_CONFIRM"]
+API_ALREADY: str = _D["API_ALREADY"]

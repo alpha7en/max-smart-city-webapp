@@ -1,84 +1,67 @@
-"""Тексты профиля, «нет прав» (SPEC §5.8) и запроса доступа у собственника."""
+"""Тексты профиля, «нет прав» (SPEC §5.8) и запроса доступа у собственника.
+
+Текстовые значения вынесены в yaml/profile.yaml.
+"""
+from app.bot.texts.loader import load_texts
+
+_D = load_texts("profile.yaml")
 
 # --- Профиль ---
-PROFILE = "Ваш профиль\n\n{name}\n{phone}\n\nАдреса:\n{addresses}"
-NO_ADDRESSES = "пока нет"
-ROLE = {
-    ("owner", "granted"): "собственник",
-    ("tenant", "granted"): "есть доступ",
-    ("tenant", "pending"): "нужно одобрение собственника",
-    ("tenant", "denied"): "собственник не открыл доступ",
+PROFILE: str = _D["PROFILE"]
+NO_ADDRESSES: str = _D["NO_ADDRESSES"]
+ROLE: dict[tuple[str, str], str] = {
+    ("owner", "granted"): _D["ROLE"]["owner_granted"],
+    ("tenant", "granted"): _D["ROLE"]["tenant_granted"],
+    ("tenant", "pending"): _D["ROLE"]["tenant_pending"],
+    ("tenant", "denied"): _D["ROLE"]["tenant_denied"],
 }
-BTN_EDIT_PHONE = "Изменить телефон"
-BTN_ADD_ADDRESS = "Добавить адрес"
-BTN_DELETE = "Удалить мои данные"
-BTN_PROFILE = "Профиль"
+BTN_EDIT_PHONE: str = _D["BTN_EDIT_PHONE"]
+BTN_ADD_ADDRESS: str = _D["BTN_ADD_ADDRESS"]
+BTN_DELETE: str = _D["BTN_DELETE"]
+BTN_PROFILE: str = _D["BTN_PROFILE"]
 
-ASK_PHONE = (
-    "Сейчас: {phone}\n\n"
-    "Нажмите кнопку ниже, и MAX передаст номер вашего аккаунта. Или напишите новый номер."
-)
-PHONE_SAVED = "Сохранили новый номер."
-from app.bot.texts.registration import ADDRESS_EXAMPLE
+ASK_PHONE: str = _D["ASK_PHONE"]
+PHONE_SAVED: str = _D["PHONE_SAVED"]
+ADDRESS_EXAMPLE: str = _D["ADDRESS_EXAMPLE"]
 
-ASK_ADDRESS = f"Напишите новый адрес одной строкой: город, улица, дом, квартира.\n\n{ADDRESS_EXAMPLE}"
-ADDRESS_SAVED = "Добавили адрес: {label}."
-ADDRESS_DUP = "Этот адрес уже есть у вас как «{label}»."
+ASK_ADDRESS: str = _D["ASK_ADDRESS"]
+ADDRESS_SAVED: str = _D["ADDRESS_SAVED"]
+ADDRESS_DUP: str = _D["ADDRESS_DUP"]
 
-DELETE_ASK = (
-    "Удалить ваши данные? Сотрём имя, телефон и адреса в профиле.\n\n"
-    "Показания, которые вы передали, останутся за адресом, но без вашего имени. Отменить удаление нельзя."
-)
-DELETED = "Удалили ваши данные. Если захотите вернуться — нажмите «Начать заново» или просто напишите нам."
-DELETE_KEPT = "Ничего не удалили."
-BTN_DELETE_YES = "Удалить"
-BTN_DELETE_NO = "Не удалять"
-BTN_START_OVER = "Начать заново"
+DELETE_ASK: str = _D["DELETE_ASK"]
+DELETED: str = _D["DELETED"]
+DELETE_KEPT: str = _D["DELETE_KEPT"]
+BTN_DELETE_YES: str = _D["BTN_DELETE_YES"]
+BTN_DELETE_NO: str = _D["BTN_DELETE_NO"]
+BTN_START_OVER: str = _D["BTN_START_OVER"]
 
 # --- Нет прав (§5.8) ---
-NO_ACCESS = (
-    "По адресу {label} уже зарегистрирован собственник. "
-    "Передавать показания может он или тот, кому он откроет доступ.\n\n"
-    "Если вы снимаете жильё или живёте с собственником — нажмите «Запросить доступ». "
-    "Мы пришлём ему запрос: достаточно нажать «Разрешить», и мы сразу напишем вам.\n\n"
-    "Если адрес указан с ошибкой — проверьте профиль."
-)
-# Оговорка модели прав — последней цитатой (fmt.with_notes) у «нет прав» и «открыли доступ вам».
-RIGHTS_MODEL = "Права по адресам в демо-версии смоделированы: собственник — тот, кто зарегистрировался первым."
-NO_ACCESS_DENIED = (
-    "Собственник не открыл вам доступ по адресу {label}.\n\n"
-    "Если это ошибка — свяжитесь с ним напрямую или проверьте адрес в профиле."
-)
-BTN_REQUEST = "Запросить доступ"
-BTN_DEMO_GRANT = "Открыть доступ (демо)"  # только при DEMO_MODE=true
-DEMO_GRANTED = "Доступ открыт. Можно передавать показания."
-DEMO_GRANTED_NOTE = "Демо-режим: доступ мы одобрили за собственника."
-BTN_REQUEST_FOR = "Доступ: {label}"
+NO_ACCESS: str = _D["NO_ACCESS"]
+RIGHTS_MODEL: str = _D["RIGHTS_MODEL"]
+NO_ACCESS_DENIED: str = _D["NO_ACCESS_DENIED"]
+BTN_REQUEST: str = _D["BTN_REQUEST"]
+BTN_DEMO_GRANT: str = _D["BTN_DEMO_GRANT"]
+DEMO_GRANTED: str = _D["DEMO_GRANTED"]
+DEMO_GRANTED_NOTE: str = _D["DEMO_GRANTED_NOTE"]
+BTN_REQUEST_FOR: str = _D["BTN_REQUEST_FOR"]
 
 # --- Запрос доступа ---
-REQUEST_SENT = "Отправили запрос собственнику. Как только он ответит, мы напишем вам."
-REQUEST_DUP = "Запрос уже отправлен. Как только собственник ответит, мы напишем вам."
-REQUEST_FAILED = "Не получилось отправить запрос собственнику. Попробуйте ещё раз чуть позже."
-ACCESS_ALREADY = "Доступ по адресу {label} уже открыт — можно передавать показания."
-ACCESS_CLAIMED = "По адресу {label} больше нет собственника в боте — открыли доступ вам."
-ACCESS_UNKNOWN = "Этого адреса нет в вашем профиле."
+REQUEST_SENT: str = _D["REQUEST_SENT"]
+REQUEST_DUP: str = _D["REQUEST_DUP"]
+REQUEST_FAILED: str = _D["REQUEST_FAILED"]
+ACCESS_ALREADY: str = _D["ACCESS_ALREADY"]
+ACCESS_CLAIMED: str = _D["ACCESS_CLAIMED"]
+ACCESS_UNKNOWN: str = _D["ACCESS_UNKNOWN"]
 
-OWNER_REQUEST = (
-    "{name} просит доступ к передаче показаний по адресу {label}.\n"
-    "Телефон: {phone}\n\n"
-    "Если это ваш арендатор или член семьи — разрешите."
-)
-OWNER_GRANTED = "Открыли доступ: {name}, {label}. Мы сообщили об этом."
-OWNER_DENIED = "Отклонили запрос: {name}, {label}. Мы сообщили об этом."
-OWNER_ONLY = "Ответить на запрос может только собственник адреса."
-DECIDED = {"granted": "Уже решено — доступ открыт.", "denied": "Уже решено — в доступе отказано."}
-REQUEST_GONE = "Запрос устарел: человек удалил свои данные или этот адрес."
-BTN_ALLOW = "Разрешить"
-BTN_DENY = "Отклонить"
+OWNER_REQUEST: str = _D["OWNER_REQUEST"]
+OWNER_GRANTED: str = _D["OWNER_GRANTED"]
+OWNER_DENIED: str = _D["OWNER_DENIED"]
+OWNER_ONLY: str = _D["OWNER_ONLY"]
+DECIDED: dict[str, str] = _D["DECIDED"]
+REQUEST_GONE: str = _D["REQUEST_GONE"]
+BTN_ALLOW: str = _D["BTN_ALLOW"]
+BTN_DENY: str = _D["BTN_DENY"]
 
-TENANT_GRANTED = (
-    "Собственник открыл вам доступ по адресу {label}. "
-    "Теперь можно передавать показания — достаточно прислать фото счётчика."
-)
-TENANT_DENIED = NO_ACCESS_DENIED
-BTN_SUBMIT = "Подать показания"
+TENANT_GRANTED: str = _D["TENANT_GRANTED"]
+TENANT_DENIED: str = _D["TENANT_DENIED"]
+BTN_SUBMIT: str = _D["BTN_SUBMIT"]

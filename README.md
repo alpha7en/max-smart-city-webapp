@@ -26,7 +26,7 @@
    уже подавали. Затем пишет «Готово! Записали …». Для нового счётчика ищет поверку в ФГИС «Аршин»,
    не нашёл — спрашивает дату следующей поверки из паспорта.
 
-Карта диалога и правила для неожиданного ввода: [docs/SCENARIO.md](docs/SCENARIO.md), пример переписки: [docs/DIALOG_EXAMPLE.md](docs/DIALOG_EXAMPLE.md).
+Карта диалога и правила для неожиданного ввода: [docs/SCENARIO.md](docs/SCENARIO.md), пример переписки: [docs/DIALOG_EXAMPLE.md](docs/DIALOG_EXAMPLE.md), тексты сообщений и кнопок: [app/bot/texts/yaml/](app/bot/texts/yaml/) ([памятка редактору](app/bot/texts/yaml/README.md)).
 
 ## Состав и архитектура
 

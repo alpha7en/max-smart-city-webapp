@@ -1,76 +1,57 @@
-"""Тексты регистрации (SPEC §5.5, §8 эталоны 1–4) и общих шагов адреса."""
+"""Тексты регистрации (SPEC §5.5, §8 эталоны 1–4) и общих шагов адреса.
+
+Текстовые значения вынесены в yaml/registration.yaml.
+"""
+from app.bot.texts.loader import load_texts
+
+_D = load_texts("registration.yaml")
 
 # --- Имя ---
-ASK_NAME = (
-    "Кажется, вы у нас впервые. Давайте познакомимся — три коротких шага: имя, телефон и адрес.\n\n"
-    "Как вас зовут? Напишите фамилию, имя и отчество, например: Иванова Анна Сергеевна\n\n"
-    "Продолжая, вы соглашаетесь на обработку персональных данных."
-)
-ASK_NAME_AGAIN = "Как вас зовут? Напишите фамилию, имя и отчество.\n\nСейчас записано: {name}"
-NAME_EXAMPLE = "например: Иванова Анна Сергеевна"
-NAME_ERRORS = {
-    "empty": f"Напишите фамилию, имя и отчество, {NAME_EXAMPLE}",
-    "latin": f"Похоже, тут латиница. Напишите имя по-русски, {NAME_EXAMPLE}",
-    "digits": f"В имени не должно быть цифр. Напишите только буквами, {NAME_EXAMPLE}",
-    "chars": f"В имени можно использовать только буквы, дефис и апостроф. Напишите, {NAME_EXAMPLE}",
-    "too_few": "Напишите хотя бы фамилию и имя, например: Иванова Анна",
-    "too_many": f"Получилось больше четырёх слов. Напишите фамилию, имя и отчество, {NAME_EXAMPLE}",
-    "word_len": f"В каждом слове должно быть от 2 до 30 букв. Напишите полностью, {NAME_EXAMPLE}",
-    "too_long": "Слишком длинно — нужно не больше 100 символов. Напишите фамилию, имя и отчество.",
-}
-NAME_ERROR_DEFAULT = f"Не получилось разобрать имя. Напишите фамилию, имя и отчество, {NAME_EXAMPLE}"
-BTN_ITS_ME = "Это я: {name}"
-BTN_KEEP = "Оставить как есть"
+ASK_NAME: str = _D["ASK_NAME"]
+ASK_NAME_AGAIN: str = _D["ASK_NAME_AGAIN"]
+NAME_EXAMPLE: str = _D["NAME_EXAMPLE"]
+NAME_ERRORS: dict[str, str] = _D["NAME_ERRORS"]
+NAME_ERROR_DEFAULT: str = _D["NAME_ERROR_DEFAULT"]
+BTN_ITS_ME: str = _D["BTN_ITS_ME"]
+BTN_KEEP: str = _D["BTN_KEEP"]
 
 # --- Телефон ---
-ASK_PHONE = (
-    "Приятно познакомиться, {name}! Теперь телефон — нажмите кнопку ниже, "
-    "и MAX передаст номер вашего аккаунта. Или напишите номер сами."
-)
-PHONE_AGAIN = (
-    "Сейчас записан номер {phone}.\n\n"
-    "Нажмите кнопку ниже, и MAX передаст номер вашего аккаунта. Или напишите другой номер."
-)
-PHONE_ERROR = "Не похоже на российский номер. Напишите, например: +7 912 345-67-89"
-PHONE_FOREIGN = "Пока принимаем только российские номера: +7 и 10 цифр. Например: +7 912 345-67-89"
-NOT_YOUR_CONTACT = "Это не ваш номер. Нажмите кнопку «Отправить мой номер» или напишите номер сами."
-CONTACT_NO_PHONE = "В контакте нет российского номера. Напишите номер сами, например: +7 912 345-67-89"
-FROM_MAX = "(номер из MAX)"
-BTN_SHARE_PHONE = "Отправить мой номер"
+ASK_PHONE: str = _D["ASK_PHONE"]
+PHONE_AGAIN: str = _D["PHONE_AGAIN"]
+PHONE_ERROR: str = _D["PHONE_ERROR"]
+PHONE_FOREIGN: str = _D["PHONE_FOREIGN"]
+NOT_YOUR_CONTACT: str = _D["NOT_YOUR_CONTACT"]
+CONTACT_NO_PHONE: str = _D["CONTACT_NO_PHONE"]
+FROM_MAX: str = _D["FROM_MAX"]
+BTN_SHARE_PHONE: str = _D["BTN_SHARE_PHONE"]
 
 # --- Адрес (регистрация и профиль) ---
-ADDRESS_EXAMPLE = "Например: г. Москва, ул. Арбат, д. 47, корп. 1, кв. 32"
-ASK_ADDRESS = f"Теперь адрес. Напишите его одной строкой: город, улица, дом, квартира.\n\n{ADDRESS_EXAMPLE}"
-ADDRESS_RETRY = f"Напишите адрес иначе — одной строкой: город, улица, дом, квартира.\n\n{ADDRESS_EXAMPLE}"
-ADDRESS_NOT_FOUND = (
-    "Не нашли такой адрес. Проверьте улицу и номер дома и напишите ещё раз.\n\n" + ADDRESS_EXAMPLE
-)
-ADDRESS_NOT_FOUND_ASIS = (
-    "Не нашли такой адрес в справочнике ФИАС.\n\n"
-    "Мы поняли так: {address}\n\n"
-    "Проверьте улицу и номер дома. Если всё верно — сохраним адрес как есть, без сверки."
-)
-ADDRESS_ONE = "Мы поняли так:\n{address}\n\n{notes}Верно?"  # notes — пометки, каждая с "\n\n"
-ADDRESS_MANY = "Нашли несколько вариантов. Выберите свой:"
-LOCAL_NOTE = "Адрес не сверен с ФИАС: в демо-версии справочник не подключён."
-FLAT_WARNING = "По данным ФИАС в этом доме {flats} — проверьте номер квартиры."
-ASK_FLAT = "Номер квартиры?\n\n{address}\n\nНапишите цифрами, например: 32. Если это частный дом — нажмите кнопку ниже."
-FLAT_ERROR = "Не похоже на номер квартиры. Напишите цифрами, например: 32"
-BTN_YES = "Да"
-BTN_NO_OTHER = "Нет, ввести иначе"
-BTN_NOT_MINE = "Моего нет — ввести иначе"
-BTN_PRIVATE_HOUSE = "Частный дом"
-BTN_ASIS = "Сохранить как есть"
-BTN_FIX = "Исправить"
+ADDRESS_EXAMPLE: str = _D["ADDRESS_EXAMPLE"]
+ASK_ADDRESS: str = _D["ASK_ADDRESS"]
+ADDRESS_RETRY: str = _D["ADDRESS_RETRY"]
+ADDRESS_NOT_FOUND: str = _D["ADDRESS_NOT_FOUND"]
+ADDRESS_NOT_FOUND_ASIS: str = _D["ADDRESS_NOT_FOUND_ASIS"]
+ADDRESS_ONE: str = _D["ADDRESS_ONE"]
+ADDRESS_MANY: str = _D["ADDRESS_MANY"]
+LOCAL_NOTE: str = _D["LOCAL_NOTE"]
+FLAT_WARNING: str = _D["FLAT_WARNING"]
+ASK_FLAT: str = _D["ASK_FLAT"]
+FLAT_ERROR: str = _D["FLAT_ERROR"]
+BTN_YES: str = _D["BTN_YES"]
+BTN_NO_OTHER: str = _D["BTN_NO_OTHER"]
+BTN_NOT_MINE: str = _D["BTN_NOT_MINE"]
+BTN_PRIVATE_HOUSE: str = _D["BTN_PRIVATE_HOUSE"]
+BTN_ASIS: str = _D["BTN_ASIS"]
+BTN_FIX: str = _D["BTN_FIX"]
 
 # --- Подтверждение ---
-CONFIRM = "Проверьте, всё ли верно:\n\n{name}\n{phone}\n{address}"
-SAVED = "Записали:\n\n{name}\n{phone}\n{address}"
-DONE = "Готово, вы зарегистрированы."  # дальше — дашборд: что делать, в нём уже сказано
-DONE_SHORT = DONE
-DONE_PHOTO = DONE  # «Теперь разберём фото…» добавляет подача (submission.PENDING_PHOTO)
-DONE_PHOTO_EXPIRED = f"{DONE} Фото, которое вы присылали, мы уже не храним — пришлите его ещё раз."
-BTN_ALL_OK = "Всё верно"
-BTN_EDIT_NAME = "Изменить имя"
-BTN_EDIT_PHONE = "Изменить телефон"
-BTN_EDIT_ADDRESS = "Изменить адрес"
+CONFIRM: str = _D["CONFIRM"]
+SAVED: str = _D["SAVED"]
+DONE: str = _D["DONE"]
+DONE_SHORT: str = _D["DONE_SHORT"]
+DONE_PHOTO: str = _D["DONE_PHOTO"]
+DONE_PHOTO_EXPIRED: str = _D["DONE_PHOTO_EXPIRED"]
+BTN_ALL_OK: str = _D["BTN_ALL_OK"]
+BTN_EDIT_NAME: str = _D["BTN_EDIT_NAME"]
+BTN_EDIT_PHONE: str = _D["BTN_EDIT_PHONE"]
+BTN_EDIT_ADDRESS: str = _D["BTN_EDIT_ADDRESS"]

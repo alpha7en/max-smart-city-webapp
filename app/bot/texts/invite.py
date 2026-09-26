@@ -1,80 +1,59 @@
-"""Тексты приглашения жильца собственником и управления доступом по адресу."""
+"""Тексты приглашения жильца собственником и управления доступом по адресу.
+
+Текстовые значения вынесены в yaml/invite.yaml.
+"""
+from app.bot.texts.loader import load_texts
+
+_D = load_texts("invite.yaml")
 
 # --- Собственник создаёт приглашение ---
-# Первое сообщение — ссылка отдельно (его пересылают жильцу), без разметки: в ссылке есть «_».
-INVITE_LINK = (
-    "Приглашаю вас передавать показания счётчиков по адресу {address} в боте ЖКХ в MAX.\n"
-    "Откройте ссылку: {url}\n"
-    "Ссылка действует до {until} и сработает один раз."
-)
-INVITE_CREATED = (
-    "Перешлите сообщение выше тому, кто будет передавать показания по адресу {label}.\n\n"
-    "Ссылка одноразовая, действует **7 дней**. Когда человек её примет, мы напишем вам."
-)
-INVITE_LIMIT = (
-    "По адресу {label} уже {count} действующих приглашения — больше создать нельзя.\n\n"
-    "Ближайшее истечёт **{until}**. Пока можно переслать уже отправленную ссылку."
-)
-PICK_ADDRESS = "По какому адресу?"
-OWNER_ONLY = "Приглашать жильцов и управлять доступом может только собственник адреса."
-NO_USERNAME = "Не получилось собрать ссылку: не знаем имя бота. Попробуйте чуть позже."
+INVITE_LINK: str = _D["INVITE_LINK"]
+INVITE_CREATED: str = _D["INVITE_CREATED"]
+INVITE_LIMIT: str = _D["INVITE_LIMIT"]
+PICK_ADDRESS: str = _D["PICK_ADDRESS"]
+OWNER_ONLY: str = _D["OWNER_ONLY"]
+NO_USERNAME: str = _D["NO_USERNAME"]
 
 # --- Приглашённый открыл ссылку ---
-INVALID = {
-    "unknown": "Эта ссылка-приглашение не работает. Попросите собственника прислать новую.",
-    "expired": "Срок приглашения истёк. Попросите собственника прислать новую ссылку.",
-    "used": "Это приглашение уже использовали. Попросите собственника прислать новую ссылку.",
-}
-SELF = "Это ваше приглашение по адресу {label} — перешлите его жильцу. Сами вы уже собственник."
-ALREADY = "У вас уже есть доступ по адресу {label} — можно передавать показания."
-OFFER = (
-    "{owner} приглашает вас передавать показания по адресу {address}.\n\n"
-    "Принять приглашение?"
-)
-ACCEPTED = "Готово — доступ по адресу {label} открыт. Пришлите фото счётчика, и мы разберём цифры."
-DECLINED = "Не стали принимать приглашение. Если передумаете — откройте ссылку ещё раз, пока она действует."
-OWNER_ACCEPTED = "{name} принимает приглашение: доступ по адресу {label} открыт."
-BTN_ACCEPT = "Принять"
-BTN_DECLINE = "Отказаться"
+INVALID: dict[str, str] = _D["INVALID"]
+SELF: str = _D["SELF"]
+ALREADY: str = _D["ALREADY"]
+OFFER: str = _D["OFFER"]
+ACCEPTED: str = _D["ACCEPTED"]
+DECLINED: str = _D["DECLINED"]
+OWNER_ACCEPTED: str = _D["OWNER_ACCEPTED"]
+BTN_ACCEPT: str = _D["BTN_ACCEPT"]
+BTN_DECLINE: str = _D["BTN_DECLINE"]
 
 # --- Регистрация по приглашению ---
-REG_INVITED = "Вас пригласили передавать показания по адресу {address}. Сначала познакомимся."
-REG_KEPT = "Приглашение запомнили — адрес предложим на шаге адреса."
-ASK_INVITE_ADDRESS = "Адрес из приглашения:\n{address}\n\nЭто ваш адрес?"
-BTN_THIS_ADDRESS = "Да, этот"
-BTN_OTHER_ADDRESS = "Другой адрес"
-REG_ACCEPTED = "Доступ по адресу {label} открыт по приглашению."
-REG_NOT_APPLIED = "Приглашение уже не действует — доступ нужно запросить у собственника."
+REG_INVITED: str = _D["REG_INVITED"]
+REG_KEPT: str = _D["REG_KEPT"]
+ASK_INVITE_ADDRESS: str = _D["ASK_INVITE_ADDRESS"]
+BTN_THIS_ADDRESS: str = _D["BTN_THIS_ADDRESS"]
+BTN_OTHER_ADDRESS: str = _D["BTN_OTHER_ADDRESS"]
+REG_ACCEPTED: str = _D["REG_ACCEPTED"]
+REG_NOT_APPLIED: str = _D["REG_NOT_APPLIED"]
 
 # --- Профиль собственника: кто имеет доступ ---
-ACCESS_LINE = "Доступ: {names}"
-ONLY_YOU = "только вы"
-WAITS = "ждёт"
-BTN_INVITE = "Пригласить жильца"
-BTN_MANAGE = "Управлять доступом"
-MEMBERS = (
-    "Доступ по адресу {label}:\n\n{lines}\n\n"
-    "Отозвать доступ можно в любой момент. Показания, которые человек уже передал, останутся."
-)
-MEMBERS_EMPTY = "По адресу {label} показания передаёте только вы. Пригласите жильца, если нужно."
-STATUS = {"granted": "есть доступ", "pending": "ждёт одобрения", "denied": "доступ закрыт"}
-BTN_REVOKE = "Отозвать: {name}"
-BTN_REVOKE_N = "Отозвать №{n}"
-BTN_ALLOW = "Разрешить: {name}"
-BTN_ALLOW_N = "Разрешить №{n}"
+ACCESS_LINE: str = _D["ACCESS_LINE"]
+ONLY_YOU: str = _D["ONLY_YOU"]
+WAITS: str = _D["WAITS"]
+BTN_INVITE: str = _D["BTN_INVITE"]
+BTN_MANAGE: str = _D["BTN_MANAGE"]
+MEMBERS: str = _D["MEMBERS"]
+MEMBERS_EMPTY: str = _D["MEMBERS_EMPTY"]
+STATUS: dict[str, str] = _D["STATUS"]
+BTN_REVOKE: str = _D["BTN_REVOKE"]
+BTN_REVOKE_N: str = _D["BTN_REVOKE_N"]
+BTN_ALLOW: str = _D["BTN_ALLOW"]
+BTN_ALLOW_N: str = _D["BTN_ALLOW_N"]
 
 # --- Отзыв ---
-REVOKE_ASK = (
-    "Отозвать доступ: {name}, {label}?\n\n"
-    "Передавать показания по этому адресу будет нельзя. То, что уже передано, останется."
-)
-BTN_REVOKE_YES = "Отозвать"
-BTN_REVOKE_NO = "Не отзывать"
-REVOKED = "Отозвали доступ: {name}, {label}. Мы сообщили об этом."
-REVOKE_SELF = "Себе доступ отозвать нельзя: вы собственник этого адреса."
-REVOKE_GONE = "Этого человека уже нет среди тех, у кого есть доступ."
-REVOKE_ALREADY = "Доступ уже закрыт: {name}."
-TENANT_REVOKED = (
-    "Собственник закрыл вам доступ по адресу {label}.\n\n"
-    "Показания, которые вы уже передали, сохранены."
-)
+REVOKE_ASK: str = _D["REVOKE_ASK"]
+BTN_REVOKE_YES: str = _D["BTN_REVOKE_YES"]
+BTN_REVOKE_NO: str = _D["BTN_REVOKE_NO"]
+REVOKED: str = _D["REVOKED"]
+REVOKE_SELF: str = _D["REVOKE_SELF"]
+REVOKE_GONE: str = _D["REVOKE_GONE"]
+REVOKE_ALREADY: str = _D["REVOKE_ALREADY"]
+TENANT_REVOKED: str = _D["TENANT_REVOKED"]
