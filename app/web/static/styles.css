@@ -312,3 +312,6 @@ body.has-bar main { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px
 .optw > .opt.on { background: none; }
 .hl { animation: hl 1.8s ease-out; }
 @keyframes hl { from { box-shadow: 0 0 0 2px var(--accent), var(--shadow); } }
+.slot { flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin: -4px -8px -4px 0; color: var(--accent); }
+.who-open { color: var(--text) !important; font-size: 17px; line-height: 1.4; max-width: 30ch; }
+.who-open b { font-weight: 650; }

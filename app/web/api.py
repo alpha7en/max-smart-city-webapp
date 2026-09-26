@@ -136,6 +136,7 @@ def verification_json(m: Row) -> dict:
 def address_json(a: Row, invites: list[Row] = ()) -> dict:
     """Адрес профиля: короткая подпись, полный текст, доступ; verified=False — адрес не сверен с ФИАС.
     Общий адрес (не собственник, доступ открыт): owner — «Анна И.», owner_gen — «Анны И.» («доступ от Анны И.»).
+    since — с какого дня открыт доступ к общему адресу.
     Свой адрес: shared_count — сколько людей с доступом, кроме него; invites_count — действующих ссылок с ним
     (invites — repo.owner_invites)."""
     by = SH.sharer(a) if a["role"] != "owner" and a["access"] == "granted" else None
@@ -144,7 +145,8 @@ def address_json(a: Row, invites: list[Row] = ()) -> dict:
             "role": a["role"], "verified": a["status"] != "unverified",
             "owner": short_name(by) if by else None, "owner_gen": short_name_gen(by) if by else None,
             "shared_count": (a.get("shared_count") or 0) if own else 0,
-            "invites_count": sum(a["id"] in i["address_ids"] for i in invites) if own else 0}
+            "invites_count": sum(a["id"] in i["address_ids"] for i in invites) if own else 0,
+            "since": _day(a.get("granted_at") or a.get("linked_at")) if by else None}
 
 
 async def _with_members(repo: Repo, a: dict) -> dict:

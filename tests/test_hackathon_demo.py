@@ -175,11 +175,13 @@ async def test_demo_profile_has_shared_access(demo_chat, api, repo):
     assert members[0]["last_period"] == current_period(NOW.date())  # первый жилец подал в этом месяце
     if len(members) == 2:
         assert members[1]["last_period"] == shift_period(current_period(NOW.date()), -1)
-    (inv,) = await repo.owner_invites(user["id"], NOW)  # одна действующая ссылка
+    # второй адрес — без людей и ссылок: в мини-приложении у него «человек+» (поделиться)
+    assert await repo.owner_invites(user["id"], NOW) == []
     await demo_chat.payload("g|sh_list|")
     text = api.last_text()
-    for part in (IT.SHARED_OWNED, IT.SHARED_INVITES, IT.SHARED_RECEIVED, "доступ от", "> " + HT.DEMO_PEOPLE):
+    for part in (IT.SHARED_OWNED, IT.SHARED_RECEIVED, "доступ от", "> " + HT.DEMO_PEOPLE):
         assert part in text
+    assert IT.SHARED_INVITES not in text
     assert "показания " in (await _card(demo_chat, api, own0["label"]))
     await demo_chat.payload("g|profile|")
     assert "доступ от" in api.last_text() and "Доступ: " in api.last_text()
