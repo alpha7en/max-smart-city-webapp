@@ -6,7 +6,7 @@ from pathlib import Path
 
 import aiosqlite
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 SCHEMA_FILE = Path(__file__).with_name("schema.sql")
 # Миграции: версия → SQL. Версия 1 — schema.sql целиком; новые таблицы — только здесь (и новой БД тоже).
 MIGRATIONS: dict[int, str] = {
@@ -40,6 +40,34 @@ ALTER TABLE meters_new RENAME TO meters;
 CREATE UNIQUE INDEX meters_serial ON meters(address_id, serial_norm) WHERE serial_norm IS NOT NULL;
 CREATE TABLE arshin_cache(key TEXT PRIMARY KEY, payload TEXT NOT NULL DEFAULT '[]',
   status TEXT NOT NULL CHECK(status IN('found','none','error')), fetched_at TEXT NOT NULL);
+""",
+    # 4: «Поделиться доступом»: приглашение на несколько адресов (invite_addresses; старые одноадресные
+    # переносятся), отмена приглашения (cancelled_at), числовой id для API; кто и когда открыл доступ
+    # (user_addresses.granted_by/granted_at; у открытых раньше — собственник адреса и дата привязки).
+    4: """
+CREATE TABLE invites_new(
+  id INTEGER PRIMARY KEY, token TEXT UNIQUE NOT NULL,
+  owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
+  used_by INTEGER REFERENCES users(id) ON DELETE SET NULL, used_at TEXT, cancelled_at TEXT);
+INSERT INTO invites_new(token, owner_user_id, created_at, expires_at, used_by, used_at)
+  SELECT token, owner_user_id, created_at, expires_at, used_by, used_at FROM invites ORDER BY created_at, rowid;
+CREATE TEMP TABLE invite_map AS
+  SELECT n.id AS invite_id, o.address_id FROM invites o JOIN invites_new n ON n.token=o.token;
+DROP TABLE invites;
+ALTER TABLE invites_new RENAME TO invites;
+CREATE INDEX invites_owner ON invites(owner_user_id);
+CREATE TABLE invite_addresses(
+  invite_id INTEGER NOT NULL REFERENCES invites(id) ON DELETE CASCADE,
+  address_id INTEGER NOT NULL REFERENCES addresses(id), PRIMARY KEY(invite_id, address_id));
+CREATE INDEX invite_addresses_address ON invite_addresses(address_id);
+INSERT INTO invite_addresses(invite_id, address_id) SELECT invite_id, address_id FROM invite_map;
+DROP TABLE invite_map;
+ALTER TABLE user_addresses ADD COLUMN granted_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE user_addresses ADD COLUMN granted_at TEXT;
+UPDATE user_addresses SET granted_at=created_at, granted_by=(
+  SELECT o.user_id FROM user_addresses o WHERE o.address_id=user_addresses.address_id AND o.role='owner'
+  ORDER BY o.created_at LIMIT 1) WHERE role='tenant' AND access='granted';
 """,
 }
 

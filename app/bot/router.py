@@ -43,7 +43,7 @@ GLOBAL_ACTIONS: dict[str, Handler] = {}
 # Незарегистрированному — обычная регистрация (правило 2), в регистрации — «продолжим» (правило 3).
 START_PAYLOADS = {
     "profile": "profile", "phone": "prof_phone", "add_address": "prof_addr", "delete_data": "prof_del",
-    "add_meter": "add_meter", "submit": "submit", "meters": "meters",
+    "add_meter": "add_meter", "submit": "submit", "meters": "meters", "help": "help", "shares": "sh_list",
 }
 # Диплинк с аргументом: start=<префикс><arg> → точка входа (hook) с kw arg=<arg>, в любом состоянии
 # и до регистрации (приглашение жильца: inv_<token>, inv_new_<address_id>, inv_acc_<address_id>).

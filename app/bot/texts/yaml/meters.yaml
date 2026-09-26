@@ -27,3 +27,5 @@ VERIF_SOURCE:
   user: из паспорта
   model: ориентировочно
 VERIF_SOURCE_NONE: источник не указан
+CARD_ADDRESS_SHARED: 'Адрес: {address} (доступ от {by})'
+CARD_LAST_BY: 'Последнее показание: **{value}**, **{date}**, от {by}'

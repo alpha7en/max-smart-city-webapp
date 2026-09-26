@@ -27,6 +27,7 @@ from app.domain.meters import (
     meter_labels,
     submission_window,
 )
+from app.domain.people import short_name_gen
 from app.domain.serials import format_serial
 from app.domain.verification import is_demo_id
 
@@ -166,7 +167,7 @@ def _window_json(window: Window, period: str) -> dict:
 # --- Сборка ---
 
 def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to: int = 25) -> Dashboard:
-    """Дашборд: срочное → доступ → подача → поверка/счёт → «подробнее». Не больше 9 непустых строк."""
+    """Дашборд: срочное → доступ → подача → поверка/счёт → «подробнее». Обычно не больше 9 непустых строк."""
     period = current_period(today)
     window = submission_window(today, day_from, day_to)
     meters = data.meters
@@ -193,6 +194,8 @@ def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to
 
     pending = [a for a in data.addresses if a.get("access") == "pending"]
     granted = any(a.get("access") == "granted" for a in data.addresses)
+    shared = [a for a in data.addresses if a.get("role") == "tenant" and a.get("access") == "granted"
+              and (a.get("granted_by_name") or a.get("owner_name"))]
 
     def text_lines(md: bool) -> list[str]:
         """Строки дашборда. md=False — простой текст (/api/me); md=True — markdown для бота:
@@ -202,10 +205,19 @@ def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to
         notes: list[str] = []
         if urgent:
             blocks.append([bold(urgent.text)])
+        access: list[str] = []  # доступ: ждут одобрения / общий адрес «доступ от Анны И.»
         if len(pending) == 1:
-            blocks.append([T.PENDING.format(label=e(pending[0].get("full_text") or pending[0].get("label") or ""))])
+            access.append(T.PENDING.format(label=e(pending[0].get("full_text") or pending[0].get("label") or "")))
         elif pending:
-            blocks.append([T.PENDING_MANY.format(n=len(pending))])
+            access.append(T.PENDING_MANY.format(n=len(pending)))
+        if len(shared) == 1:
+            a = shared[0]
+            access.append(T.SHARED.format(label=e(a.get("label") or a.get("full_text") or ""),
+                                          by=e(short_name_gen(a.get("granted_by_name") or a.get("owner_name")))))
+        elif shared:
+            access.append(T.SHARED_MANY.format(n=len(shared)))
+        if access:
+            blocks.append(access)
         if meters:
             if window.is_open:
                 head = T.PERIOD_OPEN.format(month=month_name(period), deadline=bold(day_month(window.end)),

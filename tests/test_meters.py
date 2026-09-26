@@ -8,6 +8,7 @@ import pytest
 from app import clock
 from app.bot.states import S
 from app.bot.texts import common as C
+from app.bot.texts import invite as IT
 from app.bot.texts import meters as T
 from app.bot.texts import menu as MT
 from app.bot.texts import submission as TS
@@ -52,7 +53,7 @@ async def open_card(chat: Chat, label: str = LABEL) -> None:
 async def test_card_from_my_meters(chat, api, repo, cold):
     await chat.payload("g|meters|")
     assert T.LIST_HINT in api.last_text()
-    assert rows(api) == [[LABEL], [MT.BTN_ADD_METER, C.BTN_MENU]]
+    assert rows(api) == [[LABEL], [IT.BTN_SHARE], [MT.BTN_ADD_METER, C.BTN_MENU]]
     await chat.press(LABEL)
     text = api.last_text()
     assert text.startswith(f"**Хол. вода**\nАдрес: г. Москва, Арбат, д. 47, корп. 1, кв. 32\n")  # адрес в заголовке не повторяем
@@ -98,7 +99,7 @@ async def test_delete_with_confirmation(chat, api, repo, user, cold):
     await chat.press(T.BTN_DELETE_YES)
     text = api.last_text()
     assert text.startswith(T.DELETED.format(meter=FULL) + "\n\n" + MT.METERS_TITLE)
-    assert rows(api) == [["Свет · Арбат 47к1, кв 32"], [MT.BTN_ADD_METER, C.BTN_MENU]]
+    assert rows(api) == [["Свет · Арбат 47к1, кв 32"], [IT.BTN_SHARE], [MT.BTN_ADD_METER, C.BTN_MENU]]
     row = await repo.get_meter(cold)
     assert (row["active"], row["serial"], row["serial_norm"]) == (0, "18-123456", None)
     assert len(await repo.history(cold)) == 1  # показания остались

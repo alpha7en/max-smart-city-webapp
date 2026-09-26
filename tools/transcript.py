@@ -14,7 +14,7 @@ from pathlib import Path
 
 from app import clock
 from app.bot.ctx import Deps
-from app.bot.flows import invite
+from app import sharing
 from app.bot.events import parse_update
 from app.bot.router import Router
 from app.config import Settings
@@ -110,7 +110,7 @@ async def main() -> None:
         router = Router(Deps(api=api, repo=repo, settings=settings, recognizer=StubRecognizer(), bot_username=BOT,
                              arshin=arshin))
         d = Dialog(router, api)
-        invite.new_token = lambda: INVITE_TOKEN
+        sharing.new_token = lambda: INVITE_TOKEN
         try:
             await run(d)
         finally:
@@ -184,21 +184,28 @@ async def run(d: Dialog) -> None:
     await d.text(ANNA, "/demo")
     await d.press(ANNA, "Поверка в ФГИС")
 
-    section("6. Приглашение жильца и отзыв доступа",
-            "Собственник создаёт одноразовую ссылку на 7 дней и пересылает её. Новый человек открывает её, "
-            "регистрируется, выбирает адрес из приглашения — и сразу получает доступ. Отзыв — с подтверждением.")
+    section("6. Поделиться доступом",
+            "Делятся адресом (одним или несколькими), не счётчиком и не профилем. У Анны один адрес — ссылка "
+            "создаётся сразу: одноразовая, на 7 дней, отдельным сообщением для пересылки. Мария ещё не "
+            "зарегистрирована: знакомится, свой адрес не указывает — и сразу получает доступ. Анна видит, кто "
+            "передаёт показания, и может закрыть доступ; Мария может только убрать адрес у себя.")
     await d.press(ANNA, "В меню")
     await d.press(ANNA, "Профиль")
-    await d.press(ANNA, "Пригласить жильца")
+    await d.press(ANNA, "Поделиться доступом")
     await d.open_link(MARIA, "inv_" + INVITE_TOKEN)
     await d.text(MARIA, "Смирнова Мария Павловна")
     await d.text(MARIA, "+7 903 222-33-44")
-    await d.press(MARIA, "Да, этот")
+    await d.press(MARIA, "Других адресов нет")
     await d.press(MARIA, "Всё верно")
-    await d.press(ANNA, "Управлять доступом")
-    await d.press(ANNA, "Отозвать: Мария С.")
-    await d.press(ANNA, "Отозвать")
-
+    await d.press(ANNA, "Общий доступ")
+    await d.press(ANNA, "Арбат 47к1, кв 32")
+    await d.press(ANNA, "Закрыть: Олег П.")
+    await d.press(ANNA, "Закрыть доступ")
+    await d.press(MARIA, "Профиль")
+    await d.press(MARIA, "Общий доступ")
+    await d.press(MARIA, "Арбат 47к1, кв 32")
+    await d.press(MARIA, "Убрать у себя")
+    await d.press(MARIA, "Убрать")
 
 if __name__ == "__main__":
     asyncio.run(main())

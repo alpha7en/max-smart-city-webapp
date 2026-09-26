@@ -4,12 +4,19 @@
 создаёт вымышленный профиль целиком — случайные ФИО и телефон, 2 адреса (реальные дома в разных городах, квартира
 случайная), по 2–3 случайных
 счётчика с историей показаний за полгода (один — со сроком поверки меньше 30 дней, чтобы было видно срочное
-действие) — и показывает меню-дашборд. Если профиль уже есть, бот объясняет, что сначала его нужно удалить
+действие) — и показывает меню-дашборд. «Поделиться доступом» тоже выглядит живым: к первому адресу подключены
+1–2 демо-жильца (один подал показание в этом месяце), пользователю открыт доступ к чужому адресу демо-собственника
+(свои счётчики и история) и есть одна действующая ссылка на второй адрес. Демо-люди — строки users с
+max_user_id < 0 (repo.is_demo_person): сообщений им не шлём, планировщик их не видит; удаляются вместе
+с профилем или когда общий демо-адрес убран (repo.drop_orphan_demo_people).
+Если профиль уже есть, бот объясняет, что сначала его нужно удалить
 («Профиль» → «Удалить мои данные»). Команда есть в списке команд бота в MAX (app/main.py: bot_commands).
 
 Включается HACKATHON_DEMO_PROFILE (Settings.hackathon_demo_profile). Убрать после хакатона: этот модуль,
 texts/hackathon_demo.py и yaml/hackathon_demo.yaml, импорт в flows/__init__.py, bot_commands в main.py,
-repo.backdate_reading и is_hackathon_demo, HACKATHON_DEMO_KEY в repo.py, фото-исключение в web/api.py
+repo.backdate_reading, is_hackathon_demo, create_demo_person, drop_orphan_demo_people и HACKATHON_DEMO_KEY
+в repo.py (и DEMO_PERSON_MAX_ID с проверками is_demo_person), DEMO_PEOPLE в invite.show_shared,
+фото-исключение в web/api.py
 (profile_photo), переменную в config.py и .env.example, tests/test_hackathon_demo.py.
 
 Адреса тестового профиля новые при каждой генерации (norm_key 'hackathon-demo:<uuid>:<n>'): так пользователь
@@ -21,9 +28,11 @@ from __future__ import annotations
 
 import random
 import uuid
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from datetime import timedelta
 
+from app import sharing as SH
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx
 from app.bot.flows.menu import MENU, PROFILE, send_menu
@@ -39,6 +48,8 @@ from app.repo import HACKATHON_DEMO_KEY
 COMMAND = "/demo_profile"
 HISTORY_MONTHS = 6    # показаний за прошлые месяцы у каждого счётчика
 ADDRESSES = 2
+SHARED_METERS = 2     # счётчиков на чужом адресе, к которому пользователю открыт доступ
+DEMO_ID = -9_000_000_000  # max_user_id демо-людей (< 0: аккаунта MAX у них нет)
 URGENT_DAYS = (10, 28)  # срок поверки одного счётчика: кнопка «Запишитесь на поверку» (≤ 30 дней)
 
 # --- Случайные данные (ФИО, телефон, квартиры и показания вымышленные) ---
@@ -101,6 +112,9 @@ class DemoProfile:
     full_name: str
     phone: str
     addresses: tuple[tuple[str, tuple[DemoMeter, ...]], ...]
+    tenants: tuple[str, ...] = ()                                # ФИО демо-жильцов первого адреса
+    shared_owner: str = ""                                       # ФИО демо-собственника чужого адреса
+    shared: tuple[str, tuple[DemoMeter, ...]] | None = None      # чужой адрес, к которому открыт доступ
 
     @property
     def meters(self) -> int:
@@ -137,27 +151,42 @@ def _meter(rnd: random.Random, type: str, verification_days: int) -> DemoMeter:
     return DemoMeter(type, start, monthly, verification_days, this_month=rnd.random() < 0.4)
 
 
+def _phone(rnd: random.Random) -> str:
+    return "+79" + "".join(str(rnd.randint(0, 9)) for _ in range(9))
+
+
 def random_profile(rnd: random.Random) -> DemoProfile:
-    """Случайный профиль; у первого счётчика первого адреса — скорый срок поверки."""
+    """Случайный профиль; у первого счётчика первого адреса — скорый срок поверки.
+    Плюс 1–2 демо-жильца и чужой адрес (третий город) демо-собственника с 2 счётчиками."""
+    texts = random_addresses(rnd, ADDRESSES + 1)
     addresses = []
-    for n, text in enumerate(random_addresses(rnd)):
+    for n, text in enumerate(texts[:ADDRESSES]):
         types = rnd.sample(sorted(METERS), rnd.randint(2, 3))
         meters = tuple(
             _meter(rnd, t, rnd.randint(*URGENT_DAYS) if n == 0 and i == 0 else rnd.randint(365, 6 * 365))
             for i, t in enumerate(types)
         )
         addresses.append((text, meters))
-    phone = "+79" + "".join(str(rnd.randint(0, 9)) for _ in range(9))
-    return DemoProfile(random_name(rnd), phone, tuple(addresses))
+    names: list[str] = []
+    while len(names) < 4:  # пользователь, собственник чужого адреса, жильцы — без совпадений
+        if (name := random_name(rnd)) not in names:
+            names.append(name)
+    me, owner, *tenants = names
+    shared = tuple(_meter(rnd, t, rnd.randint(365, 6 * 365)) for t in rnd.sample(sorted(METERS), SHARED_METERS))
+    return DemoProfile(me, _phone(rnd), tuple(addresses), tuple(tenants[:rnd.randint(1, 2)]), owner,
+                       (texts[ADDRESSES], shared))
 
 
 async def create_profile(ctx: Ctx, profile: DemoProfile) -> None:
-    """Регистрация, адреса, счётчики и история показаний — одной транзакцией."""
+    """Регистрация, адреса, счётчики, история показаний и общий доступ — одной транзакцией."""
     repo, uid, today = ctx.repo, ctx.user["id"], ctx.now.date()
     period = current_period(today)
     token = uuid.uuid4().hex  # не из id пользователя: см. docstring модуля
     rnd = random.Random()
     async with repo.tx():
+        tenants = [await repo.create_demo_person(name, _phone(rnd), DEMO_ID - rnd.randint(0, 10**8))
+                   for name in profile.tenants]
+        own = []
         for n, (text, meters) in enumerate(profile.addresses):
             (c,) = _ADDRESSES.parse_local(text)
             if n == 0:
@@ -166,18 +195,63 @@ async def create_profile(ctx: Ctx, profile: DemoProfile) -> None:
                     address=c.to_dict(), norm_key=_norm_key(token, n), raw_input=None, now=ctx.now)
             else:
                 res = await repo.add_user_address(uid, c.to_dict(), _norm_key(token, n), None, today)
-            for m in meters:
+            own.append(res["address_id"])
+            for i, m in enumerate(meters):
                 due = (ctx.now + timedelta(days=m.verification_days)).date().isoformat()
                 mid = await repo.create_meter(res["address_id"], m.type, len(m.start), None, uid, due, "user")
-                await _history(ctx, rnd, mid, m, period)
+                await _history(ctx, rnd, mid, _by_tenant(m, n, i, tenants), period, _author(uid, n, i, tenants))
+        for t in tenants:  # жильцы первого адреса — по ссылке, как в жизни
+            await _grant(repo, uid, t["id"], own[0], ctx.now)
+        if profile.shared:
+            await _shared_address(ctx, rnd, profile, _norm_key(token, ADDRESSES), period)
+        # одна действующая ссылка на второй адрес — видно в «Общий доступ»
+        await repo.create_invite(SH.new_token(), uid, [own[-1]], ctx.now, ctx.now + SH.INVITE_TTL, SH.INVITE_LIMIT)
     ctx.user = await repo.get_user(ctx.event.user_id)  # теперь зарегистрирован: меню покажет дашборд
 
 
-async def _history(ctx: Ctx, rnd: random.Random, meter_id: int, m: DemoMeter, period: str) -> None:
+def _by_tenant(m: DemoMeter, n: int, i: int, tenants: list) -> DemoMeter:
+    """Первый счётчик первого адреса за этот месяц подал первый жилец — подача есть обязательно."""
+    return replace(m, this_month=True) if tenants and n == 0 and i == 0 else m
+
+
+def _author(uid: int, n: int, i: int, tenants: list) -> Callable[[int], int]:
+    """Кто подал показание (сдвиг месяца → users.id): первый счётчик первого адреса в этом месяце — первый
+    жилец; второй счётчик в прошлом месяце — второй жилец (в этом месяце он не подавал); остальное — сам."""
+    def by(shift: int) -> int:
+        if n == 0 and i == 0 and shift == 0 and tenants:
+            return tenants[0]["id"]
+        if n == 0 and i == 1 and shift == -1 and len(tenants) > 1:
+            return tenants[1]["id"]
+        return uid
+    return by
+
+
+async def _grant(repo, owner_id: int, user_id: int, address_id: int, now) -> None:
+    """Доступ по ссылке (create_invite + use_invite): granted_by, демо-счёт и подписи — как в жизни."""
+    inv_id = await repo.create_invite(SH.new_token(), owner_id, [address_id], now, now + SH.INVITE_TTL, 10**6)
+    await repo.use_invite((await repo.get_invite_by_id(inv_id))["token"], user_id, now)
+
+
+async def _shared_address(ctx: Ctx, rnd: random.Random, profile: DemoProfile, key: str, period: str) -> None:
+    """Чужой адрес демо-собственника с его счётчиками и историей; пользователю открыт доступ."""
+    repo = ctx.repo
+    owner = await repo.create_demo_person(profile.shared_owner, _phone(rnd), DEMO_ID - rnd.randint(0, 10**8))
+    text, meters = profile.shared
+    (c,) = _ADDRESSES.parse_local(text)
+    res = await repo.add_user_address(owner["id"], c.to_dict(), key, None, ctx.now.date())
+    for m in meters:
+        due = (ctx.now + timedelta(days=m.verification_days)).date().isoformat()
+        mid = await repo.create_meter(res["address_id"], m.type, len(m.start), None, owner["id"], due, "user")
+        await _history(ctx, rnd, mid, m, period, lambda _: owner["id"])
+    await _grant(repo, owner["id"], ctx.user["id"], res["address_id"], ctx.now)
+
+
+async def _history(ctx: Ctx, rnd: random.Random, meter_id: int, m: DemoMeter, period: str,
+                   author: Callable[[int], int]) -> None:
     values = list(m.start)
     for shift in range(-HISTORY_MONTHS, 1 if m.this_month else 0):
         p = shift_period(period, shift)
-        rid = await ctx.repo.add_reading(meter_id, ctx.user["id"], p, {f"t{i + 1}": v for i, v in enumerate(values)},
+        rid = await ctx.repo.add_reading(meter_id, author(shift), p, {f"t{i + 1}": v for i, v in enumerate(values)},
                                          "photo")
         if shift:  # прошлые месяцы — будто подавали 20-го числа; текущий — сейчас
             y, mon = map(int, p.split("-"))

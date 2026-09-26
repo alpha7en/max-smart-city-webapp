@@ -38,3 +38,7 @@ SUBMIT_GONE: str = _D["SUBMIT_GONE"]
 
 # --- API мини-приложения ---
 API_NOT_OWNER: str = _D["API_NOT_OWNER"]
+
+# --- Поделиться доступом ---
+CARD_ADDRESS_SHARED: str = _D["CARD_ADDRESS_SHARED"]
+CARD_LAST_BY: str = _D["CARD_LAST_BY"]

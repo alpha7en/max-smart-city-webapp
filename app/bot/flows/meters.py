@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import date
 
 from app import arshin_service as AS
+from app import sharing as SH
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx
 from app.bot.flows.menu import MENU, METER_CARD, METERS, last_values, my_meters
@@ -21,6 +22,7 @@ from app.bot.texts.fmt import esc, full_date, short_date
 from app.domain.access import meter_delete_denial
 from app.domain.dashboard import local_time, meter_names
 from app.domain.meters import format_serial
+from app.domain.people import short_name_gen
 from app.repo import Row
 
 SUBMIT, DELETE, DELETE_OK = "m_sub", "m_del", "m_del_ok"
@@ -50,19 +52,26 @@ def _verification(m: Row) -> tuple[str, str | None]:
     return T.CARD_VERIF.format(date=full_date(date.fromisoformat(due)), source=label or T.VERIF_SOURCE_NONE), note
 
 
-def card_text(m: Row, name: str, address: Row | None) -> str:
+def card_text(m: Row, name: str, address: Row | None, user_id: int | None = None) -> str:
     """Тип, полный адрес, номер, последнее показание, поверка; оговорки — последней строкой-цитатой."""
     if address:  # адрес — отдельной строкой ниже, в заголовке не повторяем
         name = name.replace(f" · {address['full_text']}", "", 1)
     lines = [f"**{esc(name)}**"]
-    if address:
+    if address and SH.role_text(address):  # общий адрес: «(доступ от Анны И.)»
+        lines.append(T.CARD_ADDRESS_SHARED.format(address=esc(address["full_text"]),
+                                                  by=esc(short_name_gen(SH.sharer(address)))))
+    elif address:
         lines.append(T.CARD_ADDRESS.format(address=esc(address["full_text"])))
     serial = format_serial(m.get("serial"), m["type"])
     lines.append(T.CARD_SERIAL.format(serial=esc(serial)) if serial else T.CARD_NO_SERIAL)
     if m.get("last_id"):
         when = local_time(m.get("last_created_at"))
-        lines.append(T.CARD_LAST.format(value=last_values(m),
-                                        date=short_date(when.date()) if when else m["last_period"]))
+        day = short_date(when.date()) if when else m["last_period"]
+        if m.get("last_by_name") and m.get("last_user_id") != user_id:  # подал другой человек
+            lines.append(T.CARD_LAST_BY.format(value=last_values(m), date=day,
+                                               by=esc(short_name_gen(m["last_by_name"]))))
+        else:
+            lines.append(T.CARD_LAST.format(value=last_values(m), date=day))
     else:
         lines.append(T.CARD_NO_READINGS)
     verif, verif_note = _verification(m)
@@ -81,7 +90,7 @@ async def show_card(ctx: Ctx) -> None:
         return
     m, name = found
     address = await ctx.repo.user_address(ctx.user["id"], m["address_id"])
-    await ctx.reply(card_text(m, name, address), K.kb(
+    await ctx.reply(card_text(m, name, address, ctx.user["id"]), K.kb(
         K.gbtn(T.BTN_SUBMIT, SUBMIT, m["id"]),
         [K.gbtn(T.BTN_DELETE, DELETE, m["id"]), K.gbtn(C.BTN_BACK, METERS)],
     ))

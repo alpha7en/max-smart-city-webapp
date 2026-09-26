@@ -163,6 +163,8 @@ class FakeMaxApi:
         for n, kw in self.calls[0 if everything else self._mark:]:
             if n == "send":
                 out.append((kw["text"], kw["keyboard"]))
+            elif n == "edit" and kw["text"] is not None:  # сообщение заменили на месте (PUT /messages)
+                out.append((kw["text"], None if kw["keyboard"] is KEEP else kw["keyboard"]))
             elif n == "answer" and kw["message"] is not None:
                 msg = kw["message"]
                 atts = msg.get("attachments") or []

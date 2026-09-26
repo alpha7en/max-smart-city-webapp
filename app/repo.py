@@ -23,10 +23,30 @@ from app.domain.access import decide_role, meter_delete_denial
 from app.domain.meters import FIELDS, demo_bill, normalize_serial
 
 HACKATHON_DEMO_KEY = "hackathon-demo:"  # префикс norm_key адресов демо-профиля (flows/hackathon_demo.py)
+# Демо-люди демо-профиля (жильцы и собственник общего адреса): max_user_id < 0 — аккаунта MAX у них нет,
+# сообщений им не шлём (sharing.notify, планировщик берёт только registered_users с max_user_id > 0).
+DEMO_PERSON_MAX_ID = 0
+
+
+def is_demo_person(user: dict | None) -> bool:
+    return bool(user) and user["max_user_id"] < DEMO_PERSON_MAX_ID
 
 Row = dict[str, Any]
 # Подписи адресов: список адресов пользователя (dict строк addresses) → список label той же длины.
 Labeler = Callable[[list[Row]], list[str]]
+
+# Адрес пользователя: поля addresses + связь (role, access, label, …) + кто открыл доступ (granted_by_name),
+# собственник адреса (owner_id, owner_name) и сколько людей с доступом кроме собственника (shared_count).
+_UA_SELECT = (
+    "SELECT a.*, ua.role, ua.access, ua.label, ua.raw_input, ua.created_at AS linked_at, ua.granted_by, "
+    "ua.granted_at, (SELECT full_name FROM users WHERE id=ua.granted_by) AS granted_by_name, "
+    "(SELECT o.user_id FROM user_addresses o WHERE o.address_id=a.id AND o.role='owner' "
+    " ORDER BY o.created_at LIMIT 1) AS owner_id, "
+    "(SELECT u.full_name FROM user_addresses o JOIN users u ON u.id=o.user_id WHERE o.address_id=a.id "
+    " AND o.role='owner' ORDER BY o.created_at LIMIT 1) AS owner_name, "
+    "(SELECT COUNT(*) FROM user_addresses x WHERE x.address_id=a.id AND x.role!='owner' AND x.access='granted') "
+    " AS shared_count FROM user_addresses ua JOIN addresses a ON a.id=ua.address_id "
+)
 
 ADDRESS_COLUMNS = (
     "status", "source", "full_text", "postal_code", "region", "locality", "street", "house", "block",
@@ -155,13 +175,33 @@ class Repo:
             await self._exec(f"UPDATE users SET {cols} WHERE id=?", (*values.values(), user_id))
 
     async def registered_users(self) -> list[Row]:
-        return await self._all("SELECT * FROM users WHERE registered_at IS NOT NULL ORDER BY id")
+        return await self._all("SELECT * FROM users WHERE registered_at IS NOT NULL AND max_user_id>? ORDER BY id",
+                               (DEMO_PERSON_MAX_ID,))
 
-    async def delete_user_data(self, user_id: int) -> int:
-        """Удаляет пользователя: сессию, фото (и файлы), уведомления, связи с адресами.
-        Показания и счётчики остаются за адресом (user_id/created_by → NULL). Возвращает число удалённых фото."""
+    async def delete_user_data(self, user_id: int) -> Row:
+        """Удаляет пользователя: сессию, фото (и файлы), уведомления, связи с адресами, его приглашения.
+        Показания и счётчики остаются за адресом (user_id/created_by → NULL).
+        Общий доступ: у адресов, где он собственник, собственником становится первый получивший доступ
+        (модель прав, как claim_address). → {photos: число фото, received: [{address_id, owner_id}] — адреса,
+        которыми с ним делились, promoted: [{address_id, user_id}] — кто стал собственником}."""
         async with self.tx():
             photos = await self._all("SELECT path FROM photos WHERE user_id=?", (user_id,))
+            links = await self.user_addresses(user_id)
+            received = [{"address_id": a["id"], "owner_id": a["owner_id"]} for a in links
+                        if a["role"] != "owner" and a["access"] == "granted" and a["owner_id"]]
+            promoted = []
+            for a in links:
+                if a["role"] != "owner":
+                    continue
+                heir = await self._one(
+                    "SELECT ua.user_id FROM user_addresses ua JOIN users u ON u.id=ua.user_id WHERE ua.address_id=? "
+                    "AND ua.user_id!=? AND ua.role!='owner' AND ua.access='granted' AND u.max_user_id>? "
+                    "ORDER BY COALESCE(ua.granted_at, ua.created_at), ua.user_id LIMIT 1",
+                    (a["id"], user_id, DEMO_PERSON_MAX_ID))
+                if heir:
+                    await self._exec("UPDATE user_addresses SET role='owner', granted_by=NULL WHERE user_id=? "
+                                     "AND address_id=?", (heir["user_id"], a["id"]))
+                    promoted.append({"address_id": a["id"], "user_id": heir["user_id"]})
             for sql in (
                 "DELETE FROM sessions WHERE user_id=?",
                 "DELETE FROM photos WHERE user_id=?",
@@ -170,9 +210,10 @@ class Repo:
                 "DELETE FROM users WHERE id=?",
             ):
                 await self._exec(sql, (user_id,))
+            await self.drop_orphan_demo_people()
         for p in photos:
             Path(p["path"]).unlink(missing_ok=True)
-        return len(photos)
+        return {"photos": len(photos), "received": received, "promoted": promoted}
 
     # === Адреса ===
 
@@ -215,20 +256,12 @@ class Repo:
         )
 
     async def user_addresses(self, user_id: int) -> list[Row]:
-        """Адреса пользователя: поля addresses + role, access, label, raw_input, linked_at."""
-        return await self._all(
-            "SELECT a.*, ua.role, ua.access, ua.label, ua.raw_input, ua.created_at AS linked_at "
-            "FROM user_addresses ua JOIN addresses a ON a.id=ua.address_id "
-            "WHERE ua.user_id=? ORDER BY ua.created_at, a.id",
-            (user_id,),
-        )
+        """Адреса пользователя: поля addresses + role, access, label, raw_input, linked_at, granted_by(_name),
+        granted_at, owner_id, owner_name, shared_count (см. _UA_SELECT)."""
+        return await self._all(_UA_SELECT + "WHERE ua.user_id=? ORDER BY ua.created_at, a.id", (user_id,))
 
     async def user_address(self, user_id: int, address_id: int) -> Row | None:
-        return await self._one(
-            "SELECT a.*, ua.role, ua.access, ua.label, ua.raw_input FROM user_addresses ua "
-            "JOIN addresses a ON a.id=ua.address_id WHERE ua.user_id=? AND ua.address_id=?",
-            (user_id, address_id),
-        )
+        return await self._one(_UA_SELECT + "WHERE ua.user_id=? AND ua.address_id=?", (user_id, address_id))
 
     async def link_address(
         self, user_id: int, address_id: int, raw_input: str | None = None, label: str = ""
@@ -246,7 +279,13 @@ class Repo:
             )
             return role, access
 
-    async def set_access(self, user_id: int, address_id: int, access: str) -> None:
+    async def set_access(self, user_id: int, address_id: int, access: str, by: int | None = None) -> None:
+        """access; при 'granted' запоминаем, кто (by — обычно собственник) и когда открыл доступ."""
+        if access == "granted":
+            await self._exec(
+                "UPDATE user_addresses SET access=?, granted_by=COALESCE(?, granted_by), granted_at=? "
+                "WHERE user_id=? AND address_id=?", (access, by, _now(), user_id, address_id))
+            return
         await self._exec(
             "UPDATE user_addresses SET access=? WHERE user_id=? AND address_id=?",
             (access, user_id, address_id),
@@ -360,12 +399,14 @@ class Repo:
 
     async def user_meters(self, user_id: int, only_granted: bool = True) -> list[Row]:
         """Счётчики на адресах пользователя: поля meters + address_label (короткий), address_full, role, access
-        + последнее показание: last_id, last_period, last_t1..t3, last_source, last_status, last_created_at."""
+        + последнее показание: last_id, last_period, last_t1..t3, last_source, last_status, last_created_at,
+        last_user_id и last_by_name (кто подал; NULL — удалил свои данные)."""
         where = "AND ua.access='granted'" if only_granted else ""
         return await self._all(
             "SELECT m.*, ua.label AS address_label, a.full_text AS address_full, ua.role, ua.access, "
             "r.id AS last_id, r.period AS last_period, r.t1 AS last_t1, r.t2 AS last_t2, r.t3 AS last_t3, "
-            "r.source AS last_source, r.status AS last_status, r.created_at AS last_created_at "
+            "r.source AS last_source, r.status AS last_status, r.created_at AS last_created_at, "
+            "r.user_id AS last_user_id, (SELECT full_name FROM users WHERE id=r.user_id) AS last_by_name "
             "FROM meters m JOIN user_addresses ua ON ua.address_id=m.address_id AND ua.user_id=? "
             "JOIN addresses a ON a.id=m.address_id "
             "LEFT JOIN readings r ON r.id=(SELECT id FROM readings WHERE meter_id=m.id "
@@ -399,9 +440,10 @@ class Repo:
         )
 
     async def history(self, meter_id: int, limit: int = 12) -> list[Row]:
+        """Действующие показания, новые первыми; by_name — ФИО подавшего (NULL — удалил свои данные)."""
         return await self._all(
-            "SELECT * FROM readings WHERE meter_id=? AND status!='replaced' "
-            "ORDER BY period DESC, id DESC LIMIT ?",
+            "SELECT r.*, u.full_name AS by_name FROM readings r LEFT JOIN users u ON u.id=r.user_id "
+            "WHERE r.meter_id=? AND r.status!='replaced' ORDER BY r.period DESC, r.id DESC LIMIT ?",
             (meter_id, limit),
         )
 
@@ -569,62 +611,112 @@ class Repo:
             )
             return True
 
-    # --- Приглашения жильцов и список доступа ---
+    # --- Поделиться доступом: люди с доступом к адресу, приглашения ---
 
     async def address_members(self, address_id: int) -> list[Row]:
-        """Все привязанные к адресу, кроме собственника: user_id, full_name, access — по дате привязки."""
+        """Все привязанные к адресу, кроме собственника, по дате привязки: user_id, full_name, max_user_id, access,
+        since (когда открыт доступ или привязан адрес), last_at / last_period — последнее их показание по адресу."""
+        last = ("(SELECT r.{col} FROM readings r JOIN meters m ON m.id=r.meter_id WHERE m.address_id=ua.address_id "
+                "AND r.user_id=ua.user_id AND r.status!='replaced' ORDER BY {order} LIMIT 1)")
         return await self._all(
-            "SELECT u.id AS user_id, u.full_name, ua.access FROM user_addresses ua JOIN users u ON u.id=ua.user_id "
+            "SELECT u.id AS user_id, u.full_name, u.max_user_id, ua.access, "
+            "COALESCE(ua.granted_at, ua.created_at) AS since, "
+            f"{last.format(col='created_at', order='r.created_at DESC, r.id DESC')} AS last_at, "
+            f"{last.format(col='period', order='r.period DESC')} AS last_period "
+            "FROM user_addresses ua JOIN users u ON u.id=ua.user_id "
             "WHERE ua.address_id=? AND ua.role!='owner' ORDER BY ua.created_at, u.id",
             (address_id,),
         )
 
-    async def active_invites(self, address_id: int, now: datetime) -> list[Row]:
-        """Действующие (не использованы и не истекли) приглашения адреса, старые первыми."""
-        return await self._all(
-            "SELECT * FROM invites WHERE address_id=? AND used_at IS NULL AND expires_at>? ORDER BY created_at",
-            (address_id, ts(now)),
-        )
-
-    async def create_invite(self, token: str, address_id: int, owner_user_id: int, now: datetime,
-                            expires_at: datetime, limit: int) -> bool:
-        """Новое приглашение; False — у адреса уже `limit` действующих."""
-        async with self.tx():
-            if len(await self.active_invites(address_id, now)) >= limit:
-                return False
-            await self._exec(
-                "INSERT INTO invites(token, address_id, owner_user_id, created_at, expires_at) VALUES(?, ?, ?, ?, ?)",
-                (token, address_id, owner_user_id, ts(now), ts(expires_at)),
-            )
-            return True
+    async def _with_addresses(self, inv: Row | None) -> Row | None:
+        """Приглашение + address_ids."""
+        if inv is None:
+            return None
+        rows = await self._all("SELECT address_id FROM invite_addresses WHERE invite_id=? ORDER BY address_id",
+                               (inv["id"],))
+        return {**inv, "address_ids": [r["address_id"] for r in rows]}
 
     async def get_invite(self, token: str) -> Row | None:
-        return await self._one("SELECT * FROM invites WHERE token=?", (token,))
+        return await self._with_addresses(await self._one("SELECT * FROM invites WHERE token=?", (token,)))
 
-    async def use_invite(self, token: str, user_id: int, now: datetime) -> int | None:
-        """Принять приглашение одной транзакцией: отметить использованным и открыть доступ
-        (нет связи с адресом — tenant/granted, есть — access=granted). → address_id или None,
-        если приглашение не действует или пользователь — собственник этого адреса."""
+    async def get_invite_by_id(self, invite_id: int) -> Row | None:
+        return await self._with_addresses(await self._one("SELECT * FROM invites WHERE id=?", (invite_id,)))
+
+    async def owner_invites(self, owner_id: int, now: datetime) -> list[Row]:
+        """Действующие приглашения собственника (не приняты, не отменены, не истекли), старые первыми."""
+        rows = await self._all(
+            "SELECT * FROM invites WHERE owner_user_id=? AND used_at IS NULL AND cancelled_at IS NULL "
+            "AND expires_at>? ORDER BY created_at, id", (owner_id, ts(now)))
+        return [await self._with_addresses(r) for r in rows]
+
+    async def create_invite(self, token: str, owner_id: int, address_ids: Sequence[int], now: datetime,
+                            expires_at: datetime, limit: int) -> int | None:
+        """Приглашение на адреса собственника → id; None — у собственника уже `limit` действующих.
+        Не свой адрес — ValueError (права проверяет вызывающий, здесь — страховка)."""
+        async with self.tx():
+            if len(await self.owner_invites(owner_id, now)) >= limit:
+                return None
+            for aid in address_ids:
+                ua = await self.user_address(owner_id, aid)
+                if ua is None or ua["role"] != "owner":
+                    raise ValueError(f"address {aid} is not owned by user {owner_id}")
+            cur = await self._exec(
+                "INSERT INTO invites(token, owner_user_id, created_at, expires_at) VALUES(?, ?, ?, ?)",
+                (token, owner_id, ts(now), ts(expires_at)))
+            for aid in dict.fromkeys(address_ids):
+                await self._exec("INSERT INTO invite_addresses(invite_id, address_id) VALUES(?, ?)",
+                                 (cur.lastrowid, aid))
+            return cur.lastrowid
+
+    async def cancel_invite(self, invite_id: int, now: datetime) -> None:
+        await self._exec("UPDATE invites SET cancelled_at=? WHERE id=? AND cancelled_at IS NULL AND used_at IS NULL",
+                         (ts(now), invite_id))
+
+    async def use_invite(self, token: str, user_id: int, now: datetime) -> Row | None:
+        """Принять приглашение одной транзакцией: доступ granted ко всем его адресам (нет связи — tenant,
+        pending/denied — granted; granted_by — собственник). Свой адрес ('own'), уже открытый ('has') и адрес,
+        который больше не принадлежит пригласившему ('gone'), пропускаем. Приглашение тратится, только если
+        что-то открыли. → {granted, own, has, gone: [address_id]} или None — приглашение не действует."""
         async with self.tx():
             inv = await self.get_invite(token)
-            if inv is None or inv["used_at"] or inv["expires_at"] <= ts(now):
+            if inv is None or inv["used_at"] or inv["cancelled_at"] or inv["expires_at"] <= ts(now):
                 return None
-            aid = inv["address_id"]
-            ua = await self.user_address(user_id, aid)
-            if ua and ua["role"] == "owner":
-                return None
-            await self._exec("UPDATE invites SET used_by=?, used_at=? WHERE token=?", (user_id, ts(now), token))
-            if ua:
-                await self.set_access(user_id, aid, "granted")
-            else:
-                await self._exec(
-                    "INSERT INTO user_addresses(user_id, address_id, role, access, label, created_at) "
-                    "VALUES(?, ?, 'tenant', 'granted', '', ?)",
-                    (user_id, aid, _now()),
-                )
-                await self.ensure_demo_bill(aid, now.date())
+            out: Row = {"granted": [], "own": [], "has": [], "gone": []}
+            for aid in inv["address_ids"]:
+                owner = await self.address_owner(aid)
+                ua = await self.user_address(user_id, aid)
+                if ua and ua["role"] == "owner":
+                    out["own"].append(aid)
+                elif owner is None or owner["id"] != inv["owner_user_id"]:
+                    out["gone"].append(aid)
+                elif ua and ua["access"] == "granted":
+                    out["has"].append(aid)
+                else:
+                    if ua:
+                        await self.set_access(user_id, aid, "granted", by=inv["owner_user_id"])
+                    else:
+                        await self._exec(
+                            "INSERT INTO user_addresses(user_id, address_id, role, access, label, created_at, "
+                            "granted_by, granted_at) VALUES(?, ?, 'tenant', 'granted', '', ?, ?, ?)",
+                            (user_id, aid, _now(), inv["owner_user_id"], _now()))
+                        await self.ensure_demo_bill(aid, now.date())
+                    out["granted"].append(aid)
+            if out["granted"]:
+                await self._exec("UPDATE invites SET used_by=?, used_at=? WHERE id=?", (user_id, ts(now), inv["id"]))
                 await self.relabel(user_id)
-            return aid
+            return out
+
+    async def remove_address(self, user_id: int, address_id: int) -> Row | None:
+        """«Убрать у себя»: удалить связь не-собственника с адресом (показания остаются за адресом).
+        → удалённая строка (как user_address) или None — связи нет или это собственник."""
+        async with self.tx():
+            ua = await self.user_address(user_id, address_id)
+            if ua is None or ua["role"] == "owner":
+                return None
+            await self._exec("DELETE FROM user_addresses WHERE user_id=? AND address_id=?", (user_id, address_id))
+            await self.relabel(user_id)
+            await self.drop_orphan_demo_people()
+            return ua
 
     # === S2 (submission) ===
 
@@ -724,6 +816,29 @@ class Repo:
             "SELECT 1 FROM user_addresses ua JOIN addresses a ON a.id=ua.address_id "
             "WHERE ua.user_id=? AND a.norm_key LIKE ? LIMIT 1", (user_id, HACKATHON_DEMO_KEY + "%"))
         return row is not None
+
+    async def create_demo_person(self, full_name: str, phone: str, max_user_id: int) -> Row:
+        """Демо-человек демо-профиля (жилец или собственник общего адреса): max_user_id < 0 — аккаунта MAX нет,
+        registered_at NULL — планировщик его не видит. Занятый max_user_id → берём следующий."""
+        assert max_user_id < DEMO_PERSON_MAX_ID
+        async with self.tx():
+            while await self.get_user(max_user_id):
+                max_user_id -= 1
+            await self._exec("INSERT INTO users(max_user_id, full_name, phone, created_at) VALUES(?, ?, ?, ?)",
+                             (max_user_id, full_name, phone, _now()))
+            return await self.get_user(max_user_id)
+
+    async def drop_orphan_demo_people(self) -> int:
+        """Удаляет демо-людей, с которыми не осталось ни одного реального пользователя по общим адресам
+        (демо-профиль удалён или общий демо-адрес убран у себя). Показания остаются за адресом. → сколько удалили."""
+        rows = await self._all(
+            "SELECT u.id FROM users u WHERE u.max_user_id<? AND NOT EXISTS (SELECT 1 FROM user_addresses d "
+            "JOIN user_addresses r ON r.address_id=d.address_id JOIN users ru ON ru.id=r.user_id "
+            "WHERE d.user_id=u.id AND ru.max_user_id>?)", (DEMO_PERSON_MAX_ID, DEMO_PERSON_MAX_ID))
+        for r in rows:
+            for sql in ("DELETE FROM user_addresses WHERE user_id=?", "DELETE FROM users WHERE id=?"):
+                await self._exec(sql, (r["id"],))
+        return len(rows)
 
     async def backdate_reading(self, reading_id: int, created_at: datetime) -> None:
         """Сгенерированной истории показаний ставим дату подачи в её месяце, а не «сейчас»."""
