@@ -44,15 +44,15 @@ async def test_screenshot_blurry_2168_fails_with_reasons_then_manual_asks_serial
     await chat.text("2168")
     assert (await state(repo)).state == S.SUB_SERIAL_INPUT  # номер обязателен и без фото
     await chat.text("ГОСТ 31818")
-    assert api.last_text().startswith("Это не похоже на серийный номер")
+    assert api.last_text().startswith(T.SERIAL_ERRORS["not_serial"].split("{")[0])
     await chat.text("12")
-    assert api.last_text().startswith("Слишком короткий номер — в нём обычно от 8 до 16 цифр")
+    assert api.last_text().startswith(T.SERIAL_ERRORS["too_short"].split("{")[0])
     await chat.text("01234567")
     review = api.last_text()
     assert "Показание: **2168 кВт·ч**" in review and ",00" not in review
-    assert "Серийный номер: **01234567** — сохраним" in review
+    assert T.SERIAL_NEW.format(serial="01234567") in review
     await chat.press(T.BTN_SEND)
-    assert "за **октябрь**.\nЭлектричество · Арбат 47к1, кв 32\n**2168 кВт·ч**" in api.last_text()
+    assert T.DONE.format(month="октябрь", meter="Электричество · Арбат 47к1, кв 32", value="2168 кВт·ч") in api.last_text()
     assert (await readings(repo, mid))[-1]["t1"] == 2_168_000
     assert (await repo.get_meter(mid))["serial"] == "01234567"
 
@@ -67,7 +67,7 @@ async def test_old_container_answer_honest_warning_and_serial_required(chat, api
     assert await readings(repo, mid) == []  # к «Отправить» без номера не пускаем
     await chat.text("01234567")  # номер можно написать сразу, без кнопки
     review = api.last_text()
-    assert review.startswith(f"{LIGHT}\n\nПоказание: **2168 кВт·ч**\nСерийный номер: **01234567** — сохраним")
+    assert review.startswith(f"{LIGHT}\n\nПоказание: **2168 кВт·ч**\n" + T.SERIAL_NEW.format(serial="01234567"))
     assert T.REVIEW_WARN["few_digits"].format(typical="обычно 5–6") in review
     assert T.CHECK_DIGITS not in review and ",00" not in review
     await chat.press(T.BTN_SEND)
@@ -88,7 +88,7 @@ async def test_serial_missing_retake_and_back(chat, api, repo, deps, user):
                                "fraction_digits": "5", "serial_number": "01234567"})
     await chat.photo("https://i/retake")  # счётчик запомнен — новое фото сразу распознаём
     review = api.last_text()
-    assert "Показание: **12168,5 кВт·ч**" in review and "Серийный номер: **01234567** — сохраним" in review
+    assert "Показание: **12168,5 кВт·ч**" in review and T.SERIAL_NEW.format(serial="01234567") in review
 
 
 async def test_saved_serial_not_on_photo_warns_but_continues(chat, api, repo, deps, user):
@@ -100,7 +100,7 @@ async def test_saved_serial_not_on_photo_warns_but_continues(chat, api, repo, de
     assert (await state(repo)).state == S.SUB_REVIEW
     assert "Показание: **2168,4 кВт·ч**" in review
     assert T.REVIEW_WARN["blurry"] in review and T.CHECK_DIGITS not in review
-    assert "Номер на фото не виден — убедитесь, что это счётчик с номером 011234567890." in review
+    assert T.SERIAL_NOT_ON_PHOTO.format(serial="011234567890") in review
     assert buttons(api)[0] == T.BTN_SEND
 
 
@@ -124,8 +124,9 @@ async def test_clear_answer_keeps_previous_screen(chat, api, repo, deps, user):
                                "fraction_digits": "456", "serial_number": "18-123456", "confidence": 0.95,
                                "readable": True, "issues": []})
     await to_review(chat, COLD)
-    assert api.last_text() == (f"{COLD}\n\nПоказание: **123,456 м³**\nСерийный номер: **18-123456** — совпадает"
-                               f"\n\n{T.REVIEW_QUESTION}")
+    assert api.last_text() == (f"{COLD}\n\nПоказание: **123,456 м³**\n"
+                               + T.SERIAL_MATCH.format(serial="18-123456")
+                               + f"\n\n{T.REVIEW_QUESTION}")
     assert buttons(api) == [T.BTN_SEND, T.BTN_EDIT, T.BTN_RETAKE, C.BTN_CANCEL]
     await chat.press(C.BTN_CANCEL)
     await meter(repo, user, "electricity", serial="01234567")

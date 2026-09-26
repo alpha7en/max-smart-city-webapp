@@ -132,15 +132,6 @@
     });
   }
 
-  // Нижний лист со списком вариантов (выбор адреса).
-  function listSheet(title, rows) {
-    closeDialog();
-    dlgDone = closeDialog;
-    dlg = h('div', { class: 'dlg', role: 'dialog', 'aria-modal': 'true', 'aria-label': title, onclick: e => { if (e.target === dlg) closeDialog(); } },
-      h('div', { class: 'sheet ls' }, h('h2', {}, title), h('div', { class: 'opts' }, rows)));
-    document.body.append(dlg);
-  }
-
   // ---------- API ----------
   const CODE_MSG = {
     no_access: 'Нет доступа к этому адресу. Попросите собственника открыть доступ в боте.',
@@ -281,8 +272,20 @@
   if (nativeBack) { try { W.BackButton.onClick(back); } catch (e) { /* ignore */ } }
   $back.addEventListener('click', back);
 
+  // Начали вводить показание — MAX переспросит, прежде чем закрыть окно (enableClosingConfirmation).
+  let guarded = false;
+  function guardClose(on) {
+    if (on === guarded) return;
+    guarded = on;
+    try { if (W) W[on ? 'enableClosingConfirmation' : 'disableClosingConfirmation'](); } catch (e) { /* старый клиент */ }
+  }
+  $view.addEventListener('input', () => {
+    const cur = stack[stack.length - 1];
+    guardClose(!!cur && cur.name === 'submit' && Array.from($view.querySelectorAll('input')).some(i => i.type !== 'file' && i.value.trim()));
+  });
+
   function render() {
-    renderId++; closeDialog(); syncBack(); window.scrollTo(0, 0);
+    renderId++; closeDialog(); guardClose(false); syncBack(); window.scrollTo(0, 0);
     const cur = stack[stack.length - 1];
     SCREENS[cur.name](cur.params);
   }
@@ -472,25 +475,29 @@
     const cur = g.find(a => aKey(a) === key);
     const label = cur ? cur.label : g.length > 1 ? 'Все адреса' : (g[0] || list[0]).label;
     if (list.length < 2) return void ($title.textContent = label);
-    $title.replaceChildren(h('button', { class: 'addr', type: 'button', 'aria-haspopup': 'dialog', onclick: () => addrSheet(d) },
+    $title.replaceChildren(h('button', { class: 'addr', type: 'button', onclick: () => go('addr') },
       h('span', {}, label), icon('down', 22)));
   }
-  function addrSheet(d) {
-    const g = grantedAddrs(d), key = curAddr(d), ms = d.meters || [];
+  // Выбор адреса и доступ — отдельные экраны, а не шторки: так советует гайдлайн MAX
+  // (шторка спорит со свайпом, который закрывает всё мини-приложение), и работает системная кнопка «Назад».
+  function optScreen(title, rows) { setScreen(title, h('div', { class: 'card opts choose' }, rows)); }
+  function screenAddr() {
+    if (!me) return toHome();
+    const d = me, g = grantedAddrs(d), key = curAddr(d), ms = d.meters || [];
     const stat = list => {
       if (!list.length) return 'счётчиков пока нет';
       const left = list.filter(m => !m.submitted_this_period).length;
       return list.length + ' ' + plural(list.length, METER_WORDS) + (left ? ', не подано ' + left : ', всё подано');
     };
-    const pick = k => () => { closeDialog(); setAddr(k); drawHome(d); };
+    const pick = k => () => { setAddr(k); toHome(); };
     const opt = (ic, tone, title, sub, on, onclick) => h('button', { class: 'opt' + (on ? ' on' : ''), type: 'button', 'aria-pressed': String(!!on), onclick },
       ibox(ic, tone, 18), h('span', { class: 'grow' }, h('b', {}, title), sub && h('small', {}, sub)), on && icon('check', 20));
-    listSheet('Адрес', [
+    optScreen('Адрес', [
       g.length > 1 && opt('home', 'accent', 'Все адреса', stat(ms), !key, pick('')),
-      g.map(a => opt('home', 'accent', a.label, stat(ms.filter(m => mKey(m) === aKey(a))), g.length < 2 || aKey(a) === key, g.length > 1 ? pick(aKey(a)) : closeDialog)),
+      g.map(a => opt('home', 'accent', a.label, stat(ms.filter(m => mKey(m) === aKey(a))), g.length < 2 || aKey(a) === key, g.length > 1 ? pick(aKey(a)) : back)),
       addrList(d).filter(a => a.access !== 'granted').map(a => opt('clock', a.access === 'pending' ? 'warn' : 'bad', a.label,
-        a.access === 'pending' ? 'ждёт одобрения собственника' : 'собственник не открыл доступ', false, () => go('profile'))),
-      h('button', { class: 'opt add', type: 'button', onclick: () => { closeDialog(); openChat('add_address'); } },
+        a.access === 'pending' ? 'ждёт одобрения собственника' : 'собственник не открыл доступ', false, () => go('profile', {}, true))),
+      h('button', { class: 'opt add', type: 'button', onclick: () => openChat('add_address') },
         ibox('plus', 'accent', 18), h('span', { class: 'grow' }, h('b', {}, 'Добавить адрес'), h('small', {}, 'в чате с ботом'))),
     ]);
   }
@@ -518,7 +525,7 @@
         return h('div', { class: 'arow' }, ibox('home', r[1] === 'ok' ? 'accent' : r[1], 18),
           h('span', { class: 'grow' }, h('b', {}, a.label),
             (a.full_text || a.verified === false) && h('small', {}, [a.full_text, a.verified === false && 'не сверен с ФИАС'].filter(Boolean).join(' · ')),
-            a.role === 'owner' && Array.isArray(a.members) && h('button', { class: 'link acc', type: 'button', 'aria-haspopup': 'dialog', onclick: () => accessSheet(a) }, accessLine(a.members) + ' ›')),
+            a.role === 'owner' && Array.isArray(a.members) && h('button', { class: 'link acc', type: 'button', onclick: () => go('access', { id: aKey(a) }) }, accessLine(a.members) + ' ›')),
           h('span', { class: 'pill t-' + r[1] }, r[0]));
       })),
       waiting && h('div', { class: 'note t-warn' }, icon('clock', 18),
@@ -536,17 +543,21 @@
     const n = ms.filter(m => m.access !== 'denied').length;  // статусы — в листе
     return n ? 'Доступ: ' + n + ' ' + plural(n, PEOPLE_WORDS) : 'Только вы';
   }
-  function accessSheet(a) {
+  function screenAccess(p) {
+    const a = addrList(me).find(x => aKey(x) === p.id);
+    if (!a) return toHome();
     const ms = a.members || [];
-    listSheet('Доступ · ' + a.label, [
+    optScreen('Доступ', [
       ms.length ? ms.map(m => {
         const st = MEMBER_STATUS[m.access] || MEMBER_STATUS.pending;
         return h('div', { class: 'opt' }, ibox('user', st[1], 18), h('span', { class: 'grow' }, h('b', {}, m.name_short), h('small', {}, st[0])));
       }) : h('div', { class: 'opt' }, ibox('user', 'accent', 18), h('span', { class: 'grow' }, h('b', {}, 'Только вы'), h('small', {}, 'пригласите того, кто тоже передаёт показания'))),
-      h('button', { class: 'opt add', type: 'button', onclick: () => { closeDialog(); openChat('inv_new_' + a.id); } },
+      h('button', { class: 'opt add', type: 'button', onclick: () => openChat('inv_new_' + a.id) },
         ibox('plus', 'accent', 18), h('span', { class: 'grow' }, h('b', {}, 'Пригласить жильца'), h('small', {}, 'бот пришлёт ссылку в чат'))),
-      ms.length > 0 && h('button', { class: 'link acc-chat', type: 'button', onclick: () => { closeDialog(); openChat('inv_acc_' + a.id); } }, 'Отозвать доступ — в чате'),
+      ms.length > 0 && h('button', { class: 'link acc-chat', type: 'button', onclick: () => openChat('inv_acc_' + a.id) }, 'Отозвать доступ — в чате'),
     ]);
+    $eb.hidden = false;
+    $eb.textContent = a.label;
   }
 
   // ---------- экран: подать показания ----------
@@ -846,7 +857,7 @@
     }
   }
 
-  const SCREENS = { home: screenHome, submit: screenSubmit, result: screenResult, meter: screenMeter, profile: screenProfile };
+  const SCREENS = { home: screenHome, submit: screenSubmit, result: screenResult, meter: screenMeter, profile: screenProfile, addr: screenAddr, access: screenAccess };
   $ava.addEventListener('click', () => go('profile'));
 
   // ---------- старт ----------

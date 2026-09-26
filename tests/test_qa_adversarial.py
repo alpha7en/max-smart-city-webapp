@@ -910,10 +910,10 @@ async def test_many_meters_pick_keyboard(chat, api, repo):
     await chat.photo("https://i.oneme.ru/i?r=many")
     assert C.ERROR not in api.texts()
     assert (await sess(repo)).state == S.SUB_PICK_METER
-    assert "Показали 1–20 из 30." in api.last_text()
+    assert T.PAGE_NOTE.format(start=1, end=20, total=30) in api.last_text()
     assert T.BTN_PAGE_NEXT in kb_labels(api) and T.BTN_NEW_METER in kb_labels(api)
     await chat.press(T.BTN_PAGE_NEXT)
-    assert "Показали 21–30 из 30." in api.last_text()
+    assert T.PAGE_NOTE.format(start=21, end=30, total=30) in api.last_text()
     labels = kb_labels(api)
     assert T.BTN_PAGE_FIRST in labels and sum(COLD in x for x in labels) == 10
     await chat.press(labels[0])                 # счётчик со второй страницы

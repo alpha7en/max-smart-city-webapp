@@ -90,7 +90,7 @@ async def test_r1_first_message_welcome_then_name(chat, api, repo):
     assert api.texts() == [C.WELCOME, RT.ASK_NAME]
     assert "сфотографировать счётчик" in C.WELCOME and "персональных данных" in RT.ASK_NAME
     assert (await session(repo)).state == S.REG_NAME
-    assert labels(last_kb(api)) == ["Это я: Анна Иванова"]
+    assert labels(last_kb(api)) == [RT.BTN_ITS_ME.format(name="Анна Иванова")]
 
 
 @pytest.mark.parametrize("payload", [None, "meter_12"])
@@ -105,7 +105,7 @@ async def test_r3_name_title_case_then_phone(chat, api, repo):
     await chat.text("иванова  анна сергеевна")
     s = await session(repo)
     assert s.state == S.REG_PHONE and s.data["reg"]["name"] == "Иванова Анна Сергеевна"
-    assert api.last_text().startswith("Приятно познакомиться, Анна!")
+    assert api.last_text() == RT.ASK_PHONE.format(name="Анна")
     kb = buttons(last_kb(api))
     assert (kb[0]["type"], kb[0]["text"]) == ("request_contact", RT.BTN_SHARE_PHONE)
     assert kb[-1]["text"] == C.BTN_BACK and kb[-1]["type"] == "callback"
@@ -120,12 +120,12 @@ async def test_r4_name_errors(chat, api, repo, text, error):
     await chat.text(text)
     assert api.last_text() == RT.NAME_ERRORS[error]
     assert (await session(repo)).state == S.REG_NAME
-    assert labels(last_kb(api)) == ["Это я: Анна Иванова"]  # не тупик: кнопка шага на месте
+    assert labels(last_kb(api)) == [RT.BTN_ITS_ME.format(name="Анна Иванова")]  # не тупик: кнопка шага на месте
 
 
 async def test_r5_its_me_only_for_valid_profile_name(chat, api, repo):
     await chat.text("привет")
-    await chat.press("Это я: Анна Иванова")
+    await chat.press(RT.BTN_ITS_ME.format(name="Анна Иванова"))
     s = await session(repo)
     assert s.state == S.REG_PHONE and s.data["reg"]["name"] == "Иванова Анна"
 
@@ -212,7 +212,7 @@ async def _at_address(chat):
 async def test_r9_one_candidate_with_flat_to_confirm(chat, api, repo):
     await _at_address(chat)
     await chat.text(ADDRESS)
-    assert api.last_text().startswith("Мы поняли так:\nг. Москва, Арбат, д. 47, корп. 1, кв. 32")
+    assert api.last_text().startswith(RT.ADDRESS_ONE.split("\n")[0]) and "Арбат, д. 47" in api.last_text()
     assert labels(last_kb(api)) == [RT.BTN_YES, RT.BTN_NO_OTHER, C.BTN_BACK]
     assert (await session(repo)).state == S.REG_ADDRESS_PICK
     await chat.press(RT.BTN_YES)
@@ -273,21 +273,21 @@ async def test_r11_several_candidates(chat, api, repo, deps):
     await chat.text("500")
     text = api.last_text()
     assert RT.FLAT_WARNING.format(flats="40 квартир") in text and RT.LOCAL_NOTE not in text
-    assert text.startswith("Проверьте, всё ли верно:") and text.endswith(RT.FLAT_WARNING.format(flats="40 квартир"))
+    assert text.startswith(RT.CONFIRM.split("\n")[0]) and text.endswith(RT.FLAT_WARNING.format(flats="40 квартир"))
 
 
 async def test_r11_house_match_picks_single(chat, api, repo, deps):
     deps.addresses = FakeAddresses([dadata("ул Ленина", "5"), dadata("ул Ленина", "7")])
     await _at_address(chat)
     await chat.text("Москва, Ленина 7, кв 3")
-    assert api.last_text().startswith("Мы поняли так:\nг. Москва, ул. Ленина, д. 7")
+    assert api.last_text().startswith(RT.ADDRESS_ONE.split("\n")[0]) and "Ленина, д. 7" in api.last_text()
 
 
 async def test_r12_not_found_save_as_is(chat, api, repo, deps):
     deps.addresses = FakeAddresses([])
     await _at_address(chat)
     await chat.text(ADDRESS)
-    assert api.last_text().startswith("Не нашли такой адрес в справочнике ФИАС")
+    assert api.last_text().startswith(RT.ADDRESS_NOT_FOUND_ASIS.split("\n")[0])
     assert labels(last_kb(api)) == [RT.BTN_ASIS, RT.BTN_FIX, C.BTN_BACK]
     await chat.press(RT.BTN_FIX)
     assert api.last_text() == RT.ADDRESS_RETRY
@@ -312,17 +312,17 @@ async def test_r13_local_address_marked_once(chat, api):
     await chat.text(ADDRESS)
     assert api.last_text().endswith(f"Верно?\n\n> {RT.LOCAL_NOTE}")  # демо-оговорка — последней цитатой
     await chat.press(RT.BTN_YES)
-    assert api.last_text().startswith("Проверьте, всё ли верно:") and "ФИАС" not in api.last_text()
+    assert api.last_text().startswith(RT.CONFIRM.split("\n")[0]) and "ФИАС" not in api.last_text()
     await chat.press(RT.BTN_ALL_OK)
     saved = api.named("answer")[-1]["message"]["text"]
-    assert saved.startswith("Записали:") and "ФИАС" not in saved
+    assert saved.startswith(RT.SAVED.split("\n")[0]) and "ФИАС" not in saved
 
 
 async def test_r14_text_on_pick_is_new_search(chat, api, repo):
     await _at_address(chat)
     await chat.text(ADDRESS)
     await chat.text("Москва, Арбат 10, кв 5")
-    assert api.last_text().startswith("Мы поняли так:\nг. Москва, Арбат, д. 10, кв. 5")
+    assert api.last_text().startswith(RT.ADDRESS_ONE.split("\n")[0]) and "Арбат, д. 10" in api.last_text()
     await chat.text("да")
     assert (await session(repo)).data["reg"]["address"]["house"] == "10"
 
@@ -368,7 +368,7 @@ async def test_r16_all_ok_registers(chat, api, repo):
     assert len(await repo.unpaid_bills(user["id"])) == 1
     assert (await session(repo)).state == S.IDLE
     ans = api.named("answer")[0]["message"]
-    assert ans["text"].startswith("Записали:") and ans["attachments"] == []  # сводка без кнопок
+    assert ans["text"].startswith(RT.SAVED.split("\n")[0]) and ans["attachments"] == []  # сводка без кнопок
     assert api.last_text().startswith(RT.DONE)
 
 
@@ -409,7 +409,7 @@ async def test_r19_start_in_phone_then_restart_keeps_photo(chat, api, repo):
     pid = (await session(repo)).data["pending_photo_id"]
     api.clear()
     await chat.text("/start")
-    assert api.texts()[0] == C.CONTINUE_REG and api.texts()[1].startswith("Приятно познакомиться")
+    assert api.texts()[0] == C.CONTINUE_REG and api.texts()[1].startswith(RT.ASK_PHONE[:20])
     await chat.press(C.BTN_RESTART)
     s = await session(repo)
     assert s.state == S.REG_NAME and not s.data.get("reg") and s.data["pending_photo_id"] == pid
@@ -502,7 +502,7 @@ async def test_r23_global_button_in_registration(chat, api, repo):
     api.clear()
     await chat.payload("g|menu|")
     assert api.named("answer")[0]["notification"] == C.FINISH_REG_FIRST
-    assert api.last_text().startswith("Приятно познакомиться")
+    assert api.last_text().startswith(RT.ASK_PHONE[:20])
     assert (await session(repo)).state == S.REG_PHONE
 
 

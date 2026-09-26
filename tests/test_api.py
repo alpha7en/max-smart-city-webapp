@@ -14,6 +14,8 @@ from fastapi.testclient import TestClient
 
 import app.main as main
 from app import clock
+from app.bot.texts import common as C
+from app.bot.texts import menu as MT
 from app.bot.texts import submission as TS
 from app.domain.addresses import AddressCandidate, norm_key
 from app.integrations.recognizer import Recognition
@@ -221,7 +223,7 @@ def test_a3_dashboard_verification_urgent(client):
     dash = client.get("/api/me", headers=auth()).json()["dashboard"]
     assert dash["verification"] == {"meter_id": m, "meter_label": f"Хол. вода · {u['label']}", "type": "cold_water",
                                     "due": "2026-11-02", "days_left": 14}
-    assert dash["urgent"] == {"kind": "verification", "text": "Запишитесь на поверку: 14 дней", "days_left": 14}
+    assert dash["urgent"] == {"kind": "verification", "text": MT.URGENT_VERIFICATION.format(n="14 дней"), "days_left": 14}
 
 
 # --- A4: /api/meters/{id} ---
@@ -311,7 +313,7 @@ def test_a5_submit_success_and_chat_message(client, api):
     assert msg["chat_id"] == fakes.chat_of(UID)
     assert "мини-приложения" in msg["text"] and "123,456 м³" in msg["text"] and "смоделирована" in msg["text"]
     buttons = [b for row_ in msg["keyboard"]["payload"]["buttons"] for b in row_]
-    assert [b["text"] for b in buttons] == ["Подать ещё", "В меню"]
+    assert [b["text"] for b in buttons] == [TS.BTN_MORE, C.BTN_MENU]
     assert all(b["payload"].startswith("g|") for b in buttons)
     me = client.get("/api/me", headers=auth()).json()
     assert me["meters"][0]["submitted_this_period"] is True
@@ -447,7 +449,7 @@ def test_a6_wrong_serial_in_miniapp_does_not_touch_meter(client, monkeypatch):
     mid = add_meter(client, u["address_id"])  # серийник 18-123456
     d = recognize_with(client, monkeypatch, mid, confidence=0.9, values={"t1": 1000}, serial="18-654321")
     assert d["serial_mismatch"] is True
-    assert d["serial_note"] == "Номер на фото — 18-654321, у счётчика — 18-123456. Проверьте, тот ли счётчик выбран."
+    assert d["serial_note"] == TS.API_SERIAL_MISMATCH.format(photo="18-654321", saved="18-123456")
     d = recognize_with(client, monkeypatch, mid, confidence=0.9, values={"t1": 1000}, serial="18 123 456")
     assert (d["serial_mismatch"], d["serial_note"]) == (False, None)
     assert post(client, mid, values={"t1": "1"}).status_code == 200
@@ -465,7 +467,7 @@ def test_a6_photo_quality_texts_and_serial(client, monkeypatch):
     with_serial = add_meter(client, u["address_id"], "gas", serial="1234567")
     d = recognize_with(client, monkeypatch, with_serial, confidence=0.9, values={"t1": 1000}, issues=["blurry"])
     assert d["serial_required"] is False and d["message"] == TS.REVIEW_WARN["blurry"]
-    assert d["serial_note"] == "Номер на фото не виден — убедитесь, что это счётчик с номером 1234567."
+    assert d["serial_note"] == TS.API_SERIAL_NOT_ON_PHOTO.format(serial="1234567")
 
 
 def test_a5_photo_reading_requires_serial_for_meter_without_it(client, api):
@@ -549,7 +551,7 @@ def test_recognize_serial_formatted_and_not_serial_dropped(client, monkeypatch):
     mid = add_meter(client, u["address_id"], serial="№ 18-123456")
     d = recognize_with(client, monkeypatch, mid, confidence=0.9, values={"t1": 1000}, serial="№ 18 - 654321")
     assert d["serial"] == "18-654321"
-    assert d["serial_note"] == "Номер на фото — 18-654321, у счётчика — 18-123456. Проверьте, тот ли счётчик выбран."
+    assert d["serial_note"] == TS.API_SERIAL_MISMATCH.format(photo="18-654321", saved="18-123456")
     d = recognize_with(client, monkeypatch, mid, confidence=0.9, values={"t1": 1000}, serial="ГОСТ 50193")
     assert (d["serial"], d["serial_mismatch"]) == (None, False)
     me = client.get("/api/me", headers=auth()).json()

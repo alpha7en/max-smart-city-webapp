@@ -84,7 +84,7 @@ async def test_i2_limit_three_active(owner, api, repo):
     assert len(await repo._all("SELECT * FROM invites")) == 3
     clock.set_now(NOW + timedelta(days=8))  # старые истекли — можно снова
     await owner.payload("g|inv_new|")
-    assert api.last_text().startswith("Перешлите сообщение выше")
+    assert api.last_text().startswith(IT.INVITE_CREATED.split("{")[0])
 
 
 # --- I3–I5: незарегистрированный по ссылке ---
@@ -95,11 +95,11 @@ async def test_i3_unregistered_registers_with_invite_address(owner, router, api,
     api.clear()
     await start(maria, "inv_" + token)
     first = api.texts()[0]
-    assert first.startswith("Вас пригласили передавать показания по адресу") and C.WELCOME in first
+    assert first.startswith(IT.REG_INVITED.split("{")[0]) and C.WELCOME in first
     assert (await session(repo, UID3)).data["invite"] == token
     await maria.text(MARIA)
     await maria.text("+7 900 555-11-22")
-    assert api.last_text().startswith("Адрес из приглашения:")
+    assert api.last_text().startswith(IT.ASK_INVITE_ADDRESS.split("\n")[0])
     assert labels(last_kb(api)) == [IT.BTN_THIS_ADDRESS, IT.BTN_OTHER_ADDRESS, C.BTN_BACK]
     await maria.press(IT.BTN_THIS_ADDRESS)
     assert (await session(repo, UID3)).state == S.REG_CONFIRM and "Арбат" in api.last_text()
@@ -146,7 +146,7 @@ async def test_i5_restart_and_repeated_link_keep_invite(owner, router, api, repo
     assert (await session(repo, UID3)).data["invite"] == token
     await maria.text(MARIA)
     await maria.text("+7 900 555-11-22")
-    assert api.last_text().startswith("Адрес из приглашения:")
+    assert api.last_text().startswith(IT.ASK_INVITE_ADDRESS.split("\n")[0])
     await maria.text("да")
     await maria.press(RT.BTN_ALL_OK)
     u = await repo.get_user(UID3)
@@ -256,8 +256,8 @@ async def test_i11_members_and_revoke_with_confirmation(owner, router, api, repo
     assert labels(last_kb(api))[2:4] == [IT.BTN_INVITE, IT.BTN_MANAGE]
     await owner.press(IT.BTN_MANAGE)
     assert "1. Пётр П. — есть доступ" in api.last_text()
-    assert labels(last_kb(api)) == ["Отозвать: Пётр П.", IT.BTN_INVITE, C.BTN_MENU]
-    await owner.press("Отозвать: Пётр П.")
+    assert labels(last_kb(api)) == [IT.BTN_REVOKE.format(name="Пётр П."), IT.BTN_INVITE, C.BTN_MENU]
+    await owner.press(IT.BTN_REVOKE.format(name="Пётр П."))
     assert api.last_text() == IT.REVOKE_ASK.format(name="Пётр П.", label="Арбат 47к1, кв 32")
     assert (await repo.user_address(tid, aid))["access"] == "granted"  # пока не подтвердили
     api.clear()
@@ -270,7 +270,7 @@ async def test_i11_members_and_revoke_with_confirmation(owner, router, api, repo
     assert api.last_text() == IT.REVOKE_ALREADY.format(name="Пётр П.")
     # отозванный больше не подаёт: «нет прав» с отказом
     await petr.payload(f"g|acc_req|{aid}")
-    assert api.last_text().startswith("Собственник не открыл вам доступ")
+    assert api.last_text().startswith(PT.NO_ACCESS_DENIED.split("{")[0])
     # новое приглашение возвращает доступ
     token = await make_invite(owner, api)
     await start(petr, "inv_" + token)
