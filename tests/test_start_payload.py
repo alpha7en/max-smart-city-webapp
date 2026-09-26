@@ -21,7 +21,7 @@ async def test_profile_payload_opens_profile(chat, api, repo):
     await register(chat)
     api.clear()
     await start(chat, "profile")
-    assert api.last_text().startswith("Ваш профиль") and "Иванова Анна Сергеевна" in api.last_text()
+    assert api.last_text().startswith(PT.PROFILE.split("\n")[0]) and "Иванова Анна Сергеевна" in api.last_text()
     assert (await session(repo)).state == S.IDLE
 
 
@@ -49,7 +49,7 @@ async def test_payload_cancels_running_scenario(chat, api, repo):
     await start(chat, "add_meter")
     assert (await session(repo)).state == S.SUB_NEW_TYPE
     await start(chat, "profile")
-    assert (await session(repo)).state == S.IDLE and api.last_text().startswith("Ваш профиль")
+    assert (await session(repo)).state == S.IDLE and api.last_text().startswith(PT.PROFILE.split("\n")[0])
 
 
 @pytest.mark.parametrize("payload", [None, "", "unknown", "g|profile|"])
@@ -58,7 +58,7 @@ async def test_unknown_or_empty_payload_shows_menu(chat, api, repo, payload):
     api.clear()
     await start(chat, payload)
     assert (await session(repo)).state == S.IDLE
-    assert not api.last_text().startswith("Ваш профиль")
+    assert not api.last_text().startswith(PT.PROFILE.split("\n")[0])
     assert MT.BTN_PROFILE in labels(last_kb(api))  # меню-дашборд
 
 

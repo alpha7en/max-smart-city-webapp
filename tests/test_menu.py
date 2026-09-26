@@ -12,6 +12,7 @@ from app.bot.session import load_session
 from app.bot.states import S
 from app.bot.texts import common as C
 from app.bot.texts import menu as T
+from app.bot.texts import registration as RT
 from app.db import ts
 from tests import fakes
 from tests.conftest import NOW
@@ -187,8 +188,8 @@ async def test_menu_header_note(chat, api, repo, monkeypatch):
     await make_user(repo)
 
     async def after_registration(ctx):
-        await menu.send_menu(ctx, header="Готово, вы зарегистрированы.")
+        await menu.send_menu(ctx, header=RT.DONE)
 
     monkeypatch.setitem(R.GLOBAL_ACTIONS, "menu", after_registration)
     await chat.payload("g|menu|")
-    assert api.last_text().startswith("Готово, вы зарегистрированы.\n\n" + T.NO_METERS)
+    assert api.last_text().startswith(f"{RT.DONE}\n\n" + T.NO_METERS)

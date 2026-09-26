@@ -46,13 +46,13 @@ def test_urgent_priority_verification_bill_submit():
     b = bill(7, today + timedelta(days=3))
     d = dash([m], [b], today=today)
     assert (d.urgent.kind, d.urgent.text, d.urgent.days_left, d.urgent.ref) == (
-        "verification", "Запишитесь на поверку: 10 дней", 10, 1)
+        "verification", T.URGENT_VERIFICATION.format(n="10 дней"), 10, 1)
     assert d.lines[0] == d.urgent.text  # срочное — первой строкой (мини-приложение его пропускает)
     d = dash([meter(1)], [b], today=today)
-    assert (d.urgent.kind, d.urgent.text, d.urgent.ref) == ("bill", "Оплатите счёт: 3 дня", 7)
+    assert (d.urgent.kind, d.urgent.text, d.urgent.ref) == ("bill", T.URGENT_BILL.format(n="3 дня"), 7)
     d = dash([meter(1)], today=today)
-    assert (d.urgent.kind, d.urgent.text) == ("submit", "Подайте показания: 2 дня")
-    assert d.urgent.to_dict() == {"kind": "submit", "text": "Подайте показания: 2 дня", "days_left": 2}
+    assert (d.urgent.kind, d.urgent.text) == ("submit", T.URGENT_SUBMIT.format(n="2 дня"))
+    assert d.urgent.to_dict() == {"kind": "submit", "text": T.URGENT_SUBMIT.format(n="2 дня"), "days_left": 2}
 
 
 def test_urgent_thresholds_and_edge_texts():
@@ -61,11 +61,11 @@ def test_urgent_thresholds_and_edge_texts():
     assert dash([meter(1)]).urgent is None  # окно открыто, но до конца 6 дн.
     today = date(2026, 10, 25)
     assert dash([meter(1, period="2026-10")], today=today).urgent is None  # всё подано
-    assert dash([meter(1)], today=today).urgent.text == "Подайте показания сегодня"
+    assert dash([meter(1)], today=today).urgent.text == T.URGENT_SUBMIT_TODAY
     overdue = dash([meter(1, verif=TODAY - timedelta(days=2))]).urgent
-    assert (overdue.text, overdue.days_left) == ("Поверка просрочена — запишитесь", -2)
-    assert dash([meter(1)], [bill(1, TODAY)]).urgent.text == "Оплатите счёт сегодня"
-    assert dash([meter(1)], [bill(1, TODAY - timedelta(days=1))]).urgent.text == "Счёт просрочен — оплатите"
+    assert (overdue.text, overdue.days_left) == (T.URGENT_VERIFICATION_OVERDUE, -2)
+    assert dash([meter(1)], [bill(1, TODAY)]).urgent.text == T.URGENT_BILL_TODAY
+    assert dash([meter(1)], [bill(1, TODAY - timedelta(days=1))]).urgent.text == T.URGENT_BILL_OVERDUE
     longest = [T.URGENT_VERIFICATION.format(n=30), T.URGENT_VERIFICATION_OVERDUE, T.URGENT_BILL_OVERDUE,
                T.URGENT_SUBMIT.format(n=3), T.URGENT_VERIFICATION_TODAY]
     assert all(len(t) <= 32 for t in longest)
@@ -96,18 +96,18 @@ def test_many_meters_summary_and_line_limit():
               for i in range(1, 6)]
     addresses = GRANTED + [{"label": "Ленина 5", "access": "pending", "role": "tenant"}]
     d = dash(meters, [bill(1, TODAY + timedelta(days=2)), bill(2, TODAY + timedelta(days=9), 100000)], addresses)
-    assert "Счётчиков: 5, не подано: 2" in d.lines
-    assert "Счета: 2 на 5 312 ₽, ближайший до 21 октября (демо)" in d.lines
+    assert T.METERS_SUMMARY.format(total=5, left=2) in d.lines
+    assert T.BILLS.format(count=2, amount="5 312 ₽", date="21 октября") + T.DEMO_MARK in d.lines
     assert any(x.endswith(", и ещё 4") for x in d.lines)
-    assert "По адресу «Ленина 5» передавать показания можно после одобрения собственника." in d.lines
+    assert T.PENDING.format(label="Ленина 5") in d.lines
     assert len(content(d)) <= MAX_LINES
     # Худший случай при ≤3 счётчиках: срочное, доступ, заголовок + 3 счётчика, поверка, счёт, «подробнее».
     d = dash(meters[:3] + [], [bill(1, TODAY + timedelta(days=2))],
              addresses + [{"label": "Мира 1", "access": "pending", "role": "tenant"}])
     assert len(content(d)) == MAX_LINES
-    assert "По 2 адресам передавать показания можно после одобрения собственников." in d.lines
+    assert T.PENDING_MANY.format(n=2) in d.lines
     all_done = dash([meter(i, period="2026-10") for i in range(1, 5)])
-    assert "Счётчиков: 4, всё подано" in all_done.lines and all_done.all_submitted
+    assert T.METERS_ALL_DONE.format(total=4) in all_done.lines and all_done.all_submitted
 
 
 def test_no_meters_and_pending_only():
@@ -115,7 +115,7 @@ def test_no_meters_and_pending_only():
     pending = [{"label": ARBAT, "access": "pending", "role": "tenant"}]
     d = dash(addresses=pending)
     assert T.NO_METERS not in d.lines  # фото без прав не поможет — не зовём присылать
-    assert d.lines[0] == f"По адресу «{ARBAT}» передавать показания можно после одобрения собственника."
+    assert d.lines[0] == T.PENDING.format(label=ARBAT)
     assert d.addresses == [{"label": ARBAT, "access": "pending", "role": "tenant"}]
 
 

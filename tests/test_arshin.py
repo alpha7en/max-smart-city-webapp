@@ -218,7 +218,7 @@ async def test_found_no_date_question(deps, api, repo, user):
     chat, seen = arshin_chat(deps, api, lambda r: ok(WATER))
     await new_water_meter(chat)
     text = api.last_text()
-    assert "Поверка по данным ФГИС «Аршин»: до **18.10.2029**" in text and T.ASK_VERIF not in text
+    assert TA.FOUND.format(date="18.10.2029") in text and T.ASK_VERIF not in text
     assert buttons(api) == [C.BTN_MENU, T.BTN_MORE, TA.BTN_CARD]
     link = api.outgoing()[-1][1]["payload"]["buttons"][1][0]
     assert link == {"type": "link", "text": TA.BTN_CARD, "url": "https://fgis.gost.ru/fundmetrology/cm/results/1-331"}
@@ -245,11 +245,12 @@ async def test_low_asks_which_and_pick(deps, api, repo, user):
     await new_water_meter(chat)
     text = api.last_text()
     assert TA.PICK_MANY.format(serial="18-765432") in text and TA.PICK_OR_DATE in text and T.ASK_VERIF not in text
-    assert buttons(api) == ["СГВ · до 18.10.2029", "ВСКМ · до 09.03.2028", TA.BTN_NONE]
+    assert buttons(api) == [TA.OPTION.format(title="СГВ", date="18.10.2029"),
+                            TA.OPTION.format(title="ВСКМ", date="09.03.2028"), TA.BTN_NONE]
     assert (await state(repo)).state == S.SUB_VERIF_DATE
     assert (await repo.address_meters(user[1]))[0]["verification_due"] is None  # без подтверждения не пишем
-    await chat.press("ВСКМ · до 09.03.2028")
-    assert api.last_text() == "Записали: поверка до **09.03.2028** по данным ФГИС «Аршин». Напомним заранее."
+    await chat.press(TA.OPTION.format(title="ВСКМ", date="09.03.2028"))
+    assert api.last_text() == TA.PICKED.format(date="09.03.2028")
     (m,) = await repo.address_meters(user[1])
     assert (m["verification_due"], m["verification_source"], m["arshin_vri_id"]) == ("2028-03-09", "arshin", "1-332")
     assert (await state(repo)).state == S.IDLE
@@ -399,7 +400,7 @@ async def test_my_meters_source_and_antifraud(chat, api, repo, user):
     await repo.set_arshin(mid, due="2029-10-18", vri_id="1-331", mit_title="Счетчики воды", checked_at=NOW)
     await chat.payload(f"g|{menu_flow.METERS}|")
     text = api.last_text()
-    assert "поверка до **18.10.2029** (по данным ФГИС «Аршин»)" in text
+    assert f"поверка до **18.10.2029** ({TA.SOURCE})" in text
     assert text.endswith(TA.ANTIFRAUD.format(date="18.10.2029"))
     await repo.set_verification(mid, (TODAY + timedelta(days=100)).isoformat(), "user")
     await chat.payload(f"g|{menu_flow.METERS}|")
@@ -413,7 +414,7 @@ async def test_demo_button_runs_check(deps, api, repo, user):
     await chat.text("/demo")
     assert TA.BTN_DEMO in buttons(api)
     await chat.press(TA.BTN_DEMO)
-    assert "Поверка по данным ФГИС «Аршин»" in api.last_text()
+    assert TA.FOUND.split(":")[0] in api.last_text()
     assert api.last_text().endswith(f"\n\n> {TA.DEMO_NOTE}")
 
 
@@ -474,7 +475,7 @@ async def test_real_water_fixture_bot_flow(deps, api, repo, user):
     chat, _ = arshin_chat(deps, api, lambda r: httpx.Response(200, json=water_data))
     await new_water_meter(chat, "18-452178")
     text = api.last_text()
-    assert "Поверка по данным ФГИС «Аршин»: до **13.11.2029**" in text
+    assert TA.FOUND.format(date="13.11.2029") in text
     assert buttons(api) == [C.BTN_MENU, T.BTN_MORE, TA.BTN_CARD]
     link = api.outgoing()[-1][1]["payload"]["buttons"][1][0]
     assert link["url"] == "https://fgis.gost.ru/fundmetrology/cm/results/1-333392815"
@@ -488,7 +489,7 @@ async def test_real_collision_unfit_bot_flow(deps, api, repo, user):
     chat, seen = arshin_chat(deps, api, lambda r: httpx.Response(200, json=collision_data))
     await new_water_meter(chat, "0112456")
     text = api.last_text()
-    assert "По данным ФГИС «Аршин» последняя поверка (**08.05.2024**) признала счётчик непригодным" in text
+    assert TA.UNFIT.format(date="08.05.2024").split(".")[0] in text
     assert buttons(api) == [C.BTN_MENU, T.BTN_MORE, TA.BTN_CARD]
     link = api.outgoing()[-1][1]["payload"]["buttons"][1][0]
     assert link["url"] == "https://fgis.gost.ru/fundmetrology/cm/results/1-340080782"

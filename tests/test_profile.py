@@ -56,7 +56,7 @@ async def test_p2_change_phone(chat, api, repo):
     await chat.feed(fakes.message_created(UID, None, [fakes.contact(UID, "79005554433")]))
     user = await repo.get_user(UID)
     assert (user["phone"], user["phone_verified"]) == ("+79005554433", 1)
-    assert api.last_text().startswith(PT.PHONE_SAVED) and "+7 900 555-44-33 (номер из MAX)" in api.last_text()
+    assert api.last_text().startswith(PT.PHONE_SAVED) and f"+7 900 555-44-33 {RT.FROM_MAX}" in api.last_text()
     assert (await session(repo)).state == S.IDLE
 
 
@@ -96,7 +96,7 @@ async def test_p3_add_address_duplicate_new_and_foreign(router, api, repo):
     await chat.text("7")
     rows = await repo.user_addresses(uid)
     assert [(r["role"], r["access"]) for r in rows][-1] == ("tenant", "pending")
-    assert "уже зарегистрирован собственник" in api.last_text()
+    assert PT.NO_ACCESS.split(".")[0].split("{")[0] in api.last_text()
     assert labels(last_kb(api))[0] == PT.BTN_REQUEST
     assert (await session(repo)).state == S.IDLE
 
@@ -156,7 +156,7 @@ async def test_p6_request_access(router, api, repo):
     api.clear()
     await tenant.press(PT.BTN_REQUEST)
     (to_owner,) = [s for s in api.named("send") if s["user_id"] == UID]
-    assert to_owner["text"].startswith("Петров Пётр просит доступ") and "+7 900 111-22-33" in to_owner["text"]
+    assert to_owner["text"].startswith(PT.OWNER_REQUEST.split("{")[0]) and "+7 900 111-22-33" in to_owner["text"]
     assert [(b["text"], b["payload"]) for b in buttons(to_owner["keyboard"])] == [
         (PT.BTN_ALLOW, f"g|acc_ok|{tenant_id}.{aid}"), (PT.BTN_DENY, f"g|acc_no|{tenant_id}.{aid}")]
     assert api.last_text() == PT.REQUEST_SENT
@@ -197,9 +197,9 @@ async def test_p7_allow(router, api, repo):
     assert (await repo.user_address(tenant_id, aid))["access"] == "granted"
     assert {"mid": "mid.req", "text": None, "keyboard": None} in api.named("edit")  # кнопки запроса убраны
     (to_tenant,) = [s for s in api.named("send") if s["user_id"] == UID2]
-    assert to_tenant["text"].startswith("Собственник открыл вам доступ")
+    assert to_tenant["text"].startswith(PT.TENANT_GRANTED.split("{")[0])
     assert labels(to_tenant["keyboard"]) == [PT.BTN_SUBMIT, C.BTN_MENU]
-    assert any(t.startswith("Открыли доступ: Петров Пётр") for t in api.texts())
+    assert any(t.startswith(PT.OWNER_GRANTED.split("{")[0]) for t in api.texts())
     assert len(await repo.user_meters(tenant_id)) == 1  # счётчики адреса теперь видны арендатору
     await owner.press(PT.BTN_ALLOW)
     assert api.last_text() == PT.DECIDED["granted"]
@@ -215,9 +215,9 @@ async def test_p8_deny(router, api, repo):
     (to_tenant,) = [s for s in api.named("send") if s["user_id"] == UID2]
     assert labels(to_tenant["keyboard"]) == [PT.BTN_PROFILE, C.BTN_MENU]
     await tenant.payload(f"g|acc_req|{aid}")
-    assert api.last_text().startswith("Собственник не открыл вам доступ")
+    assert api.last_text().startswith(PT.NO_ACCESS_DENIED.split("{")[0])
     await tenant.payload("g|profile|")
-    assert "собственник не открыл доступ" in api.last_text()
+    assert PT.ROLE[("tenant", "denied")] in api.last_text()
 
 
 async def test_request_after_owner_deleted_claims_address(router, api, repo):
@@ -226,7 +226,7 @@ async def test_request_after_owner_deleted_claims_address(router, api, repo):
     await owner.payload("g|prof_del|")
     await owner.press(PT.BTN_DELETE_YES)
     await tenant.press(PT.BTN_REQUEST)
-    assert api.last_text().startswith("По адресу Арбат 47к1, кв 32 больше нет собственника")
+    assert api.last_text().startswith(PT.ACCESS_CLAIMED.split("—")[0].format(label="Арбат 47к1, кв 32").strip())
     ua = await repo.user_address(tenant_id, aid)
     assert (ua["role"], ua["access"]) == ("owner", "granted")
 
@@ -237,7 +237,7 @@ async def test_access_request_edge_cases(router, api, repo):
     await tenant.payload("g|acc_req|999")
     assert api.last_text() == PT.ACCESS_UNKNOWN
     await owner.payload(f"g|acc_req|{aid}")  # собственник: доступ уже есть
-    assert api.last_text().startswith("Доступ по адресу Арбат 47к1, кв 32 уже открыт")
+    assert api.last_text().startswith(PT.ACCESS_ALREADY.split("—")[0].format(label="Арбат 47к1, кв 32").strip())
     assert (await load_session(repo, tenant_id)).state == S.IDLE
     await owner.payload("g|acc_ok|junk")
     assert api.last_text() == PT.OWNER_ONLY
@@ -247,7 +247,8 @@ async def test_access_request_edge_cases(router, api, repo):
 
 def _no_access_kb(api) -> list[str]:
     """Подписи кнопок последнего сообщения «нет прав» (после регистрации за ним идёт меню)."""
-    return labels(next(k for t, k in reversed(api.outgoing()) if "уже зарегистрирован собственник" in t))
+    needle = PT.NO_ACCESS.split("{label}")[1].split(".")[0].strip()
+    return labels(next(k for t, k in reversed(api.outgoing()) if needle in t))
 
 
 async def test_demo_grant_opens_access_and_submission_works(router, api, repo):
@@ -261,7 +262,7 @@ async def test_demo_grant_opens_access_and_submission_works(router, api, repo):
     ua = await repo.user_address(tenant_id, aid)
     assert (ua["role"], ua["access"]) == ("tenant", "granted")
     await tenant.payload(f"g|acc_demo|{aid}")               # повторное нажатие
-    assert api.last_text().startswith("Доступ по адресу Арбат 47к1, кв 32 уже открыт")
+    assert api.last_text().startswith(PT.ACCESS_ALREADY.split("—")[0].format(label="Арбат 47к1, кв 32").strip())
     api.clear()
     await owner.press(PT.BTN_ALLOW)                          # собственник ответил позже — без дубля арендатору
     assert api.last_text() == PT.DECIDED["granted"]
@@ -281,4 +282,4 @@ async def test_demo_grant_hidden_and_ignored_without_demo_mode(api, repo, deps):
     assert _no_access_kb(api) == [PT.BTN_REQUEST, PT.BTN_PROFILE, C.BTN_MENU]
     await tenant.payload(f"g|acc_demo|{aid}")               # кнопка из старого сообщения / подделка
     assert (await repo.user_address(tenant_id, aid))["access"] == "pending"
-    assert api.last_text().startswith("По адресу Арбат 47к1, кв 32 уже зарегистрирован собственник")
+    assert api.last_text().startswith(PT.NO_ACCESS.split(".")[0].format(label="Арбат 47к1, кв 32"))
