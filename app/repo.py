@@ -22,6 +22,8 @@ from app.db import init_db, ts
 from app.domain.access import decide_role, meter_delete_denial
 from app.domain.meters import FIELDS, demo_bill, normalize_serial
 
+HACKATHON_DEMO_KEY = "hackathon-demo:"  # префикс norm_key адресов демо-профиля (flows/hackathon_demo.py)
+
 Row = dict[str, Any]
 # Подписи адресов: список адресов пользователя (dict строк addresses) → список label той же длины.
 Labeler = Callable[[list[Row]], list[str]]
@@ -712,6 +714,13 @@ class Repo:
             return "ok"
 
     # === Хакатон: демо-профиль для проверяющих (не основной функционал, flows/hackathon_demo.py) ===
+
+    async def is_hackathon_demo(self, user_id: int) -> bool:
+        """Профиль создан /demo_profile: у пользователя есть адрес с ключом HACKATHON_DEMO_KEY."""
+        row = await self._one(
+            "SELECT 1 FROM user_addresses ua JOIN addresses a ON a.id=ua.address_id "
+            "WHERE ua.user_id=? AND a.norm_key LIKE ? LIMIT 1", (user_id, HACKATHON_DEMO_KEY + "%"))
+        return row is not None
 
     async def backdate_reading(self, reading_id: int, created_at: datetime) -> None:
         """Сгенерированной истории показаний ставим дату подачи в её месяце, а не «сейчас»."""

@@ -9,7 +9,8 @@
 
 Включается HACKATHON_DEMO_PROFILE (Settings.hackathon_demo_profile). Убрать после хакатона: этот модуль,
 texts/hackathon_demo.py и yaml/hackathon_demo.yaml, импорт в flows/__init__.py, bot_commands в main.py,
-repo.backdate_reading, переменную в config.py и .env.example, tests/test_hackathon_demo.py.
+repo.backdate_reading и is_hackathon_demo, HACKATHON_DEMO_KEY в repo.py, фото-исключение в web/api.py
+(profile_photo), переменную в config.py и .env.example, tests/test_hackathon_demo.py.
 
 Адреса тестового профиля новые при каждой генерации (norm_key 'hackathon-demo:<uuid>:<n>'): так пользователь
 всегда их собственник, двое проверяющих не делят один адрес по модели прав, а после «Удалить мои данные» старые
@@ -33,6 +34,7 @@ from app.bot.texts import menu as TM
 from app.bot.texts.fmt import esc, plural
 from app.domain.meters import current_period, shift_period
 from app.integrations.address_service import AddressService
+from app.repo import HACKATHON_DEMO_KEY
 
 COMMAND = "/demo_profile"
 HISTORY_MONTHS = 6    # показаний за прошлые месяцы у каждого счётчика
@@ -111,7 +113,7 @@ def enabled(ctx: Ctx) -> bool:
 
 def _norm_key(token: str, n: int) -> str:
     """Ключ демо-адреса: token — случайный на каждый /demo_profile, n — номер адреса (0, 1)."""
-    return f"hackathon-demo:{token}:{n}"
+    return f"{HACKATHON_DEMO_KEY}{token}:{n}"
 
 
 def random_name(rnd: random.Random) -> str:

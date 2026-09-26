@@ -77,6 +77,7 @@ async def lifespan(app: FastAPI):
     deps = Deps(api=api_client, repo=repo, settings=settings, recognizer=get_recognizer(settings),
                 addresses=_address_service(settings), bot_username=settings.bot_username, arshin=arshin)
     app.state.repo, app.state.deps = repo, deps
+    app.state.profile_photos = {}  # web/api.py: profile_photo
     tasks: list[asyncio.Task] = [asyncio.create_task(run_scheduler(deps), name="scheduler")]
     if api_client:
         bot_task = await _start_bot(deps)

@@ -110,7 +110,8 @@ sqlite3 data/bot.db 'select user_id,state,data from sessions'  # состоян�
   `curl -sS -G https://fgis.gost.ru/fundmetrology/eapi/vri --data-urlencode mi_number=<номер> --data-urlencode verification_date_start=2015-01-01`.
 - Живьём ещё НЕ проверено: приходит ли `initData`; формат `request_contact` (TEL в vcf, max_info, hash);
   скачивается ли фото по `image.payload.url`; `start_param` из `open_app` с payload; пустой ответ
-  `{}` на callback. Пока не проверено, не строить на этом логику без запасного пути.
+  `{}` на callback; `photo_url` в `initData.user` (запасной путь — `GET /chats/{chat_id}` → `dialog_with_user.avatar_url`).
+  Пока не проверено, не строить на этом логику без запасного пути.
 
 ## Живая проверка (облачные агенты до MAX не достают, её делает локальный Claude владельца)
 - «проверь бота живьём» → скилл `live-smoke` (`tools/live_smoke.py`: /me, вебхуки, команды, все виды кнопок).

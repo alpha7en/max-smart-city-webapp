@@ -148,6 +148,10 @@ class MaxApi:
     async def typing(self, chat_id: int) -> None:
         await self._request("POST", f"/chats/{chat_id}/actions", json={"action": "typing_on"}, retries=0)
 
+    async def get_chat(self, chat_id: int) -> dict:
+        """GET /chats/{chat_id}: у диалога в dialog_with_user — собеседник с avatar_url/full_avatar_url."""
+        return await self._request("GET", f"/chats/{chat_id}", retries=0)
+
     async def set_commands(self, commands: list[tuple[str, str]]) -> None:
         await self._request("PATCH", "/me/commands",
                             json={"commands": [{"name": n, "description": d} for n, d in commands]})

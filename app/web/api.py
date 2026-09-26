@@ -10,8 +10,10 @@
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import time
 import uuid
 from collections.abc import Callable
 from datetime import UTC, date, datetime
@@ -167,6 +169,43 @@ async def dashboard(deps: Deps, user_id: int, today: date) -> Dashboard:
     return await load_dashboard(deps.repo, user_id, today, day_from=s.submit_day_from, day_to=s.submit_day_to)
 
 
+PHOTO_TTL = 3600       # сколько помним аватар из Bot API (и его отсутствие), с
+PHOTO_RETRY = 300      # после ошибки MAX не спрашиваем снова столько секунд
+PHOTO_TIMEOUT = 3.0    # дольше ждать MAX ради аватара не стоит: /api/me важнее
+
+
+def _https(url: Any) -> str | None:
+    return url if isinstance(url, str) and url.startswith("https://") else None
+
+
+async def profile_photo(request: Request, init: InitData, user: Row) -> str | None:
+    """Фото профиля MAX: photo_url из initData, иначе аватар собеседника из GET /chats/{chat_id} (кэш на час).
+    Фото может и не быть → None. У демо-профиля хакатона ФИО вымышленное, поэтому фото не показываем."""
+    deps = _deps(request)
+    if await deps.repo.is_hackathon_demo(user["id"]):
+        return None
+    if url := _https(init.user.get("photo_url")):
+        return url
+    if not deps.api or not user["chat_id"]:
+        return None
+    cache: dict[int, tuple[float, str | None]] = request.app.state.profile_photos  # max_user_id → (до, url)
+    now = time.monotonic()
+    if (hit := cache.get(init.max_user_id)) and now < hit[0]:
+        return hit[1]
+    try:
+        chat = await asyncio.wait_for(deps.api.get_chat(user["chat_id"]), PHOTO_TIMEOUT)
+    except Exception as e:  # noqa: BLE001 — без фото профиль всё равно показываем
+        log.warning("profile photo: get_chat %s: %s", user["chat_id"], e)
+        cache[init.max_user_id] = (now + PHOTO_RETRY, None)
+        return None
+    other = chat.get("dialog_with_user") or {}
+    url = None
+    if other.get("user_id") == init.max_user_id:
+        url = _https(other.get("full_avatar_url")) or _https(other.get("avatar_url"))
+    cache[init.max_user_id] = (now + PHOTO_TTL, url)
+    return url
+
+
 # === Эндпоинты ===
 
 @router.get("/me")
@@ -182,7 +221,8 @@ async def me(request: Request, init: InitData = Depends(current_user)) -> dict:
     return {
         "registered": True,
         "user": {"full_name": user["full_name"], "phone": user["phone"],
-                 "phone_verified": bool(user["phone_verified"])},
+                 "phone_verified": bool(user["phone_verified"]),
+                 "photo_url": await profile_photo(request, init, user)},
         "dashboard": (await dashboard(deps, user["id"], today)).to_api(),
         "meters": [meter_json(m, today) for m in meters],
         "addresses": [await _with_members(deps.repo, address_json(a)) for a in addresses],

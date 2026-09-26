@@ -236,6 +236,12 @@
   const meterTitle = m => [m.type_label, m.address_label].filter(Boolean).join(' · ');
   const oneAddress = ms => new Set(ms.map(m => m.address_label)).size === 1;
   const initials = n => String(n || '').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
+  // Аватар: инициалы, поверх — фото профиля MAX, когда загрузится. Фото нет или не загрузилось — остаются инициалы.
+  const avaKids = u => {
+    const txt = initials(u && u.full_name), url = u && u.photo_url;
+    return url ? [txt, h('img', { src: url, alt: '', referrerpolicy: 'no-referrer', decoding: 'async',
+      onload: e => e.target.classList.add('on'), onerror: e => e.target.remove() })] : [txt];
+  };
   const fmtPhone = p => { const r = /^\+7(\d{3})(\d{3})(\d{2})(\d{2})$/.exec(p || ''); return r ? '+7 ' + r[1] + ' ' + r[2] + '-' + r[3] + '-' + r[4] : p || '—'; };
   const ADDR_WORDS = ['адрес', 'адреса', 'адресов'];
   const METER_WORDS = ['счётчик', 'счётчика', 'счётчиков'];
@@ -468,7 +474,7 @@
   function homeHeader(d, key) {
     const list = addrList(d), g = grantedAddrs(d);
     $ava.hidden = false;
-    $ava.textContent = initials(d.user && d.user.full_name);
+    $ava.replaceChildren(...avaKids(d.user));
     if (!list.length) return;
     $eb.hidden = false;
     $eb.textContent = list.length > 1 ? 'ЖКХ · ' + list.length + ' ' + plural(list.length, ADDR_WORDS) : 'ЖКХ';
@@ -515,7 +521,7 @@
       h('button', { class: 'item-main', type: 'button', onclick: () => openChat(payload) },
         ibox(ic, 'accent', 18), h('span', { class: 'grow' }, h('b', {}, title)), h('span', { class: 'chev' }, icon('chev', 18))));
     setScreen('Профиль',
-      h('div', { class: 'card who-card' }, h('span', { class: 'ava big', 'aria-hidden': 'true' }, initials(u.full_name)),
+      h('div', { class: 'card who-card' }, h('span', { class: 'ava big', 'aria-hidden': 'true' }, avaKids(u)),
         h('span', { class: 'grow' }, h('h2', {}, u.full_name || '—'),
           h('span', { class: 'ph-line' }, h('span', { class: 'tel' }, fmtPhone(u.phone)),
             u.phone_verified ? h('span', { class: 'pill t-ok' }, icon('check', 13), 'из MAX') : h('small', {}, 'указан вручную')))),

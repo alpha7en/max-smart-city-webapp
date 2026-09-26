@@ -103,6 +103,7 @@ class FakeMaxApi:
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.files: dict[str, bytes] = {}
         self.update_batches: list[dict] = []
+        self.chats: dict[int, dict] = {}  # ответы get_chat по chat_id
         self._mid = itertools.count(1)
         self._mark = 0  # clear() скрывает старые вызовы от проверок, но кнопки остаются доступны
 
@@ -134,6 +135,10 @@ class FakeMaxApi:
 
     async def typing(self, chat_id) -> None:
         self._rec("typing", chat_id=chat_id)
+
+    async def get_chat(self, chat_id) -> dict:
+        self._rec("get_chat", chat_id=chat_id)
+        return self.chats.get(chat_id, {"chat_id": chat_id, "type": "dialog"})
 
     async def set_commands(self, commands) -> None:
         self._rec("set_commands", commands=commands)

@@ -19,6 +19,7 @@ from app.bot.texts import menu as MT
 from app.bot.texts import submission as TS
 from app.domain.addresses import AddressCandidate, norm_key
 from app.integrations.recognizer import Recognition
+from app.repo import HACKATHON_DEMO_KEY
 from app.web import api as web_api
 from app.web.auth import sign_init_data
 from tests import fakes
@@ -70,8 +71,8 @@ def repo(client: TestClient):
     return client.app.state.repo
 
 
-def init_data(uid: int = UID, age: float = 0, token: str = TOKEN) -> str:
-    user = json.dumps({"id": uid, "first_name": "Анна", "last_name": "Иванова"}, ensure_ascii=False)
+def init_data(uid: int = UID, age: float = 0, token: str = TOKEN, **extra) -> str:
+    user = json.dumps({"id": uid, "first_name": "Анна", "last_name": "Иванова", **extra}, ensure_ascii=False)
     return sign_init_data({"auth_date": str(int(time.time() - age)), "query_id": "q1", "user": user}, token)
 
 
@@ -79,7 +80,7 @@ def auth(uid: int = UID) -> dict:
     return {"X-Max-Init-Data": init_data(uid)}
 
 
-def register(client: TestClient, uid: int = UID, flat: str = "32") -> dict:
+def register(client: TestClient, uid: int = UID, flat: str = "32", key: str | None = None) -> dict:
     """Зарегистрированный пользователь с адресом (первый по адресу — owner/granted)."""
     async def go():
         r = repo(client)
@@ -87,7 +88,7 @@ def register(client: TestClient, uid: int = UID, flat: str = "32") -> dict:
         cand = AddressCandidate(f"г Москва, ул Арбат, д 47, кв {flat}", "г Москва", "г Москва", "ул Арбат",
                                 "47", "к1", flat)
         res = await r.complete_registration(user["id"], full_name="Иванова Анна Сергеевна", phone="+79123456789",
-                                            phone_verified=True, address=cand.to_dict(), norm_key=norm_key(cand),
+                                            phone_verified=True, address=cand.to_dict(), norm_key=key or norm_key(cand),
                                             raw_input="Арбат 47к1", now=clock.now())
         return {**await r.get_user_by_id(user["id"]), **res}
     return run(client, go)
@@ -154,7 +155,8 @@ def test_a3_me_contract_and_dashboard(client):
     m2 = add_meter(client, u["address_id"], "electricity", 2, serial=None)
     d = client.get("/api/me", headers=auth()).json()
     assert d["registered"] is True and d["bot_username"] == "test_bot"
-    assert d["user"] == {"full_name": "Иванова Анна Сергеевна", "phone": "+79123456789", "phone_verified": True}
+    assert d["user"] == {"full_name": "Иванова Анна Сергеевна", "phone": "+79123456789", "phone_verified": True,
+                         "photo_url": None}
     assert d["addresses"] == [{"id": u["address_id"], "label": u["label"], "full_text": ANY, "access": "granted",
                                "role": "owner", "verified": False, "members": []}]
     assert "Арбат" in d["addresses"][0]["full_text"]  # полный адрес для профиля; без DaData — не сверен с ФИАС
@@ -556,3 +558,50 @@ def test_recognize_serial_formatted_and_not_serial_dropped(client, monkeypatch):
     assert (d["serial"], d["serial_mismatch"]) == (None, False)
     me = client.get("/api/me", headers=auth()).json()
     assert me["meters"][0]["serial"] == "18-123456"
+
+
+# === Фото профиля ===
+
+AVATAR = "https://i.oneme.ru/i?r=avatar"
+
+
+def me_photo(client: TestClient, **extra) -> str | None:
+    resp = client.get("/api/me", headers={"X-Max-Init-Data": init_data(**extra)})
+    assert resp.status_code == 200, resp.text
+    return resp.json()["user"]["photo_url"]
+
+
+def test_photo_from_init_data(client, api):
+    register(client)
+    assert me_photo(client, photo_url=AVATAR) == AVATAR
+    assert not [c for c in api.calls if c[0] == "get_chat"]  # в MAX не ходили
+
+
+def test_photo_from_bot_api_cached(client, api):
+    register(client)
+    api.chats[fakes.chat_of(UID)] = {"type": "dialog", "dialog_with_user": {
+        "user_id": UID, "avatar_url": AVATAR + "_s", "full_avatar_url": AVATAR}}
+    assert me_photo(client, photo_url="javascript:alert(1)") == AVATAR  # не https — не берём
+    assert me_photo(client) == AVATAR
+    assert [c[1] for c in api.calls if c[0] == "get_chat"] == [{"chat_id": fakes.chat_of(UID)}]  # второй раз из кэша
+
+
+def test_no_photo(client, api):
+    register(client)
+    api.chats[fakes.chat_of(UID)] = {"type": "dialog", "dialog_with_user": {"user_id": UID, "avatar_url": None}}
+    assert me_photo(client) is None
+
+
+def test_photo_error_does_not_break_profile(client, api, monkeypatch):
+    register(client)
+
+    async def down(chat_id):
+        raise fakes.MaxApiError(503, "service.unavailable", "down")
+    monkeypatch.setattr(api, "get_chat", down)
+    assert me_photo(client) is None
+
+
+def test_no_photo_for_hackathon_demo_profile(client, api):
+    register(client, key=HACKATHON_DEMO_KEY + "abc:0")
+    api.chats[fakes.chat_of(UID)] = {"type": "dialog", "dialog_with_user": {"user_id": UID, "avatar_url": AVATAR}}
+    assert me_photo(client, photo_url=AVATAR) is None
