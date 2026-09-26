@@ -3,7 +3,8 @@
 Бот, планировщик и API мини-приложения работают в одном процессе FastAPI (`app/main.py`). Бот и планировщик
 запускаются фоновыми задачами в lifespan. Внешний HTTP ходит только из `app/integrations/`. В `app/domain/`
 лежат чистые функции без ввода-вывода. SQL собран в `app/repo.py`. Распознавание показаний — отдельный
-сервис `services/meter_reader/` (свой контейнер `meter-reader`, профиль compose `recognizer`).
+сервис `services/meter_reader/`: свой контейнер `meter-reader` (порт 8000) в том же `compose.yaml`, поднимается
+вместе с `app`. При заданном `YC_API_KEY` compose выставляет боту `RECOGNIZER_URL=http://meter-reader:8000/recognize`.
 
 ## Модули
 

@@ -39,7 +39,7 @@ app/
   web/               auth.py (initData), api.py (/api/*), static/ (мини-приложение, vanilla JS)
 tests/               pytest; conftest.py (фикстура chat), fakes.py (FakeMaxApi + апдейты в формате MAX)
 services/meter_reader/  сервис распознавания (автор — коллега, свой README): POST /recognize, фото → Qwen
-                     в Yandex Cloud → показание, тип, серийник. Свой Dockerfile и тесты, контейнер meter-reader
+                     в Yandex Cloud → показание, тип, серийник. Свои Dockerfile и тесты, контейнер meter-reader в корневом compose
 tools/live_smoke.py  живая проверка MAX API (нужен доступ к MAX, то есть запуск из РФ)
 ```
 
@@ -49,8 +49,8 @@ python3.12 -m venv .venv && . .venv/bin/activate && pip install -r requirements.
 python -m pytest -q                                   # все тесты (~20–25 с), должны быть зелёными
 cp .env.example .env                                  # затем вписать BOT_TOKEN
 docker compose up -d --build && docker compose logs -f app    # бот + API на :8080
-# + распознавание: в .env COMPOSE_PROFILES=recognizer, YC_API_KEY, YC_FOLDER_ID,
-#   RECOGNIZER_URL=http://meter-reader:8000/recognize; проверка: curl localhost:8000/health
+# + распознавание: в .env YC_API_KEY и YC_FOLDER_ID (контейнер meter-reader поднимается всегда, адрес боту даёт compose);
+#   проверка: curl localhost:8000/health
 services/meter_reader/recognize.sh фото.jpg             # что сервис видит на фото
 (cd services/meter_reader && python -m pytest -q)       # тесты сервиса (своё окружение: его requirements + pytest)
 curl -s localhost:8080/api/health                     # {"ok":true}
@@ -82,7 +82,7 @@ sqlite3 data/bot.db 'select user_id,state,data from sessions'  # состоян�
   `confidence` сервиса почти всегда 0.95, уверенность считает наш клиент (`HttpRecognizer._parse`): низкая
   уверенность или blurry/digits_not_visible при недоборе разрядов → «не распознали» с причинами; issues при
   успешном чтении показываются на экране проверки; серийник обязателен для счётчика без номера.
-- Без `RECOGNIZER_URL` работает демо-заглушка с пометкой в UI. Ключи YC только в `.env`. Исходная папка
+- Без ключей YC (и без `RECOGNIZER_URL`) работает демо-заглушка с пометкой в UI. Ключи YC только в `.env`. Исходная папка
   коллеги `УСЛОВИЯ/сырые файлы…` не в git и содержит ключи: оттуда ничего не копировать, кроме кода.
 
 ## MAX: что важно (проверено живьём или по схеме)

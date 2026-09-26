@@ -26,8 +26,8 @@ scp .env user@host:max-smart-city-webapp/.env && ssh user@host 'chmod 600 max-sm
 ```
 В `.env` на сервере должно быть: `BOT_TOKEN` (не печатать), `BOT_USERNAME=t226_hakaton_max_bot`,
 `MINIAPP_ORIGINS=https://alpha7en.github.io`, `DEV_AUTH=false`, `DEMO_MODE=true` (для жюри), `DADATA_API_KEY` (если есть).
-Для реального распознавания ещё `COMPOSE_PROFILES=recognizer`, `YC_API_KEY`, `YC_FOLDER_ID`,
-`RECOGNIZER_URL=http://meter-reader:8000/recognize`; порт 8000 слушает только 127.0.0.1, наружу его не открывать.
+Для реального распознавания ещё `YC_API_KEY`, `YC_FOLDER_ID` (контейнер `meter-reader` поднимается всегда,
+адрес боту даёт compose; `RECOGNIZER_URL` и `COMPOSE_PROFILES` из старого `.env` убрать); порт 8000 проброшен только на 127.0.0.1, наружу его не открывать.
 Проверка: `curl -s localhost:8000/health` → `{"status":"ok",…}`. `MAX_TEST_USER_ID` серверу не нужен. Сверь без вывода значений: `grep -cE '^(BOT_TOKEN|BOT_USERNAME|MINIAPP_ORIGINS)=..*' .env` → 3.
 
 ## 2. Приложение как постоянный процесс
@@ -42,7 +42,7 @@ services:
 ```bash
 docker compose up -d --build && docker compose ps && curl -s localhost:8080/api/health   # {"ok":true}
 docker compose logs --since 2m app | grep -E 'MAX bot: id=|polling started|ERROR'
-docker compose ps meter-reader          # если включён профиль recognizer: должен быть healthy
+curl -s localhost:8000/health          # если заданы ключи YC: {"status":"ok",…}
 ```
 
 ## 3. HTTPS через Caddy (сертификат Let's Encrypt автоматически)

@@ -7,6 +7,10 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      # Ключи Yandex Cloud заданы → бот ходит в meter-reader, иначе демо-распознавание.
+      # Свой RECOGNIZER_URL в .env главнее.
+      RECOGNIZER_URL: ${RECOGNIZER_URL:-${YC_API_KEY:+http://meter-reader:8000/recognize}}
     volumes:
       - ./data:/app/data
     healthcheck:
@@ -16,11 +20,8 @@ services:
       start_period: 10s
       retries: 3
 
-  # Распознавание показаний (services/meter_reader): Qwen в Yandex Cloud AI Studio.
-  # Включается профилем: COMPOSE_PROFILES=recognizer в .env (или docker compose --profile recognizer up).
-  # Боту нужен RECOGNIZER_URL=http://meter-reader:8000/recognize, иначе работает демо-распознавание.
+  # Распознавание показаний (services/meter_reader): Qwen в Yandex Cloud AI Studio. Запускается вместе с app.
   meter-reader:
-    profiles: ["recognizer"]
     build: ./services/meter_reader
     restart: unless-stopped
     environment:

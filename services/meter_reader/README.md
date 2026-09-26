@@ -10,22 +10,16 @@ HTTP-сервис на Python (FastAPI). Принимает фото счётч�
 
 ## Запуск вместе с ботом (из корня репозитория)
 
-В корневом `.env`: `COMPOSE_PROFILES=recognizer`, `YC_API_KEY`, `YC_FOLDER_ID`,
-`RECOGNIZER_URL=http://meter-reader:8000/recognize`. Затем `docker compose up -d --build`;
-логи — `docker compose logs -f meter-reader` (на каждый запрос строка INFO `recognized (…)`: тип, показание,
-уверенность, readable, issues, пояснение и есть ли серийник — без изображения и без самого номера).
-Порт 8000 открыт только на 127.0.0.1 хоста.
+Сервис — контейнер `meter-reader` в корневом `compose.yaml`, поднимается вместе с ботом. В корневом `.env`
+достаточно `YC_API_KEY` и `YC_FOLDER_ID`, затем `docker compose up -d --build`; адрес
+`http://meter-reader:8000/recognize` боту выставляет compose. Логи — `docker compose logs -f meter-reader`
+(на каждый запрос строка INFO `recognized (…)`: тип, показание, уверенность, readable, issues, пояснение и есть ли
+серийник — без изображения и без самого номера). Порт 8000 открыт только на 127.0.0.1 хоста.
 
 ## Запуск отдельно (из этой папки)
 
 ```bash
 cp .env.example .env        # заполнить YC_API_KEY и YC_FOLDER_ID
-docker compose up --build
-```
-
-Без Docker:
-
-```bash
 python -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/uvicorn meter_reader.api:app --port 8000
 ```
