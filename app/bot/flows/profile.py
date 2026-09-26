@@ -40,7 +40,7 @@ async def show_profile(ctx: Ctx, footnotes: list[str] | tuple = ()) -> None:
     addrs = await ctx.repo.user_addresses(u["id"])
     lines, owned, shared = [], [], False
     for a in addrs:
-        lines.append(f"{esc(a['label'])} — {T.ROLE.get((a['role'], a['access']), a['access'])}")
+        lines.append(f"{esc(a['full_text'])} — {T.ROLE.get((a['role'], a['access']), a['access'])}")
         if a["role"] == "owner":  # собственнику — кто ещё передаёт показания по адресу
             members = await ctx.repo.address_members(a["id"])
             lines.append(invite.members_line(members))
@@ -114,11 +114,11 @@ async def _address_chosen(ctx: Ctx, c: AddressCandidate) -> None:
     uid, key = ctx.user["id"], norm_key(c)
     dup = next((a for a in await ctx.repo.user_addresses(uid) if a["norm_key"] == key), None)
     if dup:
-        ctx.note(T.ADDRESS_DUP.format(label=esc(dup["label"])))
+        ctx.note(T.ADDRESS_DUP.format(label=esc(dup["full_text"])))
         await show_profile(ctx)
         return
     res = await ctx.repo.add_user_address(uid, c.to_dict(), key, raw, ctx.now.date())
-    ctx.note(T.ADDRESS_SAVED.format(label=esc(res["label"])))
+    ctx.note(T.ADDRESS_SAVED.format(label=esc(c.full_text)))
     inline, demo = split_notes(notes)
     for n in inline:
         ctx.note(n)
@@ -172,10 +172,10 @@ async def send_no_access(ctx: Ctx, address_id: int | None = None, footnotes: lis
         await show_menu(ctx)
         return
     if ua["access"] == "denied":
-        await ctx.reply(T.NO_ACCESS_DENIED.format(label=esc(ua["label"])), _menu_kb([K.gbtn(T.BTN_PROFILE, "profile")]))
+        await ctx.reply(T.NO_ACCESS_DENIED.format(label=esc(ua["full_text"])), _menu_kb([K.gbtn(T.BTN_PROFILE, "profile")]))
         return
     demo = K.gbtn(T.BTN_DEMO_GRANT, "acc_demo", ua["id"]) if ctx.settings.demo_mode else None
-    await ctx.reply(with_notes(T.NO_ACCESS.format(label=esc(ua["label"])), *footnotes, T.RIGHTS_MODEL), K.kb(
+    await ctx.reply(with_notes(T.NO_ACCESS.format(label=esc(ua["full_text"])), *footnotes, T.RIGHTS_MODEL), K.kb(
         [K.gbtn(T.BTN_REQUEST, "acc_req", ua["id"])],
         demo,
         [K.gbtn(T.BTN_PROFILE, "profile"), K.gbtn(C.BTN_MENU, "menu")],
@@ -218,7 +218,7 @@ async def request_access(ctx: Ctx) -> None:
     owner = await ctx.repo.address_owner(aid)
     if owner is None:  # собственник удалил свои данные — модель прав отдаёт адрес первому
         await ctx.repo.claim_address(u["id"], aid)
-        await ctx.reply(with_notes(T.ACCESS_CLAIMED.format(label=esc(ua["label"])), T.RIGHTS_MODEL), _menu_kb([K.gbtn(T.BTN_SUBMIT, "submit")]))
+        await ctx.reply(with_notes(T.ACCESS_CLAIMED.format(label=esc(ua["full_text"])), T.RIGHTS_MODEL), _menu_kb([K.gbtn(T.BTN_SUBMIT, "submit")]))
         return
     key = f"{u['id']}:{aid}"
     if not await ctx.repo.try_mark_sent(u["id"], ACCESS_KIND, key, ctx.now):
@@ -228,7 +228,7 @@ async def request_access(ctx: Ctx) -> None:
     arg = f"{u['id']}.{aid}"
     try:
         await ctx.api.send(
-            T.OWNER_REQUEST.format(name=esc(u.get("full_name")), label=esc(owner_ua["label"]),
+            T.OWNER_REQUEST.format(name=esc(u.get("full_name")), label=esc(owner_ua["full_text"]),
                                    phone=phone_line(u.get("phone"), u.get("phone_verified"))),
             user_id=owner["max_user_id"],
             keyboard=K.kb([K.gbtn(T.BTN_ALLOW, "acc_ok", arg), K.gbtn(T.BTN_DENY, "acc_no", arg)]),
@@ -242,7 +242,7 @@ async def request_access(ctx: Ctx) -> None:
 
 
 async def _granted(ctx: Ctx, ua: Row) -> None:
-    await ctx.reply(T.ACCESS_ALREADY.format(label=esc(ua["label"])), _menu_kb([K.gbtn(T.BTN_SUBMIT, "submit")]))
+    await ctx.reply(T.ACCESS_ALREADY.format(label=esc(ua["full_text"])), _menu_kb([K.gbtn(T.BTN_SUBMIT, "submit")]))
 
 
 @on_global("acc_ok")
@@ -275,7 +275,7 @@ async def _decide(ctx: Ctx, *, grant: bool) -> None:
         return
     await ctx.repo.set_access(tid, aid, "granted" if grant else "denied")
     await _notify_tenant(ctx, tenant, await ctx.repo.user_address(tid, aid))  # до ответа собственнику
-    owner_label = esc((await ctx.repo.user_address(owner["id"], aid))["label"])
+    owner_label = esc((await ctx.repo.user_address(owner["id"], aid))["full_text"])
     name = esc(tenant.get("full_name"))
     await ctx.reply((T.OWNER_GRANTED if grant else T.OWNER_DENIED).format(name=name, label=owner_label), _menu_kb())
 
@@ -292,7 +292,7 @@ async def _notify_tenant(ctx: Ctx, tenant: Row, ua: Row) -> None:
     else:
         text, kb = T.TENANT_DENIED, _menu_kb([K.gbtn(T.BTN_PROFILE, "profile")])
     try:
-        await ctx.api.send(text.format(label=esc(ua["label"])), user_id=tenant["max_user_id"], keyboard=kb)
+        await ctx.api.send(text.format(label=esc(ua["full_text"])), user_id=tenant["max_user_id"], keyboard=kb)
     except MaxApiError as e:
         log.warning("access decision to tenant failed: %s", e)
         await ctx.repo.unmark_sent(tenant["id"], DECISION_KIND, key)

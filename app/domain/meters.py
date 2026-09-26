@@ -240,16 +240,18 @@ def _serial_tail(serial: str | None, n: int = 4) -> str | None:
     return s[-n:].upper() if s else None
 
 
-def meter_labels(meters: Sequence[Mapping[str, Any]], max_len: int = 40) -> list[str]:
-    """Подписи набора счётчиков: «Хол. вода · Арбат 47к1, кв 32».
+def meter_labels(meters: Sequence[Mapping[str, Any]], max_len: int = 40, full: bool = False) -> list[str]:
+    """Подписи набора счётчиков: «Хол. вода · Арбат 47к1, кв 32» (для кнопок);
+    full=True — с полным адресом «Хол. вода · г. Москва, ул. Арбат, д. 47, корп. 1, кв. 32» (для текста).
 
-    Строки — dict с type, address_id, address_label, id, serial (как из repo.user_meters).
+    Строки — dict с type, address_id, address_label, address_full, id, serial (как из repo.user_meters).
     Счётчики одного типа по одному адресу различаются хвостом серийника («… 4521»),
     а если серийники не у всех или совпадают хвосты — номером («№2», по порядку id).
     """
     labels = []
     for m in meters:
-        base = TYPE_LABELS[m["type"]] + (f" · {m['address_label']}" if m.get("address_label") else "")
+        address = (full and m.get("address_full")) or m.get("address_label")
+        base = TYPE_LABELS[m["type"]] + (f" · {address}" if address else "")
         group = sorted(
             (x for x in meters if x["type"] == m["type"] and x.get("address_id") == m.get("address_id")),
             key=lambda x: x["id"],
@@ -258,7 +260,7 @@ def meter_labels(meters: Sequence[Mapping[str, Any]], max_len: int = 40) -> list
             tails = [_serial_tail(x.get("serial")) for x in group]
             tail = _serial_tail(m.get("serial"))
             by_serial = f"{base} …{tail}"
-            if all(tails) and len(set(tails)) == len(tails) and len(by_serial) <= max_len:
+            if all(tails) and len(set(tails)) == len(tails) and (full or len(by_serial) <= max_len):
                 base = by_serial
             else:
                 base = f"{base} №{[x['id'] for x in group].index(m['id']) + 1}"

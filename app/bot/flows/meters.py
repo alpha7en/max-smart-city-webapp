@@ -51,7 +51,9 @@ def _verification(m: Row) -> tuple[str, str | None]:
 
 
 def card_text(m: Row, name: str, address: Row | None) -> str:
-    """Тип · адрес, полный адрес, номер, последнее показание, поверка; оговорки — последней строкой-цитатой."""
+    """Тип, полный адрес, номер, последнее показание, поверка; оговорки — последней строкой-цитатой."""
+    if address:  # адрес — отдельной строкой ниже, в заголовке не повторяем
+        name = name.replace(f" · {address['full_text']}", "", 1)
     lines = [f"**{esc(name)}**"]
     if address:
         lines.append(T.CARD_ADDRESS.format(address=esc(address["full_text"])))

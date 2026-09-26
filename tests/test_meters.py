@@ -15,7 +15,7 @@ from app.domain.access import meter_delete_denial
 from app.readings import submit_reading
 from app.scheduler import notify_tick
 from tests.conftest import NOW, Chat
-from tests.test_submission import ARBAT, LABEL, OTHER, FixedRecognizer, buttons, meter, register, state
+from tests.test_submission import ARBAT, FULL, LABEL, OTHER, FixedRecognizer, buttons, meter, register, state
 
 CARD_ROWS = [[T.BTN_SUBMIT], [T.BTN_DELETE, C.BTN_BACK]]
 
@@ -55,7 +55,7 @@ async def test_card_from_my_meters(chat, api, repo, cold):
     assert rows(api) == [[LABEL], [MT.BTN_ADD_METER, C.BTN_MENU]]
     await chat.press(LABEL)
     text = api.last_text()
-    assert text.startswith(f"**{LABEL}**\nАдрес: ")
+    assert text.startswith(f"**Хол. вода**\nАдрес: г. Москва, Арбат, д. 47, корп. 1, кв. 32\n")  # адрес в заголовке не повторяем
     assert "Номер: **18-123456**" in text
     assert "Последнее показание: **118,200 м³**, **19.10**" in text
     assert "Поверка: до **15.03.2030**, из паспорта" in text
@@ -77,12 +77,12 @@ async def test_card_model_verification_note(chat, api, repo, user):
 async def test_submit_from_card_preselects_meter(chat, api, repo, deps, cold):
     await open_card(chat)
     await chat.press(T.BTN_SUBMIT)
-    assert api.last_text() == T.SUBMIT_FOR.format(meter=LABEL) + "\n\n" + TS.INSTRUCTION
+    assert api.last_text() == T.SUBMIT_FOR.format(meter=FULL) + "\n\n" + TS.INSTRUCTION
     s = await state(repo)
     assert s.state == S.SUB_AWAIT_PHOTO and s.data["meter_id"] == cold
     deps.recognizer = FixedRecognizer({"t1": 119_000})
     await chat.photo()  # без выбора счётчика — сразу распознавание и проверка
-    assert (await state(repo)).state == S.SUB_REVIEW and api.last_text().startswith(LABEL)
+    assert (await state(repo)).state == S.SUB_REVIEW and api.last_text().startswith(FULL)
 
 
 # --- Удаление ---
@@ -91,13 +91,13 @@ async def test_delete_with_confirmation(chat, api, repo, user, cold):
     other = await meter(repo, user, "electricity", serial=None)
     await open_card(chat)
     await chat.press(T.BTN_DELETE)
-    assert api.last_text() == T.ASK_DELETE.format(meter=LABEL)
-    assert "**Хол. вода · Арбат 47к1, кв 32**" in api.last_text()
+    assert api.last_text() == T.ASK_DELETE.format(meter=FULL)
+    assert f"**{FULL}**" in api.last_text()
     assert rows(api) == [[T.BTN_DELETE_YES, C.BTN_CANCEL]]
     assert await active(repo, cold) == 1  # до подтверждения ничего не удалили
     await chat.press(T.BTN_DELETE_YES)
     text = api.last_text()
-    assert text.startswith(T.DELETED.format(meter=LABEL) + "\n\n" + MT.METERS_TITLE)
+    assert text.startswith(T.DELETED.format(meter=FULL) + "\n\n" + MT.METERS_TITLE)
     assert rows(api) == [["Свет · Арбат 47к1, кв 32"], [MT.BTN_ADD_METER, C.BTN_MENU]]
     row = await repo.get_meter(cold)
     assert (row["active"], row["serial"], row["serial_norm"]) == (0, "18-123456", None)
@@ -109,7 +109,7 @@ async def test_delete_cancel_returns_to_card(chat, api, repo, cold):
     await open_card(chat)
     await chat.press(T.BTN_DELETE)
     await chat.press(C.BTN_CANCEL)
-    assert api.last_text().startswith(f"**{LABEL}**") and rows(api) == CARD_ROWS
+    assert api.last_text().startswith("**Хол. вода**\n") and rows(api) == CARD_ROWS
     assert await active(repo, cold) == 1
 
 

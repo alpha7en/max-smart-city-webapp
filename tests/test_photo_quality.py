@@ -14,8 +14,10 @@ from app.integrations.recognizer import HttpRecognizer
 from tests.test_recognizer import BLURRY_2168
 from tests.test_submission import buttons, meter, readings, register, state, to_review
 
-LIGHT = "Свет · Арбат 47к1, кв 32"
+LIGHT = "Свет · Арбат 47к1, кв 32"  # кнопка
 COLD = "Хол. вода · Арбат 47к1, кв 32"
+LIGHT_FULL = "Свет · г. Москва, Арбат, д. 47, корп. 1, кв. 32"  # в тексте — полный адрес
+COLD_FULL = "Хол. вода · г. Москва, Арбат, д. 47, корп. 1, кв. 32"
 OLD_2168 = {k: v for k, v in BLURRY_2168.items() if k not in ("readable", "issues")}  # старый контейнер
 
 
@@ -52,7 +54,7 @@ async def test_screenshot_blurry_2168_fails_with_reasons_then_manual_asks_serial
     assert "Показание: **2168 кВт·ч**" in review and ",00" not in review
     assert T.SERIAL_NEW.format(serial="01234567") in review
     await chat.press(T.BTN_SEND)
-    assert T.DONE.format(month="октябрь", meter="Электричество · Арбат 47к1, кв 32", value="2168 кВт·ч") in api.last_text()
+    assert T.DONE.format(month="октябрь", meter="Электричество · г. Москва, Арбат, д. 47, корп. 1, кв. 32", value="2168 кВт·ч") in api.last_text()
     assert (await readings(repo, mid))[-1]["t1"] == 2_168_000
     assert (await repo.get_meter(mid))["serial"] == "01234567"
 
@@ -61,13 +63,13 @@ async def test_old_container_answer_honest_warning_and_serial_required(chat, api
     mid = await meter(repo, user, "electricity", serial=None)
     deps.recognizer = service(OLD_2168)
     await to_review(chat, LIGHT)
-    assert api.last_text() == f"{LIGHT}\n\n{T.SERIAL_MISSING}"
+    assert api.last_text() == f"{LIGHT_FULL}\n\n{T.SERIAL_MISSING}"
     assert buttons(api) == [T.BTN_RETAKE, T.BTN_SERIAL, C.BTN_CANCEL]
     assert T.BTN_SEND not in buttons(api)
     assert await readings(repo, mid) == []  # к «Отправить» без номера не пускаем
     await chat.text("01234567")  # номер можно написать сразу, без кнопки
     review = api.last_text()
-    assert review.startswith(f"{LIGHT}\n\nПоказание: **2168 кВт·ч**\n" + T.SERIAL_NEW.format(serial="01234567"))
+    assert review.startswith(f"{LIGHT_FULL}\n\nПоказание: **2168 кВт·ч**\n" + T.SERIAL_NEW.format(serial="01234567"))
     assert T.REVIEW_WARN["few_digits"].format(typical="обычно 5–6") in review
     assert T.CHECK_DIGITS not in review and ",00" not in review
     await chat.press(T.BTN_SEND)
@@ -124,7 +126,7 @@ async def test_clear_answer_keeps_previous_screen(chat, api, repo, deps, user):
                                "fraction_digits": "456", "serial_number": "18-123456", "confidence": 0.95,
                                "readable": True, "issues": []})
     await to_review(chat, COLD)
-    assert api.last_text() == (f"{COLD}\n\nПоказание: **123,456 м³**\n"
+    assert api.last_text() == (f"{COLD_FULL}\n\nПоказание: **123,456 м³**\n"
                                + T.SERIAL_MATCH.format(serial="18-123456")
                                + f"\n\n{T.REVIEW_QUESTION}")
     assert buttons(api) == [T.BTN_SEND, T.BTN_EDIT, T.BTN_RETAKE, C.BTN_CANCEL]

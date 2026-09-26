@@ -66,7 +66,7 @@ async def test_i1_create_invite(owner, api, repo):
     assert link["keyboard"] is None and link["user_id"] == UID
     assert re.search(r"https://max\.ru/test_bot\?start=inv_[a-z0-9]{20}\b", link["text"])
     assert "до 26 октября" in link["text"] and "Арбат" in link["text"]
-    assert created["text"] == IT.INVITE_CREATED.format(label="Арбат 47к1, кв 32")
+    assert created["text"] == IT.INVITE_CREATED.format(label="г. Москва, Арбат, д. 47, корп. 1, кв. 32")
     assert labels(created["keyboard"]) == [IT.BTN_MANAGE, C.BTN_MENU]
     ((inv),) = [dict(r) for r in await repo._all("SELECT * FROM invites")]
     uid, aid = await owner_ids(repo)
@@ -80,7 +80,7 @@ async def test_i2_limit_three_active(owner, api, repo):
     for _ in range(3):
         await make_invite(owner, api)
     await owner.payload("g|inv_new|")
-    assert api.last_text() == IT.INVITE_LIMIT.format(label="Арбат 47к1, кв 32", count=3, until="26 октября")
+    assert api.last_text() == IT.INVITE_LIMIT.format(label="г. Москва, Арбат, д. 47, корп. 1, кв. 32", count=3, until="26 октября")
     assert len(await repo._all("SELECT * FROM invites")) == 3
     clock.set_now(NOW + timedelta(days=8))  # старые истекли — можно снова
     await owner.payload("g|inv_new|")
@@ -110,9 +110,9 @@ async def test_i3_unregistered_registers_with_invite_address(owner, router, api,
     _, aid = await owner_ids(repo)
     assert (a["id"], a["role"], a["access"]) == (aid, "tenant", "granted")
     mine = sent_to(api, UID3)
-    assert any(IT.REG_ACCEPTED.format(label=a["label"]) in t for t in mine)
+    assert any(IT.REG_ACCEPTED.format(label=a["full_text"]) in t for t in mine)
     assert not any("уже зарегистрирован собственник" in t for t in mine)  # без «нет прав»
-    assert sent_to(api, UID) == [IT.OWNER_ACCEPTED.format(name="Мария С.", label="Арбат 47к1, кв 32")]
+    assert sent_to(api, UID) == [IT.OWNER_ACCEPTED.format(name="Мария С.", label="г. Москва, Арбат, д. 47, корп. 1, кв. 32")]
     inv = await repo.get_invite(token)
     assert inv["used_by"] == u["id"] and inv["used_at"]
     # повторное открытие ссылки — уже использована
@@ -181,11 +181,11 @@ async def test_i7_registered_pending_accepts(owner, router, api, repo):
         (await owner_ids(repo))[1]))["full_text"])
     assert labels(last_kb(api)) == [IT.BTN_ACCEPT, IT.BTN_DECLINE]
     await petr.press(IT.BTN_ACCEPT)
-    assert api.last_text() == IT.ACCEPTED.format(label="Арбат 47к1, кв 32")
+    assert api.last_text() == IT.ACCEPTED.format(label="г. Москва, Арбат, д. 47, корп. 1, кв. 32")
     assert labels(last_kb(api)) == [PT.BTN_SUBMIT, C.BTN_MENU]
     tid = (await repo.get_user(UID2))["id"]
     assert (await repo.user_address(tid, (await owner_ids(repo))[1]))["access"] == "granted"
-    assert IT.OWNER_ACCEPTED.format(name="Пётр П.", label="Арбат 47к1, кв 32") in sent_to(api, UID)
+    assert IT.OWNER_ACCEPTED.format(name="Пётр П.", label="г. Москва, Арбат, д. 47, корп. 1, кв. 32") in sent_to(api, UID)
     # «Разрешить» на старый запрос — уже решено, второго сообщения жильцу нет
     await petr.press(IT.BTN_ACCEPT)
     assert api.last_text() == IT.INVALID["used"]
@@ -210,10 +210,10 @@ async def test_i8_registered_other_address_declines_then_accepts(owner, router, 
 async def test_i9_self_invite(owner, api, repo):
     token = await make_invite(owner, api)
     await start(owner, "inv_" + token)
-    assert api.last_text() == IT.SELF.format(label="Арбат 47к1, кв 32")
+    assert api.last_text() == IT.SELF.format(label="г. Москва, Арбат, д. 47, корп. 1, кв. 32")
     assert labels(last_kb(api)) == [IT.BTN_MANAGE, C.BTN_MENU]
     await owner.payload(f"g|inv_ok|{token}")
-    assert api.last_text() == IT.SELF.format(label="Арбат 47к1, кв 32")
+    assert api.last_text() == IT.SELF.format(label="г. Москва, Арбат, д. 47, корп. 1, кв. 32")
     assert (await repo.get_invite(token))["used_at"] is None
 
 
@@ -258,13 +258,13 @@ async def test_i11_members_and_revoke_with_confirmation(owner, router, api, repo
     assert "1. Пётр П. — есть доступ" in api.last_text()
     assert labels(last_kb(api)) == [IT.BTN_REVOKE.format(name="Пётр П."), IT.BTN_INVITE, C.BTN_MENU]
     await owner.press(IT.BTN_REVOKE.format(name="Пётр П."))
-    assert api.last_text() == IT.REVOKE_ASK.format(name="Пётр П.", label="Арбат 47к1, кв 32")
+    assert api.last_text() == IT.REVOKE_ASK.format(name="Пётр П.", label="г. Москва, Арбат, д. 47, корп. 1, кв. 32")
     assert (await repo.user_address(tid, aid))["access"] == "granted"  # пока не подтвердили
     api.clear()
     await owner.press(IT.BTN_REVOKE_YES)
     assert (await repo.user_address(tid, aid))["access"] == "denied"
-    assert sent_to(api, UID2) == [IT.TENANT_REVOKED.format(label="Арбат 47к1, кв 32")]
-    assert api.last_text() == IT.REVOKED.format(name="Пётр П.", label="Арбат 47к1, кв 32")
+    assert sent_to(api, UID2) == [IT.TENANT_REVOKED.format(label="г. Москва, Арбат, д. 47, корп. 1, кв. 32")]
+    assert api.last_text() == IT.REVOKED.format(name="Пётр П.", label="г. Москва, Арбат, д. 47, корп. 1, кв. 32")
     assert len(await repo.history(meter)) == 1  # поданное остаётся
     await owner.press(IT.BTN_REVOKE_YES)  # повторно — уже закрыт
     assert api.last_text() == IT.REVOKE_ALREADY.format(name="Пётр П.")
@@ -316,7 +316,7 @@ async def test_i14_miniapp_deeplinks(owner, router, api, repo):
     assert "start=inv_" in api.texts()[-2]
     assert (await session(repo)).state == S.IDLE
     await start(owner, f"inv_acc_{aid}")
-    assert api.last_text() == IT.MEMBERS_EMPTY.format(label="Арбат 47к1, кв 32")
+    assert api.last_text() == IT.MEMBERS_EMPTY.format(label="г. Москва, Арбат, д. 47, корп. 1, кв. 32")
     await start(owner, "inv_new_999")
     assert api.last_text() == IT.OWNER_ONLY
     maria = Chat(router, api, UID3)

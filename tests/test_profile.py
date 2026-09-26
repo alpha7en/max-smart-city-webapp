@@ -41,7 +41,7 @@ async def test_p1_profile(chat, api):
     await _profile(chat)
     text = api.last_text()
     assert text == PT.PROFILE.format(name="Иванова Анна Сергеевна", phone="+7 912 345-67-89",
-                                     addresses="Арбат 47к1, кв 32 — собственник\nДоступ: только вы")
+                                     addresses="г. Москва, Арбат, д. 47, корп. 1, кв. 32 — собственник\nДоступ: только вы")
     assert labels(last_kb(api)) == [PT.BTN_EDIT_PHONE, PT.BTN_ADD_ADDRESS, IT.BTN_INVITE, PT.BTN_DELETE, C.BTN_MENU]
     assert all(b["payload"].startswith("g|") for b in buttons(last_kb(api)))
 
@@ -77,7 +77,7 @@ async def test_p3_add_address_duplicate_new_and_foreign(router, api, repo):
     assert api.last_text() == PT.ASK_ADDRESS and (await session(repo)).state == S.PROFILE_ADDR_INPUT
     await chat.text(ADDRESS)
     await chat.press(RT.BTN_YES)
-    assert api.last_text().startswith(PT.ADDRESS_DUP.format(label="Арбат 47к1, кв 32"))
+    assert api.last_text().startswith(PT.ADDRESS_DUP.format(label="г. Москва, Арбат, д. 47, корп. 1, кв. 32"))
     assert len(await repo.user_addresses(uid)) == 1
 
     await chat.payload("g|prof_addr|")
@@ -85,7 +85,7 @@ async def test_p3_add_address_duplicate_new_and_foreign(router, api, repo):
     await chat.press(RT.BTN_YES)
     rows = await repo.user_addresses(uid)
     assert [r["label"] for r in rows] == ["Мск, Арбат 47к1, кв 32", "СПб, Невский 10, кв 5"]  # пересчитаны
-    assert api.last_text().startswith(PT.ADDRESS_SAVED.format(label="СПб, Невский 10, кв 5"))
+    assert api.last_text().startswith(PT.ADDRESS_SAVED.format(label="г. Санкт-Петербург, Невский, д. 10, кв. 5"))
 
     other = Chat(router, api, 7000099)
     await register(other, name="Сидоров Иван", phone="+7 900 000-00-01", address="Казань, Баумана 5, кв 7")
@@ -226,7 +226,7 @@ async def test_request_after_owner_deleted_claims_address(router, api, repo):
     await owner.payload("g|prof_del|")
     await owner.press(PT.BTN_DELETE_YES)
     await tenant.press(PT.BTN_REQUEST)
-    assert api.last_text().startswith(PT.ACCESS_CLAIMED.split("—")[0].format(label="Арбат 47к1, кв 32").strip())
+    assert api.last_text().startswith(PT.ACCESS_CLAIMED.split("—")[0].format(label="г. Москва, Арбат, д. 47, корп. 1, кв. 32").strip())
     ua = await repo.user_address(tenant_id, aid)
     assert (ua["role"], ua["access"]) == ("owner", "granted")
 
@@ -237,7 +237,7 @@ async def test_access_request_edge_cases(router, api, repo):
     await tenant.payload("g|acc_req|999")
     assert api.last_text() == PT.ACCESS_UNKNOWN
     await owner.payload(f"g|acc_req|{aid}")  # собственник: доступ уже есть
-    assert api.last_text().startswith(PT.ACCESS_ALREADY.split("—")[0].format(label="Арбат 47к1, кв 32").strip())
+    assert api.last_text().startswith(PT.ACCESS_ALREADY.split("—")[0].format(label="г. Москва, Арбат, д. 47, корп. 1, кв. 32").strip())
     assert (await load_session(repo, tenant_id)).state == S.IDLE
     await owner.payload("g|acc_ok|junk")
     assert api.last_text() == PT.OWNER_ONLY
@@ -262,7 +262,7 @@ async def test_demo_grant_opens_access_and_submission_works(router, api, repo):
     ua = await repo.user_address(tenant_id, aid)
     assert (ua["role"], ua["access"]) == ("tenant", "granted")
     await tenant.payload(f"g|acc_demo|{aid}")               # повторное нажатие
-    assert api.last_text().startswith(PT.ACCESS_ALREADY.split("—")[0].format(label="Арбат 47к1, кв 32").strip())
+    assert api.last_text().startswith(PT.ACCESS_ALREADY.split("—")[0].format(label="г. Москва, Арбат, д. 47, корп. 1, кв. 32").strip())
     api.clear()
     await owner.press(PT.BTN_ALLOW)                          # собственник ответил позже — без дубля арендатору
     assert api.last_text() == PT.DECIDED["granted"]
@@ -282,4 +282,4 @@ async def test_demo_grant_hidden_and_ignored_without_demo_mode(api, repo, deps):
     assert _no_access_kb(api) == [PT.BTN_REQUEST, PT.BTN_PROFILE, C.BTN_MENU]
     await tenant.payload(f"g|acc_demo|{aid}")               # кнопка из старого сообщения / подделка
     assert (await repo.user_address(tenant_id, aid))["access"] == "pending"
-    assert api.last_text().startswith(PT.NO_ACCESS.split(".")[0].format(label="Арбат 47к1, кв 32"))
+    assert api.last_text().startswith(PT.NO_ACCESS.split(".")[0].format(label="г. Москва, Арбат, д. 47, корп. 1, кв. 32"))

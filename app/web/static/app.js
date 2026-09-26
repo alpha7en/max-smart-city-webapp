@@ -233,7 +233,10 @@
     return n[0].toUpperCase() + n.slice(1) + ' ' + p.y;
   }
   const fmtDay = s => { const p = parseDate(s); return p && p.d ? String(p.d).padStart(2, '0') + '.' + String(p.mo).padStart(2, '0') : ''; };
-  const meterTitle = m => [m.type_label, m.address_label].filter(Boolean).join(' · ');
+  // Полный адрес — в тексте; короткий (address_label, label) — только на кнопках и в шапке-переключателе.
+  const mAddr = m => m.address_full || m.address_label;
+  const aFull = a => a.full_text || a.label;
+  const meterTitle = m => [m.type_label, mAddr(m)].filter(Boolean).join(' · ');
   const oneAddress = ms => new Set(ms.map(m => m.address_label)).size === 1;
   const initials = n => String(n || '').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
   // Аватар: инициалы, поверх — фото профиля MAX, когда загрузится. Фото нет или не загрузилось — остаются инициалы.
@@ -419,7 +422,7 @@
         meterIcon(m),
         h('span', { class: 'grow' }, h('b', {}, m.type_label),
           m.last ? num(m, m.last.values) : h('small', {}, 'показаний пока нет'),
-          showAddr && h('small', {}, m.address_label))),
+          showAddr && h('small', {}, mAddr(m)))),
       m.submitted_this_period
         ? h('span', { class: 'st' }, icon('check', 15), 'подано')
         : h('button', { class: 'mini', type: 'button', onclick: () => go('submit', { meterId: m.id }) }, 'Подать'));
@@ -449,19 +452,19 @@
     const legacy = legacyLines(dash);
     const waitOnly = !grantedAddrs(d).length && pending.length > 0;  // жилец ждёт доступа — добавлять счётчик рано
     const top = meters.length ? hero(meters, dash) : waitOnly
-      ? stateCard('clock', 'warn', 'Ждём одобрения собственника', 'Когда собственник откроет доступ к адресу ' + pending[0].label + ', здесь появятся счётчики.',
+      ? stateCard('clock', 'warn', 'Ждём одобрения собственника', 'Когда собственник откроет доступ к адресу ' + aFull(pending[0]) + ', здесь появятся счётчики.',
         btn('Напомнить в чате', () => openChat('profile')))
       : emptyMeters();
     if (waitOnly) pending = pending.slice(1);
     // Все адреса сразу — счётчики группами по адресу, без повтора адреса в каждой строке.
     const groups = [];
-    if (!key && !oneAddress(all)) meters.forEach(m => { const g = groups.find(x => x.k === mKey(m)); if (g) g.ms.push(m); else groups.push({ k: mKey(m), label: m.address_label, ms: [m] }); });
+    if (!key && !oneAddress(all)) meters.forEach(m => { const g = groups.find(x => x.k === mKey(m)); if (g) g.ms.push(m); else groups.push({ k: mKey(m), label: mAddr(m), ms: [m] }); });
     else groups.push({ ms: meters });
     setScreen('ЖКХ',
       top,
       tiles(meters, dash, key),
       pending.map(a => h('div', { class: 'row' }, ibox('clock', 'warn', 18),
-        h('span', { class: 'grow' }, h('b', {}, a.label), h('small', {}, 'Доступ ждёт подтверждения собственника')))),
+        h('span', { class: 'grow' }, h('b', {}, aFull(a)), h('small', {}, 'Доступ ждёт подтверждения собственника')))),
       legacy.length > 0 && h('div', { class: 'row' }, ibox('alert', 'accent', 18),
         h('span', { class: 'grow' }, legacy.map(l => h('small', {}, l)))),
       meters.length > 0 && [section('Счётчики', meters.length),
@@ -480,7 +483,7 @@
     $eb.textContent = list.length > 1 ? 'ЖКХ · ' + list.length + ' ' + plural(list.length, ADDR_WORDS) : 'ЖКХ';
     const cur = g.find(a => aKey(a) === key);
     const label = cur ? cur.label : g.length > 1 ? 'Все адреса' : (g[0] || list[0]).label;
-    if (list.length < 2) return void ($title.textContent = label);
+    if (list.length < 2) return void ($title.textContent = aFull(list[0]));  // один адрес — заголовок, не кнопка
     $title.replaceChildren(h('button', { class: 'addr', type: 'button', onclick: () => go('addr') },
       h('span', {}, label), icon('down', 22)));
   }
@@ -529,8 +532,8 @@
       h('div', { class: 'list' }, list.map(a => {
         const r = ROLE[a.access !== 'granted' ? a.access : a.role === 'owner' ? 'owner' : 'granted'] || ROLE.pending;
         return h('div', { class: 'arow' }, ibox('home', r[1] === 'ok' ? 'accent' : r[1], 18),
-          h('span', { class: 'grow' }, h('b', {}, a.label),
-            (a.full_text || a.verified === false) && h('small', {}, [a.full_text, a.verified === false && 'не сверен с ФИАС'].filter(Boolean).join(' · ')),
+          h('span', { class: 'grow' }, h('b', {}, aFull(a)),
+            a.verified === false && h('small', {}, 'не сверен с ФИАС'),
             a.role === 'owner' && Array.isArray(a.members) && h('button', { class: 'link acc', type: 'button', onclick: () => go('access', { id: aKey(a) }) }, accessLine(a.members) + ' ›')),
           h('span', { class: 'pill t-' + r[1] }, r[0]));
       })),
@@ -563,7 +566,7 @@
       ms.length > 0 && h('button', { class: 'link acc-chat', type: 'button', onclick: () => openChat('inv_acc_' + a.id) }, 'Отозвать доступ — в чате'),
     ]);
     $eb.hidden = false;
-    $eb.textContent = a.label;
+    $eb.textContent = aFull(a);
   }
 
   // ---------- экран: подать показания ----------
@@ -648,7 +651,7 @@
           h('div', { class: 'meta' },
             h('span', {}, prev != null ? ['было ', h('span', { class: 'mono' }, pp[0] + pp[1])] : 'первое показание'), dl));
       });
-      const sub = [!one && sel.address_label, sel.serial && 'номер ' + sel.serial,
+      const sub = [!one && mAddr(sel), sel.serial && 'номер ' + sel.serial,
         last && last.created_at && 'прошлое ' + fmtDay(last.created_at)].filter(Boolean).join(' · ');
       formBox.replaceChildren(h('div', { class: 'card panel' },
         h('div', { class: 'ph' }, meterIcon(sel, 22), h('span', { class: 'grow' }, h('b', {}, sel.type_label), sub && h('small', {}, sub))),
@@ -825,7 +828,7 @@
     const vt = vd == null ? 'accent' : vd < 0 ? 'bad' : vd <= 60 ? 'warn' : 'ok';
     setScreen('Счётчик',
       h('div', { class: 'card mhead' }, meterIcon(m, 28),
-        h('span', { class: 'grow' }, h('h2', {}, m.type_label), h('small', {}, m.address_label))),
+        h('span', { class: 'grow' }, h('h2', {}, m.type_label), h('small', {}, mAddr(m)))),
       h('div', { class: 'tiles' },
         h('div', { class: 'tile t-' + vt }, h('span', { class: 'th' }, ibox('shield', vt, 16), 'Поверка'),
           h('b', { class: 'v' }, m.verification_due ? fmtDate(m.verification_due) : 'не указана'),

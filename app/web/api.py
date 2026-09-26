@@ -112,7 +112,7 @@ def meter_json(m: Row, today: date) -> dict:
     return {
         "id": m["id"], "type": m["type"], "type_label": M.TYPE_LABELS[m["type"]], "unit": M.UNITS[m["type"]],
         "tariffs": m["tariffs"], "address_id": m["address_id"], "address_label": m["address_label"],
-        "serial": M.format_serial(m["serial"], m["type"]),
+        "address_full": m.get("address_full") or m["address_label"], "serial": M.format_serial(m["serial"], m["type"]),
         "verification_due": m["verification_due"], **verification_json(m), "last": last,
         "submitted_this_period": m.get("last_period") == M.current_period(today),
     }
@@ -417,7 +417,7 @@ def chat_text(meter: Row, reading: Row, typed: dict[str, str] | None = None) -> 
         return f"{text} {M.UNITS[meter['type']]}" if ok else fmt.value(vals[f], meter["type"])
 
     lines = [f"{label + ': ' if label else 'Показание: '}**{shown(f)}**" for f, label in labels.items()]
-    title = f"{M.TYPE_LABELS[meter['type']]} · {fmt.esc(meter['address_label'])}"
+    title = f"{M.TYPE_LABELS[meter['type']]} · {fmt.esc(meter.get('address_full') or meter['address_label'])}"
     parts = [CHAT_SAVED.format(title=title, values="\n".join(lines))]
     if reading["status"] == "flagged":
         parts.append(CHAT_FLAGGED)

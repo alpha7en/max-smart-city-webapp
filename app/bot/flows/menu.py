@@ -167,7 +167,7 @@ async def my_meters(ctx: Ctx) -> None:
     """Список счётчиков: тип · адрес, последнее показание, поверка; кнопки счётчиков → карточка."""
     meters = await ctx.repo.user_meters(ctx.user["id"])
     addresses = await ctx.repo.user_addresses(ctx.user["id"])
-    names = meter_names(meters)
+    names, buttons = meter_names(meters), meter_names(meters, full=False)
     blocks, notes = [], []
     for m in meters:
         if m.get("last_id"):
@@ -187,6 +187,6 @@ async def my_meters(ctx: Ctx) -> None:
     if any(a["access"] == "pending" for a in addresses):
         text += "\n\n" + T.METERS_PENDING
     await ctx.reply(with_notes(text, *notes), K.kb(
-        *[K.gbtn(names[m["id"]], METER_CARD, m["id"]) for m in meters[:METER_BUTTONS]],
+        *[K.gbtn(buttons[m["id"]], METER_CARD, m["id"]) for m in meters[:METER_BUTTONS]],
         [K.gbtn(T.BTN_ADD_METER, ADD_METER), K.gbtn(C.BTN_MENU, MENU)],
     ))

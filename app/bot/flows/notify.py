@@ -94,7 +94,7 @@ def verification_notice(meter: Row, name: str, today: date, stage: str = "") -> 
 def bill_notice(bill: Row, today: date, stage: str = "") -> Notice:
     due = date.fromisoformat(bill["due_date"])
     n = days_left(today, due)
-    fields = {"month": month_name(bill["period"]), "address": esc(bill.get("address_label") or ""),
+    fields = {"month": month_name(bill["period"]), "address": esc(bill.get("address_full") or bill.get("address_label") or ""),
               "amount": money(bill["amount_kop"]), "date": day_month(due), "left": left_days(n, bold=True)}
     head = (T.BILL_OVERDUE if n < 0 else T.BILL_DUE).format(**fields)
     return Notice("bill", f"{bill['id']}:{stage}", with_notes(head, T.BILL_DEMO), _kb(K.gbtn(T.BTN_PAY, PAY, bill["id"])))

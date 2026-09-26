@@ -208,8 +208,8 @@ async def test_my_meters_list_and_add(chat, api, repo, hooks):
     await chat.press("Мои счётчики")
     text, kb = api.outgoing()[-1]
     assert text.startswith(T.METERS_TITLE)
-    assert f"Хол. вода · {ARBAT}\nПоследнее: **123,456 м³** (19.10), поверка до **15.03.2030**" in text
-    assert f"Свет · {ARBAT}\nПоказаний пока нет" in text
+    assert f"Хол. вода · {ADDR['full_text']}\nПоследнее: **123,456 м³** (19.10), поверка до **15.03.2030**" in text
+    assert f"Свет · {ADDR['full_text']}\nПоказаний пока нет" in text
     assert labels(kb) == [[f"Хол. вода · {ARBAT}"], [f"Свет · {ARBAT}"], ["Добавить счётчик", "В меню"]]
     assert rows(kb)[0][0]["payload"].startswith("g|meter|")
     await chat.press("Добавить счётчик")
