@@ -24,7 +24,7 @@ grep -nE 'trace=|Traceback|MAX API|MaxApiError|polling error|retry in|failed|not
 | `polling error` сетевой, повторяется | сеть, TLS, VPN | `max_api.ssl_context`, окружение |
 | `attachment.not.ready`, `retry in` | нормальные повторы | баг, только если повторы кончились |
 | `pending photo download failed`, `PhotoError`, `415 not_image`, `413 too_large` | фото не скачалось | `app/bot/photos.py`, `max_api.download` (редиректы CDN?) |
-| `recognizer failed … ConnectError` | `meter-reader` не запущен или не тот URL | `COMPOSE_PROFILES=recognizer`, `RECOGNIZER_URL=http://meter-reader:8000/recognize`, `docker compose ps` |
+| `recognizer failed … ConnectError` | `meter-reader` не запущен или не тот URL | `docker compose ps`; в `.env` заданы `YC_API_KEY` и `YC_FOLDER_ID`, `RECOGNIZER_URL` пуст |
 | `recognizer failed … 502` | Yandex Cloud: ключ, квота, битый ответ модели | `docker compose logs meter-reader`; `services/meter_reader` (llm.py, recognizer.py) |
 | `recognizer failed … 400` | сервис не смог открыть картинку | формат фото из MAX; `services/meter_reader/meter_reader/image_utils.py` |
 | `recognizer failed: TimeoutError`/`ReadTimeout` | модель дольше 20 с | `YC_TIMEOUT`, нагрузка; клиент `HttpRecognizer` |

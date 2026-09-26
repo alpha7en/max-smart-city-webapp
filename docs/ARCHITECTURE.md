@@ -3,7 +3,8 @@
 Бот, планировщик и API мини-приложения работают в одном процессе FastAPI (`app/main.py`). Бот и планировщик
 запускаются фоновыми задачами в lifespan. Внешний HTTP ходит только из `app/integrations/`. В `app/domain/`
 лежат чистые функции без ввода-вывода. SQL собран в `app/repo.py`. Распознавание показаний — отдельный
-сервис `services/meter_reader/` (свой контейнер `meter-reader`, профиль compose `recognizer`).
+сервис `services/meter_reader/`: свой контейнер `meter-reader` (порт 8000) в том же `compose.yaml`, поднимается
+вместе с `app`. При заданном `YC_API_KEY` compose выставляет боту `RECOGNIZER_URL=http://meter-reader:8000/recognize`.
 
 ## Модули
 
@@ -27,7 +28,6 @@ app/
     serials.py         заводской номер: очистка, ключ сравнения, показ и проверка формата по типу счётчика
   integrations/
     max_api.py         клиент MAX Bot API (httpx, повторы при 429/5xx, TLS с сертификатом Минцифры)
-    certs/             russian_trusted_ca.pem
     address_service.py DaData suggest или локальный разбор адреса
     recognizer.py      HttpRecognizer (RECOGNIZER_URL → services/meter_reader) или StubRecognizer (демо)
     arshin.py          клиент ФГИС «Аршин» /eapi/vri: троттлинг 0,6 с, ≤4 запроса, повтор, breaker, кэш; fixtures — демо;
@@ -48,6 +48,7 @@ app/
     auth.py            проверка initData мини-приложения (HMAC + срок)
     api.py             /api/me, /api/meters/{id}, /api/readings, /api/recognize
     static/            мини-приложение: index.html, app.js, styles.css (без сборки)
+certs/                 russian_trusted_ca.pem: публичный CA Минцифры для TLS к MAX (не секрет; certs/README.md)
 tools/live_smoke.py    живая проверка MAX API тем же клиентом и теми же кнопками
 tools/transcript.py    пример диалога через настоящий роутер → docs/DIALOG_EXAMPLE.md
 tests/                 pytest: fakes.py (FakeMaxApi, апдейты в формате MAX), conftest.py (фикстура chat)
@@ -105,7 +106,7 @@ SQLite `DATA_DIR/bot.db`. В Docker это том `./data`, поэтому да�
   Без валидного initData API отвечает `401`. Обход `X-Dev-User` работает только при `DEV_AUTH=true` (по умолчанию выключен).
 - CORS разрешён только доменам из `MINIAPP_ORIGINS`: методы GET/POST, заголовки `X-Max-Init-Data` и `Content-Type`, без cookies.
   Мини-приложение принимает `?api=` только для localhost, иначе initData мог бы уйти на чужой хост.
-- TLS проверяется всегда: certifi плюс Russian Trusted Root CA из `integrations/certs/`. `verify=False` в коде нет.
+- TLS проверяется всегда: certifi плюс Russian Trusted Root/Sub CA из `certs/` в корне репозитория (публичные, отпечатки закреплены тестом). `verify=False` в коде нет.
 - Секреты задаются только через окружение (`.env` в `.gitignore`). Токен не пишется в логи и не выводится `live_smoke`.
 - Контейнер работает от непривилегированного пользователя `app`. Фото ограничены 10 МБ, файлы создаются
   с правами 0600 и удаляются после использования.

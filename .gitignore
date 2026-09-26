@@ -23,3 +23,16 @@ data/
 
 # Презентация: локальные рабочие файлы (Figma-скрипты, ассеты, скрины)
 presentation/
+compose.override.yaml
+
+# Ключи и сертификаты с приватной частью (публичный CA Минцифры в certs/ — исключение)
+*.key
+*.p12
+*.pfx
+*.jks
+id_rsa*
+id_ed25519*
+authorized_key*.json
+*service_account*.json
+*.pem
+!certs/russian_trusted_ca.pem

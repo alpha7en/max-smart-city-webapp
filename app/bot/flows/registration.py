@@ -12,7 +12,7 @@ from pathlib import Path
 from app.bot import keyboards as K
 from app.bot import photos
 from app.bot.ctx import Ctx
-from app.bot.flows import invite
+from app.bot.flows import hackathon_demo, invite
 from app.bot.router import REG_KEEP, call_hook, on_hook, on_repeat, on_state, repeat_step, show_menu
 from app.bot.states import S
 from app.bot.texts import common as C
@@ -547,4 +547,7 @@ async def finish(ctx: Ctx) -> None:
         return
     for line in (T.DONE_PHOTO_EXPIRED if pending else T.DONE, *invited):
         ctx.note(line)
+    if hackathon_demo.enabled(ctx):  # ТОЛЬКО ДЛЯ ХАКАТОНА: предложить демо-профиль вместо меню
+        await hackathon_demo.offer(ctx)
+        return
     await show_menu(ctx)
