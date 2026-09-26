@@ -5,7 +5,7 @@
 сообщением для пересылки + пояснение. [Общий доступ] (g|sh_list): кем делится (кто подавал показания),
 ссылки ждут ответа [Отменить ссылку N] (g|inv_cancel|id), чем поделились с ним. Адрес (g|acc_list|aid):
 собственнику — люди, [Закрыть: …] (g|acc_rev → g|acc_rev_ok, access=denied), [Разрешить: …] для запросов;
-получателю — «доступ от Анны И.» и [Убрать у себя] (g|sh_rm → g|sh_rm_ok, связь удаляется).
+получателю — «доступ от Анны И.» и [Выйти] (g|sh_rm → g|sh_rm_ok, связь удаляется).
 Получатель по ссылке: зарегистрирован — [Принять]/[Отказаться] (g|inv_ok / g|inv_no); нет — регистрация
 с токеном в сессии (data["invite"]), адрес необязателен, после «Всё верно» — accept_after_registration.
 Диплинки мини-приложения: start=inv_new_<aid> (поделиться), start=inv_acc_<aid> (адрес).
@@ -330,7 +330,10 @@ async def ask_remove(ctx: Ctx) -> None:
     elif ua["role"] == "owner":
         await ctx.reply(T.REMOVE_OWN, menu_kb([_shared_btn()]))
     else:
-        await ctx.reply(T.REMOVE_ASK.format(label=esc(ua["full_text"])), K.kb(
+        by = SH.sharer(ua) if ua["access"] == "granted" else None
+        ask = (T.REMOVE_ASK.format(label=esc(ua["full_text"]), owner=esc(short_name(by))) if by
+               else T.REMOVE_ASK_CLOSED.format(label=esc(ua["full_text"])))
+        await ctx.reply(ask, K.kb(
             [K.gbtn(T.BTN_REMOVE_YES, REMOVE_OK, aid), K.gbtn(T.BTN_REMOVE_NO, ADDRESS, aid)]))
 
 
@@ -345,8 +348,10 @@ async def remove(ctx: Ctx) -> None:
         await ctx.reply(T.REMOVE_OWN, menu_kb([_shared_btn()]))
         return
     await ctx.clear_keyboard()
-    text = T.REMOVED_NOTIFIED if status == "notified" else T.REMOVED
-    await ctx.reply(text.format(label=esc(ua["full_text"])), menu_kb([K.gbtn(PT.BTN_PROFILE, "profile")]))
+    by = SH.sharer(ua) if status == "notified" else None
+    text = (T.REMOVED_NOTIFIED.format(label=esc(ua["full_text"]), owner=esc(short_name(by))) if by
+            else T.REMOVED.format(label=esc(ua["full_text"])))
+    await ctx.reply(text, menu_kb([K.gbtn(PT.BTN_PROFILE, "profile")]))
 
 
 # === Получатель открыл ссылку ===

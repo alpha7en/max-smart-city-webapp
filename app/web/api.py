@@ -41,7 +41,7 @@ from app.bot.texts import submission as TS
 from app.bot.texts.api import BTN_MORE, CHAT_FLAGGED, CHAT_MOCK, CHAT_SAVED, MSG, SHARE_MSG
 from app.domain import meters as M
 from app.domain.dashboard import Dashboard, load_dashboard
-from app.domain.people import short_name, short_name_gen
+from app.domain.people import is_female, short_name, short_name_gen
 from app.domain.serials import clean_serial, usable_serial, validate_serial
 from app.integrations.recognizer import Recognition
 from app.readings import submit_reading
@@ -136,6 +136,7 @@ def verification_json(m: Row) -> dict:
 def address_json(a: Row, invites: list[Row] = ()) -> dict:
     """Адрес профиля: короткая подпись, полный текст, доступ; verified=False — адрес не сверен с ФИАС.
     Общий адрес (не собственник, доступ открыт): owner — «Анна И.», owner_gen — «Анны И.» («доступ от Анны И.»).
+    since — с какого дня открыт доступ к общему адресу.
     Свой адрес: shared_count — сколько людей с доступом, кроме него; invites_count — действующих ссылок с ним
     (invites — repo.owner_invites)."""
     by = SH.sharer(a) if a["role"] != "owner" and a["access"] == "granted" else None
@@ -143,8 +144,10 @@ def address_json(a: Row, invites: list[Row] = ()) -> dict:
     return {"id": a["id"], "label": a["label"], "full_text": a["full_text"], "access": a["access"],
             "role": a["role"], "verified": a["status"] != "unverified",
             "owner": short_name(by) if by else None, "owner_gen": short_name_gen(by) if by else None,
+            "owner_female": is_female(by) if by else None,
             "shared_count": (a.get("shared_count") or 0) if own else 0,
-            "invites_count": sum(a["id"] in i["address_ids"] for i in invites) if own else 0}
+            "invites_count": sum(a["id"] in i["address_ids"] for i in invites) if own else 0,
+            "since": _day(a.get("granted_at") or a.get("linked_at")) if by else None}
 
 
 async def _with_members(repo: Repo, a: dict) -> dict:

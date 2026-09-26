@@ -158,8 +158,8 @@ def test_a3_me_contract_and_dashboard(client):
     assert d["user"] == {"full_name": "Иванова Анна Сергеевна", "phone": "+79123456789", "phone_verified": True,
                          "photo_url": None}
     assert d["addresses"] == [{"id": u["address_id"], "label": u["label"], "full_text": ANY, "access": "granted",
-                               "role": "owner", "verified": False, "owner": None, "owner_gen": None,
-                               "shared_count": 0, "invites_count": 0,
+                               "role": "owner", "verified": False, "owner": None, "owner_gen": None, "owner_female": None,
+                               "shared_count": 0, "invites_count": 0, "since": None,
                                "members": []}]
     assert "Арбат" in d["addresses"][0]["full_text"]  # полный адрес для профиля; без DaData — не сверен с ФИАС
 

@@ -707,7 +707,7 @@ class Repo:
             return out
 
     async def remove_address(self, user_id: int, address_id: int) -> Row | None:
-        """«Убрать у себя»: удалить связь не-собственника с адресом (показания остаются за адресом).
+        """«Выйти» из общего доступа: удалить связь не-собственника с адресом (показания остаются за адресом).
         → удалённая строка (как user_address) или None — связи нет или это собственник."""
         async with self.tx():
             ua = await self.user_address(user_id, address_id)

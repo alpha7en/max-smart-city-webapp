@@ -69,6 +69,8 @@
     send: '<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/>',
     userPlus: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',
     userCog: '<path d="M10 15H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><circle cx="18" cy="15" r="3"/><path d="m21.7 16.4-.9-.3M15.2 13.9l-.9-.3M16.6 18.7l.3-.9M19.1 12.2l.3-.9M19.6 18.7l-.4-1M16.8 12.3l-.4-1M14.3 16.6l1-.4M20.7 13.8l1-.4"/>',
+    // связка ключей: кольцо сверху; левый ключ (круглая головка) отклонён влево, правый (прямоугольная) — чуть вправо
+    keys: '<circle cx="12" cy="3.6" r="2.2"/><g transform="rotate(24 8.2 9.6)"><circle cx="8.2" cy="9.6" r="2.9"/><path d="M8.2 12.5v8.8M8.2 21.3H6.2M8.2 18.7H6.6"/></g><g transform="rotate(-5 15.4 9.7)"><rect x="12.6" y="7.2" width="5.6" height="5" rx="1.6"/><path d="M15.4 12.2v9M15.4 21.2h2.2M15.4 18.6h1.8"/></g>',
     copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
     phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>',
   };
@@ -146,11 +148,11 @@
     no_access: 'Нет доступа к этому адресу. Попросите собственника открыть доступ в боте.',
     too_large: 'Фото слишком большое. Снимите ещё раз или введите показание вручную.',
     not_image: 'Это не похоже на фото. Сфотографируйте счётчик ещё раз.',
-    limit: 'Активных приглашений уже слишком много. Отмените ненужное и создайте новое.',
+    limit: 'Неоткрытых ссылок уже слишком много. Отмените ненужную и создайте новую.',
     not_owner: 'Делиться можно только своими адресами.',
     empty: 'Выберите хотя бы один адрес.',
-    invite_used: 'Эту ссылку уже приняли. Закрыть доступ можно в списке людей.',
-    no_username: 'Сейчас ссылку не создать. Попробуйте позже или поделитесь доступом в чате с ботом.',
+    invite_used: 'Эту ссылку уже приняли — отменить её нельзя. Закройте доступ человеку в списке.',
+    no_username: 'Сейчас не получилось создать ссылку. Попробуйте чуть позже.',
   };
   const STATUS_MSG = {
     401: 'Не получилось вас узнать. Закройте мини-приложение и откройте его снова из чата.',
@@ -283,6 +285,9 @@
   // ---------- навигация ----------
   const stack = [];
   let renderId = 0, me = null;
+  // meStale: доступ менялся (ссылка, закрыть, убрать) — экраны, которые рисуются из кэша me, перечитают /api/me.
+  let meStale = false;
+  const setMe = d => { me = d; meStale = false; };
 
   function go(name, params, replace) { if (replace) stack.pop(); stack.push({ name, params: params || {} }); render(); }
   function back() { if (dlgDone) return dlgDone(false); if (stack.length > 1) { stack.pop(); render(); } }
@@ -309,6 +314,7 @@
 
   function render() {
     renderId++; closeDialog(); guardClose(false); syncBack(); window.scrollTo(0, 0);
+    const t = document.querySelector('.toast'); if (t) t.remove();  // итог действия — только на своём экране
     const cur = stack[stack.length - 1];
     SCREENS[cur.name](cur.params);
   }
@@ -454,7 +460,7 @@
     return 'Демо: ' + win + (!w || (dash.bill && dash.bill.demo) ? ', счёт смоделирован' : '');
   }
   function screenHome() {
-    load('ЖКХ', () => api('/api/me'), d => { me = d; drawHome(d); });
+    load('ЖКХ', () => api('/api/me'), d => { setMe(d); drawHome(d); });
   }
   const emptyMeters = () => stateCard('camera', 'accent', 'Счётчиков пока нет',
     'Добавьте счётчик в чате или просто пришлите туда его фото.', btn([icon('plus', 20), 'Добавить счётчик'], () => openChat('add_meter')));
@@ -496,11 +502,8 @@
     $ava.replaceChildren(...avaKids(d.user));
     if (!list.length) return;
     const cur = g.find(a => aKey(a) === key);
-    const shown = cur || (g.length === 1 ? g[0] : list.length === 1 ? list[0] : null);
     $eb.hidden = false;
-    // Общий адрес — не «ваш»: над заголовком пишем, от кого доступ.
-    $eb.textContent = shown && isShared(shown) ? cap(fromLine(shown))
-      : list.length > 1 ? 'ЖКХ · ' + list.length + ' ' + plural(list.length, ADDR_WORDS) : 'ЖКХ';
+    $eb.textContent = list.length > 1 ? 'ЖКХ · ' + list.length + ' ' + plural(list.length, ADDR_WORDS) : 'ЖКХ';
     const label = cur ? cur.label : g.length > 1 ? 'Все адреса' : (g[0] || list[0]).label;
     if (list.length < 2) return void ($title.textContent = aFull(list[0]));  // один адрес — заголовок, не кнопка
     $title.replaceChildren(h('button', { class: 'addr', type: 'button', onclick: () => go('addr') },
@@ -511,6 +514,10 @@
   function optScreen(title, rows) { setScreen(title, h('div', { class: 'card opts choose' }, rows)); }
   function screenAddr() {
     if (!me) return toHome();
+    if (meStale) return load('Адрес', () => api('/api/me'), d => { setMe(d); drawAddr(); }, 'list');
+    drawAddr();
+  }
+  function drawAddr() {
     const d = me, g = grantedAddrs(d), key = curAddr(d), ms = d.meters || [];
     const stat = list => {
       if (!list.length) return 'счётчиков пока нет';
@@ -520,13 +527,15 @@
     const pick = k => () => { setAddr(k); toHome(); };
     const opt = (ic, tone, title, sub, on, onclick) => h('button', { class: 'opt' + (on ? ' on' : ''), type: 'button', 'aria-pressed': String(!!on), onclick },
       ibox(ic, tone, 18), h('span', { class: 'grow' }, h('b', {}, title), sub && h('small', {}, sub)), on && icon('check', 20));
+    // Строка + правая колонка 44px: галочка у «Все адреса», у адресов — кнопка доступа (рядом, не внутри строки выбора).
+    const wrap = (o, on, trail) => h('div', { class: 'optw' + (on ? ' on' : '') }, o, trail || h('span', { class: 'slot', 'aria-hidden': 'true' }));
     optScreen('Адрес', [
-      g.length > 1 && opt('home', 'accent', 'Все адреса', stat(ms), !key, pick('')),
+      g.length > 1 && wrap(opt('home', 'accent', 'Все адреса', stat(ms), false, pick('')), !key,
+        !key && h('span', { class: 'slot', 'aria-hidden': 'true' }, icon('check', 20))),
       g.map(a => {
-        const on = g.length < 2 || aKey(a) === key, sb = shareBtn(d, a);
-        const o = opt('home', 'accent', a.label, [isShared(a) && fromLine(a), stat(ms.filter(m => mKey(m) === aKey(a)))].filter(Boolean).join(' · '),
-          on, g.length > 1 ? pick(aKey(a)) : back);
-        return sb ? h('div', { class: 'optw' + (on ? ' on' : '') }, o, sb) : o;  // кнопка доступа — рядом, не внутри строки выбора
+        const on = g.length < 2 || aKey(a) === key;
+        return wrap(opt('home', 'accent', a.label, stat(ms.filter(m => mKey(m) === aKey(a))), on && g.length > 1, g.length > 1 ? pick(aKey(a)) : back),
+          on && g.length > 1, shareBtn(d, a) || keyBtn(a));
       }),
       addrList(d).filter(a => a.access !== 'granted').map(a => opt('clock', a.access === 'pending' ? 'warn' : 'bad', a.label,
         a.access === 'pending' ? 'ждёт одобрения собственника' : 'собственник не открыл доступ', false, () => go('profile', {}, true))),
@@ -539,7 +548,7 @@
   // Свой адрес — без метки; общий — «доступ от Анны И.»; ждёт или закрыт — плашка статуса.
   const ROLE = { pending: ['ждёт одобрения', 'warn'], denied: ['нет доступа', 'bad'] };
   function screenProfile() {
-    load('Профиль', () => api('/api/me'), d => { me = d; drawProfile(d); });
+    load('Профиль', () => api('/api/me'), d => { setMe(d); drawProfile(d); });
   }
   function drawProfile(d) {
     if (!d.registered) return drawHome(d);
@@ -558,14 +567,13 @@
         const r = a.access !== 'granted' && (ROLE[a.access] || ROLE.pending);
         return h('div', { class: 'arow' }, ibox('home', r ? r[1] : 'accent', 18),
           h('span', { class: 'grow' }, h('b', {}, aFull(a)),
-            isShared(a) && h('small', {}, fromLine(a)),
             a.verified === false && isOwned(a) && h('small', {}, 'не сверен с ФИАС')),
-          r && h('span', { class: 'pill t-' + r[1] }, r[0]), shareBtn(d, a));
+          r && h('span', { class: 'pill t-' + r[1] }, r[0]), shareBtn(d, a) || keyBtn(a));
       })),
       waiting && h('div', { class: 'note t-warn' }, icon('clock', 18),
         h('span', { class: 'grow' }, 'Пока собственник не откроет доступ, показания по этому адресу не передать.'),
         h('button', { class: 'link', type: 'button', onclick: () => openChat('profile') }, 'Запросить')),
-      shareCard(d),
+      list.some(isOwned) && shareCard(d),
       h('div', { class: 'list acts-list' }, action('plus', 'Добавить адрес', 'add_address'), action('phone', 'Изменить телефон', 'phone')),
       h('p', { class: 'foot' }, 'Изменения вносим в чате с ботом: там проверим адрес и номер. Права по адресам в демо смоделированы.'),
       h('button', { class: 'btn ghost danger', type: 'button', onclick: () => openChat('delete_data') }, 'Удалить мои данные'));
@@ -574,7 +582,6 @@
   // ---------- общий доступ ----------
   // Делятся адресом: собственник открывает доступ семье или арендатору одноразовой ссылкой.
   // Контракт: GET /api/shares {owned, invites, received, limits}; POST /api/shares/invites; DELETE — см. change().
-  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
   const PEOPLE_INS = ['человеком', 'людьми', 'людьми'];
   const ADDR_DAT = ['адресу', 'адресам', 'адресам'];
   const isOwned = a => a.access === 'granted' && a.role === 'owner';
@@ -593,13 +600,9 @@
   const labels = as => fulls(as).join('; ');
   // Подзаголовок плашки — одна строка о том, что сейчас с доступом.
   function shareSub(d) {
-    const list = addrList(d), open = list.filter(a => isOwned(a) && sharedCount(a) > 0), got = list.filter(isShared);
+    const open = addrList(d).filter(a => isOwned(a) && sharedCount(a) > 0);
     if (open.length === 1) { const n = sharedCount(open[0]); return 'Вы делитесь с ' + n + ' ' + plural(n, PEOPLE_INS); }
     if (open.length > 1) return 'Открыт доступ к ' + open.length + ' ' + plural(open.length, ADDR_DAT);
-    if (got.length && !list.some(isOwned)) {
-      const who = Array.from(new Set(got.map(a => a.owner).filter(Boolean)));
-      return who.length ? 'Вам открыли доступ: ' + who.join(', ') : 'Вам открыли доступ';
-    }
     return 'Семья или арендатор смогут передавать показания';
   }
   // Быстрая кнопка у своего адреса: «человек+» — сразу ссылка на этот адрес; «человек-шестерёнка» — к управлению его доступом.
@@ -608,20 +611,30 @@
   function shareBtn(d, a) {
     if (!isOwned(a)) return null;
     const n = sharedCount(a), busy = n > 0 || +a.invites_count > 0;
-    const label = busy ? 'Доступ к ' + a.label + ': ' + (n ? n + ' ' + plural(n, PEOPLE_WORDS) : 'ждёт приглашение') : 'Поделиться доступом к ' + a.label;
+    const label = busy ? 'Доступ к ' + a.label + ': ' + (n ? n + ' ' + plural(n, PEOPLE_WORDS) : 'есть неоткрытая ссылка') : 'Поделиться доступом к ' + a.label;
     return h('button', { class: 'ibtn', type: 'button', 'aria-label': label, title: label, onclick: e => {
       e.stopPropagation(); hapticTick();
       if (busy) go('share', { focus: aKey(a) }); else go('share_new', { addrs: ownedList(d), sel: [aKey(a)] });
     } }, icon(busy ? 'userCog' : 'userPlus', 21));
   }
+  // У общего адреса — ключи: страница «кто открыл доступ» с одной кнопкой «Выйти».
+  // Закрытый (denied) и ждущий (pending) общий адрес — тоже с ключами: убрать его у себя можно только там.
+  const isGuest = a => !!a.role && a.role !== 'owner';
+  function keyBtn(a) {
+    if (!isGuest(a)) return null;
+    const label = 'Общий адрес ' + a.label + (a.owner ? ': доступ ' + opened(a) + ' ' + a.owner : '');
+    return h('button', { class: 'ibtn', type: 'button', 'aria-label': label, title: label, onclick: e => {
+      e.stopPropagation(); hapticTick(); go('shared', { id: aKey(a) });
+    } }, icon('keys', 22));
+  }
   const shareCard = d => h('div', { class: 'list' }, h('div', { class: 'item' },
     h('button', { class: 'item-main', type: 'button', onclick: () => go('share') },
       ibox('users', 'accent', 22, 'mi'), h('span', { class: 'grow' },
-        h('b', {}, addrList(d).some(isOwned) || !addrList(d).some(isShared) ? 'Поделиться доступом' : 'Общий доступ'), h('small', {}, shareSub(d))),
+        h('b', {}, 'Поделиться доступом'), h('small', {}, shareSub(d))),
       h('span', { class: 'chev' }, icon('chev', 18)))));
 
   function screenShare(p) {
-    load('Общий доступ', () => Promise.all([api('/api/shares'), me || api('/api/me')]).then(r => { me = r[1]; return r[0]; }), s => drawShare(s, p.focus), 'list');
+    load('Общий доступ', () => Promise.all([api('/api/shares'), api('/api/me')]).then(r => { setMe(r[1]); return r[0]; }), s => drawShare(s, p.focus), 'list');
   }
   function drawShare(s, focus) {
     const owned = s.owned || [], invites = s.invites || [], received = s.received || [];
@@ -643,14 +656,14 @@
     const invCard = inv => h('div', { class: 'card inv', 'data-addrs': (inv.addresses || []).map(sid).join(',') },
       h('div', { class: 'ih' }, ibox('link', 'accent', 18),
         h('span', { class: 'grow' }, fulls(inv.addresses).map(t => h('b', {}, t)),
-          h('small', {}, 'до ' + fmtDate(inv.expires_at) + ' · сработает один раз'))),
+          h('small', {}, 'Ссылка ещё не открыта · до ' + fmtDate(inv.expires_at)))),
       h('div', { class: 'ia' },
         h('button', { class: 'mini', type: 'button', onclick: () => sendLink(inv) }, icon('send', 16), 'Отправить ссылку'),
         h('button', { class: 'link q', type: 'button', onclick: () => cancelInvite(inv) }, 'Отменить')));
     const got = received.length > 0 && [section('Вам открыли доступ', received.length),
       h('div', { class: 'list' }, received.map(a => h('div', { class: 'arow' }, ibox('home', 'accent', 18),
         h('span', { class: 'grow' }, h('b', {}, aFull(a)), h('small', {}, fromLine(a) + (a.since ? ' · с\u00a0' + shortDate(fmtDate(a.since)).replace(' ', '\u00a0') : ''))),
-        h('button', { class: 'mini q', type: 'button', 'aria-label': 'Убрать у себя: ' + a.label, onclick: () => dropReceived(a) }, 'Убрать'))))];
+        h('button', { class: 'mini q', type: 'button', 'aria-label': 'Выйти из общего доступа: ' + a.label, onclick: () => dropReceived(a) }, 'Выйти'))))];
     let top;
     if (!mine.length) {
       // Делиться нечем: только общие адреса или адресов нет вовсе.
@@ -667,9 +680,9 @@
         withPeople.length
           ? withPeople.map(o => [h('p', { class: 'grp', 'data-addr': sid(o) }, aFull(o)), h('div', { class: 'list' }, o.members.map(m => member(o, m)))])
           : h('p', { class: 'lead' }, 'Пока ни с кем. Человек появится здесь, когда откроет ссылку.'),
-        invites.length > 0 && [section('Приглашения', invites.length + (limit ? ' из ' + limit : '')), invites.map(invCard)]];
+        invites.length > 0 && [section('Неоткрытые ссылки', invites.length + (limit ? ' из ' + limit : '')), invites.map(invCard)]];
     }
-    setScreen('Общий доступ', top, got);
+    setScreen('Общий доступ', top, !mine.length && got);  // общие адреса — у ключей в профиле и листе адресов
     // Пришли с кнопки у адреса — показываем людей этого адреса (или его приглашение) и коротко подсвечиваем.
     const g = focus && ($view.querySelector('.grp[data-addr="' + focus + '"]') ||
       Array.from($view.querySelectorAll('.inv')).find(x => x.dataset.addrs.split(',').includes(focus)));
@@ -682,12 +695,38 @@
       setBar(btn([icon('plus', 20), 'Поделиться доступом'], () => {
         if (limit && invites.length >= limit) {
           haptic('error');
-          return ask({ icon: 'link', tone: 'warn', title: 'Уже ' + invites.length + ' ' + plural(invites.length, ['приглашение', 'приглашения', 'приглашений']), ok: 'Понятно',
-            text: 'Эти ссылки ещё ждут ответа. Отмените ненужную, чтобы создать новую.' });
+          return ask({ icon: 'link', tone: 'warn', title: 'Уже ' + invites.length + ' ' + plural(invites.length, ['неоткрытая ссылка', 'неоткрытые ссылки', 'неоткрытых ссылок']), ok: 'Понятно',
+            text: 'Их ещё никто не открыл. Отмените ненужную, чтобы создать новую.' });
         }
         go('share_new', { addrs: mine });
       }));
     }
+  }
+
+  // Общий адрес у получателя: кто и когда открыл доступ; «Выйти» — с подтверждением.
+  // Род: owner_female с сервера (по отчеству), иначе по имени: «Анна» → открыла, «Никита» → открыл; «Саша» — «открыл(а)».
+  const MALE_A = /^(Никита|Илья|Фома|Кузьма|Лука|Савва|Данила|Гаврила|Святослава?|Миша|Гоша|Паша|Дима|Лёша|Алёша|Сеня|Ваня|Вова|Петя|Коля|Толя|Юра|Слава)$/;
+  const BOTH = /^(Саша|Женя|Валя|Шура|Слава)$/;
+  const nb = s => String(s || '').replace(/ /g, '\u00a0');  // «Анна И.» не разрывать переносом
+  function opened(a) {
+    if (a.owner_female === true) return 'открыла';
+    if (a.owner_female === false) return 'открыл';
+    const w = String(a.owner || '').split(/\s+/)[0];
+    return BOTH.test(w) ? 'открыл(а)' : /[ая]$/.test(w) && !MALE_A.test(w) ? 'открыла' : w ? 'открыл' : 'открыл(а)';
+  }
+  function screenShared(p) {
+    const a = addrList(me).find(x => aKey(x) === p.id && isGuest(x));
+    if (!a) return toHome();
+    const addr = h('b', {}, aFull(a));
+    const line = a.access === 'granted' ? ['Доступ к адресу ', addr, ' вам ' + opened(a) + ' ' + nb(a.owner || 'собственник').replace(/\.?$/, '.')]
+      : a.access === 'pending' ? ['Ждём, когда собственник откроет вам доступ к адресу ', addr, '.']
+        : ['Доступ к адресу ', addr, ' закрыт. Показания, которые вы передали, сохранены.'];
+    setScreen('Общий адрес',
+      h('div', { class: 'state' }, ibox('keys', a.access === 'granted' ? 'accent' : 'warn', 34, 'si'),
+        h('p', { class: 'who-open' }, line),
+        a.access === 'granted' && a.since && h('p', { class: 'foot' }, 'С ' + fmtDate(a.since)),
+        h('div', { class: 'acts' }, btn('Выйти', () => dropReceived(Object.assign({ address_id: a.id }, a), true), 'del'))),
+      a.access === 'granted' && h('p', { class: 'foot' }, 'Передавать показания по этому адресу можно, пока доступ открыт. Менять адрес может только тот, кто открыл доступ.'));
   }
 
   // Выбор адресов для приглашения: карточки-чекбоксы, «Все адреса», внизу — «Создать ссылку».
@@ -721,6 +760,7 @@
         const chosen = list.filter(a => sel.has(sid(a)));
         const r = await api('/api/shares/invites', { method: 'POST', json: { address_ids: chosen.map(a => a.address_id) } });
         haptic('success');
+        meStale = true;
         go('share_link', { inv: Object.assign({ addresses: chosen }, r) }, true);
       } catch (e) {
         haptic('error');
@@ -740,7 +780,7 @@
     const inv = p.inv;
     if (!inv || !inv.url) return back();
     const box = h('button', { class: 'lnk', type: 'button', 'aria-label': 'Скопировать ссылку', onclick: () => copyLink(inv.url, box) }, inv.url.replace(/^https:\/\//, ''));
-    setScreen('Приглашение',
+    setScreen('Новая ссылка',
       h('div', { class: 'state' }, ibox('link', 'ok', 30, 'si'), h('h2', {}, 'Ссылка готова'),
         h('p', {}, 'Отправьте её тому, с кем делитесь. Сработает один раз, действует до ' + fmtDate(inv.expires_at) + '.'),
         box, h('p', { class: 'foot' }, 'Доступ к: ' + labels(inv.addresses)),
@@ -776,14 +816,18 @@
     toast('Не получилось скопировать. Ссылка выделена — скопируйте её вручную');
   }
   // Удаления — с подтверждением в нижнем листе; после — свежий список и тост.
-  async function change(path, done) {
+  async function change(path, done, leave) {
     try {
       await api(path, { method: 'DELETE' });
-      haptic('success'); render(); toast(done);
+      meStale = true;
+      haptic('success');
+      if (leave) { stack.pop(); if (stack.length) render(); else toHome(); } else render();
+      toast(done);
     } catch (e) {
       haptic('error');
+      if (e.status === 404 || e.status === 409) meStale = true;
       // 404 — уже нет, 409 — ссылку успели принять: показываем причину и свежий список.
-      if (e.status === 404 || e.status === 409) { render(); toast(e.status === 409 ? e.message : 'Уже изменилось — обновили список'); } else toast(e.status === 0 ? 'Нет связи с сервером. Проверьте интернет и повторите.' : e.message);
+      if (e.status === 404 || e.status === 409) { render(); toast(e.status === 409 ? e.message : 'Список уже изменился — показываем актуальный'); } else toast(e.status === 0 ? 'Нет связи с сервером. Проверьте интернет и повторите.' : e.message);
     }
   }
   const enc = encodeURIComponent;
@@ -793,20 +837,21 @@
     if (yes) change('/api/shares/' + enc(o.address_id) + '/members/' + enc(m.member_id), 'Доступ закрыт');
   }
   async function cancelInvite(inv) {
-    const yes = await ask({ icon: 'link', tone: 'bad', title: 'Отменить приглашение?', ok: 'Отменить приглашение', okCls: 'del', cancel: 'Не отменять',
-      text: 'Ссылка перестанет работать. Если вы её уже отправили, по ней нельзя будет открыть доступ.' });
-    if (yes) change('/api/shares/invites/' + enc(inv.id), 'Приглашение отменено');
+    const yes = await ask({ icon: 'link', tone: 'bad', title: 'Отменить ссылку?', ok: 'Отменить ссылку', okCls: 'del', cancel: 'Не отменять',
+      text: 'Ссылка перестанет работать, даже если вы её уже отправили.' });
+    if (yes) change('/api/shares/invites/' + enc(inv.id), 'Ссылка отменена');
   }
-  async function dropReceived(a) {
-    const yes = await ask({ icon: 'home', tone: 'bad', title: 'Убрать адрес у себя?', ok: 'Убрать', okCls: 'del', cancel: 'Отмена',
-      text: 'Адрес исчезнет только у вас' + (a.owner ? ', ' + a.owner + ' получит уведомление' : '') + '. Переданные показания сохранятся.' });
-    if (yes) change('/api/shares/received/' + enc(a.address_id), 'Адрес убран');
+  async function dropReceived(a, leave) {
+    const yes = await ask({ icon: 'keys', tone: 'bad', title: 'Выйти из общего доступа?', ok: 'Выйти', okCls: 'del', cancel: 'Отмена',
+      text: 'Адрес ' + aFull(a) + ' пропадёт только у вас' + (a.owner && a.access !== 'denied' ? ', ' + nb(a.owner) + ' получит уведомление' : '') +
+        '. Переданные показания сохранятся.' });
+    if (yes) change('/api/shares/received/' + enc(a.address_id), 'Вы вышли из общего доступа', leave);
   }
 
   // ---------- экран: подать показания ----------
   function screenSubmit(p) {
-    if (me && me.meters) return drawSubmit(p);
-    load('Подать показания', () => api('/api/me'), d => { me = d; drawSubmit(p); });
+    if (me && me.meters && !meStale) return drawSubmit(p);
+    load('Подать показания', () => api('/api/me'), d => { setMe(d); drawSubmit(p); });
   }
   function drawSubmit(p) {
     const all = (me && me.meters) || [];
@@ -1101,7 +1146,7 @@
   }
 
   const SCREENS = { home: screenHome, submit: screenSubmit, result: screenResult, meter: screenMeter, profile: screenProfile, addr: screenAddr,
-    share: screenShare, share_new: screenShareNew, share_link: screenShareLink };
+    share: screenShare, share_new: screenShareNew, share_link: screenShareLink, shared: screenShared };
   $ava.addEventListener('click', () => go('profile'));
 
   // ---------- старт ----------
