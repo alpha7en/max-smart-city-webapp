@@ -89,6 +89,7 @@ async def test_r1_first_message_welcome_then_name(chat, api, repo):
     await chat.text("привет")
     assert api.texts() == [C.WELCOME, RT.ASK_NAME]
     assert "сфотографировать счётчик" in C.WELCOME and "персональных данных" in RT.ASK_NAME
+    assert "/demo_profile" in C.WELCOME and ">" in C.WELCOME
     assert (await session(repo)).state == S.REG_NAME
     assert labels(last_kb(api)) == [RT.BTN_ITS_ME.format(name="Анна Иванова")]
 
