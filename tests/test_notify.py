@@ -42,7 +42,7 @@ async def test_submission_window_notifications(deps, repo, api):
     assert await tick(deps, at(2026, 10, 14, 12)) == []  # окно ещё закрыто
     ((text, kb),) = await tick(deps, at(2026, 10, 15, 10))
     assert text.startswith(T.SUBMIT_OPEN.format(month="октябрь", deadline="25 октября"))
-    assert T.SUBMIT_NOT_DONE.format(meters="Хол. вода · Арбат 47к1, кв 32") in text
+    assert T.SUBMIT_NOT_DONE.format(meters="Хол. вода · г Москва, ул Арбат, д 47 к 1, кв 32") in text
     assert labels(kb) == [[T.BTN_SUBMIT], [C.BTN_MENU]]
     assert [b[0]["payload"] for b in rows(kb)] == ["g|n_submit|", "g|menu|"]
     assert await tick(deps, at(2026, 10, 15, 11)) == []  # один раз
@@ -69,7 +69,7 @@ async def test_verification_notifications(deps, repo, api):
 
     assert await tick(deps, at(2026, 11, 19)) == []  # 31 день
     ((text, kb),) = await tick(deps, at(2026, 11, 20))
-    assert text.startswith(T.VERIFICATION_SOON.format(meter="холодной воды (Арбат 47к1, кв 32)", date="20 декабря",
+    assert text.startswith(T.VERIFICATION_SOON.format(meter="холодной воды (г Москва, ул Арбат, д 47 к 1, кв 32)", date="20 декабря",
                                                       left="осталось **30 дней**"))
     assert T.VERIFICATION_WHY in text and "смоделирована" not in text
     assert labels(kb) == [[T.BTN_VERIFY], [C.BTN_MENU]]
@@ -82,7 +82,7 @@ async def test_verification_notifications(deps, repo, api):
     assert "остался **1 день**" in text
     assert await tick(deps, at(2026, 12, 20)) == []  # тот же этап «1»
     ((text, _),) = await tick(deps, at(2026, 12, 21))
-    assert text.startswith(T.VERIFICATION_OVERDUE.format(meter="холодной воды (Арбат 47к1, кв 32)", date="20 декабря"))
+    assert text.startswith(T.VERIFICATION_OVERDUE.format(meter="холодной воды (г Москва, ул Арбат, д 47 к 1, кв 32)", date="20 декабря"))
     assert await tick(deps, at(2026, 12, 28)) == []
     stages = [k.split(":")[-1] for kind, k in await sent_kinds(repo) if kind == "verification"]
     assert stages == ["30", "7", "1", "overdue"]
@@ -97,7 +97,7 @@ async def test_bill_notifications(deps, repo, api):
     (bill,) = await repo.unpaid_bills(user["id"])
     assert await tick(deps, at(2026, 11, 4)) == []
     ((text, kb),) = await tick(deps, at(2026, 11, 5))
-    assert text.startswith(T.BILL_DUE.format(month="сентябрь", address="Арбат 47к1, кв 32",
+    assert text.startswith(T.BILL_DUE.format(month="сентябрь", address="г Москва, ул Арбат, д 47 к 1, кв 32",
                                              amount="5 918 ₽", date="10 ноября", left="осталось **5 дней**"))
     assert T.BILL_DEMO in text
     assert labels(kb) == [[T.BTN_PAY], [C.BTN_MENU]] and rows(kb)[0][0]["payload"] == f"g|pay|{bill['id']}"

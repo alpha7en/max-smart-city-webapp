@@ -29,7 +29,9 @@ from tests.conftest import NOW, Chat
 
 UID, OTHER = 5273381, 777
 ARBAT = "Москва, Арбат 47к1, кв. 32"
-LABEL = "Хол. вода · Арбат 47к1, кв 32"
+LABEL = "Хол. вода · Арбат 47к1, кв 32"  # кнопка
+ARBAT_FULL = "г. Москва, Арбат, д. 47, корп. 1, кв. 32"
+FULL = f"Хол. вода · {ARBAT_FULL}"  # в тексте — полный адрес
 
 
 # --- Фикстуры и помощники ---
@@ -196,7 +198,7 @@ async def test_f3_photo_recognize_send(chat, api, repo, settings, user, cold):
     assert api.named("typing") and api.texts()[0] == T.LOOKING
     assert api.named("delete")  # «Смотрим на фото…» удалено при получении результата
     review = api.last_text()
-    assert review.startswith(LABEL + "\n\nПоказание: **") and "В прошлый раз: 118,2 м³ (+" in review
+    assert review.startswith(FULL + "\n\nПоказание: **") and "В прошлый раз: 118,2 м³ (+" in review
     assert review.endswith(f"{T.REVIEW_QUESTION}\n\n> {T.STUB_NOTE}")  # демо — последней цитатой
     assert buttons(api) == [T.BTN_SEND, T.BTN_EDIT, T.BTN_RETAKE, C.BTN_CANCEL]
     assert (await state(repo)).state == S.SUB_REVIEW
@@ -204,7 +206,7 @@ async def test_f3_photo_recognize_send(chat, api, repo, settings, user, cold):
     (_, row) = await readings(repo, cold)
     assert (row["source"], row["status"]) == ("photo", "accepted") and row["t1"] > 118_200
     done = api.last_text()
-    assert done.startswith(T.DONE.split("\n")[0].format(month="октябрь")) and "Холодная вода · Арбат 47к1, кв 32" in done
+    assert done.startswith(T.DONE.split("\n")[0].format(month="октябрь")) and "Холодная вода · г. Москва, Арбат, д. 47, корп. 1, кв. 32" in done
     assert done.endswith(f"\n\n> {T.UK_MOCK}") and T.STUB_NOTE not in done  # о демо-распознавании сказали на проверке
     assert buttons(api) == [C.BTN_MENU, T.BTN_MORE]
     assert api.button(T.BTN_MORE)["payload"] == "g|submit|"
@@ -233,7 +235,7 @@ async def test_f4_new_electricity_two_tariffs(chat, api, repo, user):
     assert buttons(api) == ["Арбат 47к1, кв 32", T.BTN_OTHER_ADDRESS, C.BTN_BACK, C.BTN_CANCEL]
     await chat.press("Арбат 47к1, кв 32")
     # Демо-распознавание номер не читает: без номера к «Отправить» не пускаем.
-    assert api.last_text() == f"Свет · Арбат 47к1, кв 32\n\n{T.SERIAL_MISSING}"
+    assert api.last_text() == f"Свет · {ARBAT_FULL}\n\n{T.SERIAL_MISSING}"
     assert buttons(api) == [T.BTN_RETAKE, T.BTN_SERIAL, C.BTN_CANCEL]
     assert (await state(repo)).state == S.SUB_SERIAL_MISSING
     await chat.press(T.BTN_SERIAL)
@@ -564,7 +566,7 @@ async def test_f12_new_meter_serial_exists_switches(chat, api, repo, deps, user)
     await chat.press(T.BTN_NEW_METER)
     await chat.press("Хол. вода")
     await chat.press("Арбат 47к1, кв 32")
-    assert api.last_text().startswith(T.SWITCHED_METER.format(label=LABEL))
+    assert api.last_text().startswith(T.SWITCHED_METER.format(label=FULL))
     await chat.press(T.BTN_SEND)
     assert [m["id"] for m in await repo.address_meters(user[1])] == [mid]
     assert (await readings(repo, mid))[-1]["t1"] == 104_000
@@ -584,7 +586,7 @@ async def test_new_meter_serial_saved_from_photo(chat, api, repo, deps, user):
 
 # --- Серийники: номер счётчика только из подтверждённого показания, несовпадение — без записи ---
 
-def mismatch_text(photo: str, saved: str, label: str = LABEL) -> str:
+def mismatch_text(photo: str, saved: str, label: str = FULL) -> str:
     return T.SERIAL_MISMATCH.format(photo=photo, label=label, saved=saved)
 
 
@@ -666,8 +668,8 @@ async def test_serial_of_another_meter_for_meter_without_serial(chat, api, repo,
     deps.recognizer = FixedRecognizer({"t1": 5_000}, serial="18 123456")
     await to_review(chat)
     assert (await state(repo)).state == S.SUB_SERIAL_MISMATCH
-    assert api.last_text() == T.SERIAL_OF_OTHER.format(photo="18 123456", other="Гор. вода · Арбат 47к1, кв 32",
-                                                       label=LABEL)
+    assert api.last_text() == T.SERIAL_OF_OTHER.format(photo="18 123456", other=f"Гор. вода · {ARBAT_FULL}",
+                                                       label=FULL)
     await chat.press(T.BTN_SAME_METER)  # номер с фото не берём, а своего у счётчика нет — спросим
     assert (await state(repo)).state == S.SUB_SERIAL_INPUT and T.SERIAL_MISSING not in api.last_text()
     await chat.text("18-123456")  # тот же чужой номер

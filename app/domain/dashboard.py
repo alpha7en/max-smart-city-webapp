@@ -67,7 +67,7 @@ class Dashboard:
     urgent: Urgent | None
     markdown: str = ""                # тот же дашборд в разметке MAX (для бота)
     meters: list[dict] = field(default_factory=list)      # для /api/me (SPEC §6)
-    addresses: list[dict] = field(default_factory=list)   # [{label, access, role}]
+    addresses: list[dict] = field(default_factory=list)   # [{label, full_text, access, role}]
     all_submitted: bool = False                           # счётчики есть и все поданы за текущий период
     period: str = ""
     # Структура для мини-приложения (SPEC §6): даты — ISO 'YYYY-MM-DD'.
@@ -75,7 +75,7 @@ class Dashboard:
     bill: dict | None = None          # ближайший неоплаченный: {id, address_id, amount_kop, amount_text, due, days_left, demo, count}
     bills: list[dict] = field(default_factory=list)     # все неоплаченные (как bill, без count) — фильтр по адресу
     verification: dict | None = None  # ближайшая поверка ≤ 60 дн.: {meter_id, meter_label, type, due, days_left}
-    pending: list[dict] = field(default_factory=list)   # [{label}] — адреса, ждущие подтверждения
+    pending: list[dict] = field(default_factory=list)   # [{label, full_text}] — адреса, ждущие подтверждения
     submitted: int = 0                # счётчиков подано за текущий период
     total: int = 0                    # всего счётчиков
 
@@ -114,9 +114,10 @@ def local_time(value: str | None, tz: ZoneInfo = clock.TZ) -> datetime | None:
         return None
 
 
-def meter_names(meters: list[Row]) -> dict[int, str]:
-    """{meter_id: «Хол. вода · Арбат 47к1, кв 32»} — подписи как в подаче (domain.meters.meter_labels)."""
-    return dict(zip([m["id"] for m in meters], meter_labels(meters), strict=True))
+def meter_names(meters: list[Row], full: bool = True) -> dict[int, str]:
+    """{meter_id: «Хол. вода · г. Москва, ул. Арбат, д. 47, корп. 1, кв. 32»} — для текста;
+    full=False — короткие подписи для кнопок, как в подаче (domain.meters.meter_labels)."""
+    return dict(zip([m["id"] for m in meters], meter_labels(meters, full=full), strict=True))
 
 
 def submitted(meter: Row, period: str) -> bool:
@@ -135,7 +136,8 @@ def _api_meter(m: Row, period: str) -> dict:
         }
     return {
         "id": m["id"], "type": m["type"], "type_label": TYPE_LABELS[m["type"]], "unit": UNITS[m["type"]],
-        "tariffs": m["tariffs"], "address_label": m.get("address_label") or "", "serial": format_serial(m.get("serial"), m["type"]),
+        "tariffs": m["tariffs"], "address_label": m.get("address_label") or "",
+        "address_full": m.get("address_full") or m.get("address_label") or "", "serial": format_serial(m.get("serial"), m["type"]),
         "last": last, "submitted_this_period": submitted(m, period),
         "verification_due": m.get("verification_due"), "verification_source": m.get("verification_source"),
     }
@@ -201,7 +203,7 @@ def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to
         if urgent:
             blocks.append([bold(urgent.text)])
         if len(pending) == 1:
-            blocks.append([T.PENDING.format(label=e(pending[0].get("label") or ""))])
+            blocks.append([T.PENDING.format(label=e(pending[0].get("full_text") or pending[0].get("label") or ""))])
         elif pending:
             blocks.append([T.PENDING_MANY.format(n=len(pending))])
         if meters:
@@ -275,7 +277,8 @@ def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to
         markdown="\n".join(text_lines(md=True)),
         urgent=urgent,
         meters=[_api_meter(m, period) for m in meters],
-        addresses=[{"label": a.get("label") or "", "access": a["access"], "role": a["role"]}
+        addresses=[{"label": a.get("label") or "", "full_text": a.get("full_text") or "",
+                    "access": a["access"], "role": a["role"]}
                    for a in data.addresses],
         all_submitted=bool(meters) and not not_done,
         period=period,
@@ -283,7 +286,7 @@ def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to
         bill=bill_json,
         bills=bills_json,
         verification=verif_json,
-        pending=[{"label": a.get("label") or ""} for a in pending],
+        pending=[{"label": a.get("label") or "", "full_text": a.get("full_text") or ""} for a in pending],
         submitted=len(meters) - len(not_done),
         total=len(meters),
     )

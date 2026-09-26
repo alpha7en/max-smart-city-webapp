@@ -539,7 +539,7 @@ async def finish(ctx: Ctx) -> None:
         await call_hook("access.no_access", ctx, address_id=res["address_id"])
         await show_menu(ctx)
         return
-    invited = [IT.REG_ACCEPTED.format(label=esc(res["label"]))] if by_invite else []
+    invited = [IT.REG_ACCEPTED.format(label=esc(c.full_text))] if by_invite else []
     if pending and await photo_alive(ctx, pending):
         for line in (T.DONE_PHOTO, *invited):
             ctx.note(line)

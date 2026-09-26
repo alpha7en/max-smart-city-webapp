@@ -116,7 +116,7 @@ def test_no_meters_and_pending_only():
     d = dash(addresses=pending)
     assert T.NO_METERS not in d.lines  # фото без прав не поможет — не зовём присылать
     assert d.lines[0] == T.PENDING.format(label=ARBAT)
-    assert d.addresses == [{"label": ARBAT, "access": "pending", "role": "tenant"}]
+    assert d.addresses == [{"label": ARBAT, "full_text": "", "access": "pending", "role": "tenant"}]
 
 
 def test_outside_window():
@@ -151,7 +151,7 @@ def test_api_payload():
     m1, m2 = d.meters
     assert m1 == {
         "id": 1, "type": "cold_water", "type_label": "Хол. вода", "unit": "м³", "tariffs": 1,
-        "address_label": ARBAT, "serial": None, "submitted_this_period": True, "verification_due": None,
+        "address_label": ARBAT, "address_full": ARBAT, "serial": None, "submitted_this_period": True, "verification_due": None,
         "verification_source": None,
         "last": {"period": "2026-10", "values": {"t1": "123,456"}, "created_at": "2026-10-12T12:00:00+03:00"},
     }
@@ -198,7 +198,7 @@ def test_structured_pending_and_api():
     addresses = GRANTED + [{"label": "Ленина 5", "access": "pending", "role": "tenant"},
                            {"label": "Мира 1", "access": "pending", "role": "tenant"}]
     d = dash([meter(1)], addresses=addresses)
-    assert d.pending == [{"label": "Ленина 5"}, {"label": "Мира 1"}]
+    assert d.pending == [{"label": "Ленина 5", "full_text": ""}, {"label": "Мира 1", "full_text": ""}]
     api = d.to_api()
     assert set(api) == {"lines", "urgent", "window", "bill", "bills", "verification", "pending", "submitted",
                         "total"}

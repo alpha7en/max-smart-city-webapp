@@ -2,7 +2,7 @@ ACCESS_ALREADY: Доступ по адресу {label} уже открыт — �
 ACCESS_CLAIMED: По адресу {label} больше нет собственника в боте — открыли доступ
   вам.
 ACCESS_UNKNOWN: Этого адреса нет в вашем профиле.
-ADDRESS_DUP: Этот адрес уже есть у вас как «{label}».
+ADDRESS_DUP: 'Этот адрес уже есть у вас: {label}.'
 ADDRESS_EXAMPLE: 'Например: г. Москва, ул. Арбат, д. 47, корп. 1, кв. 32'
 ADDRESS_SAVED: 'Добавили адрес: {label}.'
 ASK_ADDRESS: |-

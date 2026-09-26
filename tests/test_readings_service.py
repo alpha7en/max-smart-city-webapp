@@ -194,6 +194,15 @@ def test_meter_labels_distinguish_same_type():
     assert M.meter_label(_m(3, aid=2), [_m(1), _m(2)]) == "Хол. вода · Арбат 47к1, кв 32"
 
 
+def test_meter_labels_full_address_for_text():
+    full = "г. Москва, ул. Арбат, д. 47, корп. 1, кв. 32"
+    ms = [dict(_m(1, serial="18-12 4521"), address_full=full), dict(_m(2, serial="99-0007"), address_full=full)]
+    # в тексте — полный адрес, хвост серийника не упираем в лимит кнопки
+    assert M.meter_labels(ms, full=True) == [f"Хол. вода · {full} …4521", f"Хол. вода · {full} …0007"]
+    assert M.meter_labels(ms) == ["Хол. вода · Арбат 47к1, кв 32 …4521", "Хол. вода · Арбат 47к1, кв 32 …0007"]
+    assert M.meter_labels([_m(1)], full=True) == ["Хол. вода · Арбат 47к1, кв 32"]  # без полного — короткий
+
+
 def test_growth_delta_and_value_like():
     assert M.growth_limit("cold_water", 3) == 90_000 and M.growth_limit("heat", 0) == 5_000
     assert M.value_delta({"t1": 5, "t2": None}, {"t1": 2, "t2": 1}) == {"t1": 3}
@@ -226,7 +235,7 @@ async def test_created_at_follows_app_clock(repo):
     assert {r["created_at"] for r in rows} | {linked} == {"2026-10-19 22:30:00"}
     assert iso(rows[0]["created_at"]) == "2026-10-20T01:30:00+03:00"
     dash = await load_dashboard(repo, uid, late.date())
-    assert "Хол. вода · Арбат 47к1, кв 32 — подано 20.10" in dash.lines
+    assert "Хол. вода · г Москва, ул Арбат, д 47, кв 32 — подано 20.10" in dash.lines
 
 
 # --- Пустые поля: сервер не сохраняет пустое показание ---

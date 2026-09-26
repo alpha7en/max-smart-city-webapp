@@ -178,7 +178,7 @@ async def _meter(ctx: Ctx) -> Meter | None:
     d = ctx.data
     if d.get("meter_id"):
         meters = await ctx.repo.user_meters(_uid(ctx))
-        for m, label in zip(meters, meter_labels(meters), strict=True):
+        for m, label in zip(meters, meter_labels(meters, full=True), strict=True):
             if m["id"] == d["meter_id"]:
                 return Meter(m["id"], m["type"], tariffs_of(m["type"], m["tariffs"]), m["address_id"], label,
                              m["serial"])
@@ -196,7 +196,7 @@ async def _meter(ctx: Ctx) -> Meter | None:
         await _no_access(ctx, draft.get("address_id"))
         return None
     return Meter(None, draft["type"], tariffs_of(draft["type"], draft.get("tariffs")), link["id"],
-                 f"{TYPE_LABELS[draft['type']]} · {link['label']}", draft.get("serial"))
+                 f"{TYPE_LABELS[draft['type']]} · {link['full_text']}", draft.get("serial"))
 
 
 def _shown(ctx: Ctx, m: Meter, values: dict | None, f: str, unit: bool = True) -> str:
@@ -667,7 +667,7 @@ async def _save_address(ctx: Ctx, cand: AddressCandidate) -> None:
         if not can_submit(link["access"]):
             await _no_access(ctx, link["id"])
             return
-        ctx.note(T.ADDRESS_ALREADY.format(label=esc(link["label"])))
+        ctx.note(T.ADDRESS_ALREADY.format(label=esc(link["full_text"])))
         address_id = link["id"]
     else:
         raw = (ctx.data.get("addr") or {}).get("raw")
@@ -817,7 +817,7 @@ async def ask_serial(ctx: Ctx) -> None:
     other_id = ctx.data.get("serial_other") if ctx.data.get("serial_status") == "other" else None
     if other_id:
         meters = await ctx.repo.user_meters(_uid(ctx))
-        other = next((lb for x, lb in zip(meters, meter_labels(meters), strict=True) if x["id"] == other_id), "")
+        other = next((lb for x, lb in zip(meters, meter_labels(meters, full=True), strict=True) if x["id"] == other_id), "")
         text = T.SERIAL_OF_OTHER.format(photo=esc(photo_serial), other=esc(other), label=esc(m.label))
     else:
         text = T.SERIAL_MISMATCH.format(photo=esc(photo_serial), label=esc(m.label),
@@ -941,7 +941,7 @@ async def _serial_value(ctx: Ctx, text: str) -> None:
     other = await ctx.repo.find_meter_by_serial(m.address_id, serial)
     if other and other["id"] != m.id:
         meters = await ctx.repo.user_meters(_uid(ctx))
-        label = next((lb for x, lb in zip(meters, meter_labels(meters), strict=True) if x["id"] == other["id"]), "")
+        label = next((lb for x, lb in zip(meters, meter_labels(meters, full=True), strict=True) if x["id"] == other["id"]), "")
         await ctx.reply(T.SERIAL_TAKEN.format(serial=esc(format_serial(serial, m.type)), other=esc(label)),
                         _manual_kb(ctx))
         return
@@ -1263,7 +1263,7 @@ async def _done(ctx: Ctx, m: Meter, res: SubmitResult) -> None:
     created = m.id is None and res.meter_id is not None
     if created:  # подпись нового счётчика — с учётом остальных
         meters = await ctx.repo.user_meters(_uid(ctx))
-        label = dict(zip([x["id"] for x in meters], meter_labels(meters), strict=True)).get(res.meter_id, m.label)
+        label = dict(zip([x["id"] for x in meters], meter_labels(meters, full=True), strict=True)).get(res.meter_id, m.label)
     else:
         label = m.label
     lines = [T.DONE.format(meter=esc(fmt.meter_title(m.type, label)), month=fmt.month_name(res.period),

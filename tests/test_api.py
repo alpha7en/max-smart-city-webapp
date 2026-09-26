@@ -161,7 +161,8 @@ def test_a3_me_contract_and_dashboard(client):
 
     by_id = {m["id"]: m for m in d["meters"]}
     water, power = by_id[m1], by_id[m2]
-    assert set(water) == {"id", "type", "type_label", "unit", "tariffs", "address_id", "address_label", "serial", "last",
+    assert set(water) == {"id", "type", "type_label", "unit", "tariffs", "address_id", "address_label", "address_full", "serial",
+                          "last",
                           "submitted_this_period", "verification_due", "verification_source", "arshin_url",
                           "arshin_demo"}
     assert water["type_label"] == "Хол. вода" and water["unit"] == "м³" and water["address_label"] == u["label"]
@@ -198,7 +199,7 @@ def test_a3_pending_address_marked_and_hidden_meters(client):
     assert [(a["id"], a["label"], a["access"], a["role"]) for a in d["addresses"]] == [
         (owner["address_id"], owner["label"], "pending", "tenant")]
     dash = d["dashboard"]
-    assert dash["pending"] == [{"label": owner["label"]}] and dash["bill"] is None and dash["total"] == 0
+    assert dash["pending"] == [{"label": owner["label"], "full_text": d["addresses"][0]["full_text"]}] and dash["bill"] is None and dash["total"] == 0
     assert sum("одобрения собственника" in line for line in dash["lines"]) == 1  # строка для бота — одна
 
 
@@ -220,8 +221,10 @@ def test_a3_dashboard_verification_urgent(client):
     u = register(client)
     m = add_meter(client, u["address_id"])
     run(client, repo(client).set_verification, m, "2026-11-02", "user")
-    dash = client.get("/api/me", headers=auth()).json()["dashboard"]
-    assert dash["verification"] == {"meter_id": m, "meter_label": f"Хол. вода · {u['label']}", "type": "cold_water",
+    me = client.get("/api/me", headers=auth()).json()
+    dash = me["dashboard"]
+    full = me["addresses"][0]["full_text"]  # в тексте — полный адрес
+    assert dash["verification"] == {"meter_id": m, "meter_label": f"Хол. вода · {full}", "type": "cold_water",
                                     "due": "2026-11-02", "days_left": 14}
     assert dash["urgent"] == {"kind": "verification", "text": MT.URGENT_VERIFICATION.format(n="14 дней"), "days_left": 14}
 

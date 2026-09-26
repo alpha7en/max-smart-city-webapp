@@ -357,14 +357,15 @@ class Repo:
         )
 
     async def user_meters(self, user_id: int, only_granted: bool = True) -> list[Row]:
-        """Счётчики на адресах пользователя: поля meters + address_label, role, access
+        """Счётчики на адресах пользователя: поля meters + address_label (короткий), address_full, role, access
         + последнее показание: last_id, last_period, last_t1..t3, last_source, last_status, last_created_at."""
         where = "AND ua.access='granted'" if only_granted else ""
         return await self._all(
-            "SELECT m.*, ua.label AS address_label, ua.role, ua.access, "
+            "SELECT m.*, ua.label AS address_label, a.full_text AS address_full, ua.role, ua.access, "
             "r.id AS last_id, r.period AS last_period, r.t1 AS last_t1, r.t2 AS last_t2, r.t3 AS last_t3, "
             "r.source AS last_source, r.status AS last_status, r.created_at AS last_created_at "
             "FROM meters m JOIN user_addresses ua ON ua.address_id=m.address_id AND ua.user_id=? "
+            "JOIN addresses a ON a.id=m.address_id "
             "LEFT JOIN readings r ON r.id=(SELECT id FROM readings WHERE meter_id=m.id "
             "  AND status!='replaced' ORDER BY period DESC, id DESC LIMIT 1) "
             f"WHERE m.active=1 {where} ORDER BY ua.created_at, m.id",
@@ -512,9 +513,10 @@ class Repo:
         return await self._one("SELECT * FROM bills WHERE id=?", (bill_id,))
 
     async def unpaid_bills(self, user_id: int) -> list[Row]:
-        """Неоплаченные счета по адресам пользователя (granted) + address_label."""
+        """Неоплаченные счета по адресам пользователя (granted) + address_label, address_full."""
         return await self._all(
-            "SELECT b.*, ua.label AS address_label FROM bills b "
+            "SELECT b.*, ua.label AS address_label, a.full_text AS address_full FROM bills b "
+            "JOIN addresses a ON a.id=b.address_id "
             "JOIN user_addresses ua ON ua.address_id=b.address_id AND ua.user_id=? AND ua.access='granted' "
             "WHERE b.status='unpaid' ORDER BY b.due_date",
             (user_id,),
@@ -628,7 +630,8 @@ class Repo:
         """Счётчик (поля meters) + access/role пользователя по его адресу (None, если адрес не привязан).
         Нет такого счётчика → None."""
         return await self._one(
-            "SELECT m.*, ua.access, ua.role, ua.label AS address_label FROM meters m "
+            "SELECT m.*, ua.access, ua.role, ua.label AS address_label, a.full_text AS address_full FROM meters m "
+            "JOIN addresses a ON a.id=m.address_id "
             "LEFT JOIN user_addresses ua ON ua.address_id=m.address_id AND ua.user_id=? WHERE m.id=?",
             (user_id, meter_id),
         )

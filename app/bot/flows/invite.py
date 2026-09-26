@@ -100,14 +100,14 @@ async def create_invite(ctx: Ctx, aid: int | None = None) -> None:
     token = new_token()
     if not await ctx.repo.create_invite(token, ua["id"], ctx.user["id"], ctx.now, ctx.now + INVITE_TTL, INVITE_LIMIT):
         first = (await ctx.repo.active_invites(ua["id"], ctx.now))[0]
-        await ctx.reply(T.INVITE_LIMIT.format(label=esc(ua["label"]), count=INVITE_LIMIT,
+        await ctx.reply(T.INVITE_LIMIT.format(label=esc(ua["full_text"]), count=INVITE_LIMIT,
                                               until=_until(first["expires_at"])), _menu_kb(manage))
         return
     until = day_month((ctx.now + INVITE_TTL).date())
     # Ссылку — отдельным сообщением без разметки: его удобно переслать, «_» в имени бота не станет курсивом.
     await ctx.api.send(T.INVITE_LINK.format(address=ua["full_text"], url=f"https://max.ru/{bot}?start=inv_{token}",
                                             until=until), user_id=ctx.event.user_id, fmt=None)
-    await ctx.reply(T.INVITE_CREATED.format(label=esc(ua["label"])), _menu_kb(manage))
+    await ctx.reply(T.INVITE_CREATED.format(label=esc(ua["full_text"])), _menu_kb(manage))
 
 
 def _fit(template: str, fallback: str, name: str, n: int) -> str:
@@ -123,7 +123,7 @@ async def show_members(ctx: Ctx, aid: int | None = None) -> None:
     invite = [K.gbtn(T.BTN_INVITE, "inv_new", ua["id"])]
     members = await ctx.repo.address_members(ua["id"])
     if not members:
-        await ctx.reply(T.MEMBERS_EMPTY.format(label=esc(ua["label"])), _menu_kb(invite))
+        await ctx.reply(T.MEMBERS_EMPTY.format(label=esc(ua["full_text"])), _menu_kb(invite))
         return
     lines, rows = [], []
     for n, m in enumerate(members, 1):
@@ -134,7 +134,7 @@ async def show_members(ctx: Ctx, aid: int | None = None) -> None:
             rows.append([K.gbtn(_fit(T.BTN_REVOKE, T.BTN_REVOKE_N, name, n), "acc_rev", arg)])
         elif m["access"] == "pending":  # тот же ответ, что на запрос доступа (profile.acc_ok)
             rows.append([K.gbtn(_fit(T.BTN_ALLOW, T.BTN_ALLOW_N, name, n), "acc_ok", arg)])
-    await ctx.reply(T.MEMBERS.format(label=esc(ua["label"]), lines="\n".join(lines)), _menu_kb(*rows, invite))
+    await ctx.reply(T.MEMBERS.format(label=esc(ua["full_text"]), lines="\n".join(lines)), _menu_kb(*rows, invite))
 
 
 def members_line(members: list[Row]) -> str:
@@ -174,7 +174,7 @@ async def ask_revoke(ctx: Ctx) -> None:
     if found is None:
         return
     ua, user, _ = found
-    await ctx.reply(T.REVOKE_ASK.format(name=esc(short_name(user["full_name"])), label=esc(ua["label"])), K.kb(
+    await ctx.reply(T.REVOKE_ASK.format(name=esc(short_name(user["full_name"])), label=esc(ua["full_text"])), K.kb(
         [K.gbtn(T.BTN_REVOKE_YES, "acc_rev_ok", ctx.arg), K.gbtn(T.BTN_REVOKE_NO, "acc_list", ua["id"])]))
 
 
@@ -187,11 +187,11 @@ async def revoke(ctx: Ctx) -> None:
     await ctx.clear_keyboard()
     await ctx.repo.set_access(user["id"], ua["id"], "denied")
     try:
-        await ctx.api.send(T.TENANT_REVOKED.format(label=esc(member["label"])), user_id=user["max_user_id"],
+        await ctx.api.send(T.TENANT_REVOKED.format(label=esc(member["full_text"])), user_id=user["max_user_id"],
                            keyboard=_menu_kb([K.gbtn(PT.BTN_PROFILE, "profile")]))
     except MaxApiError as e:
         log.warning("revoke notice to tenant failed: %s", e)
-    await ctx.reply(T.REVOKED.format(name=esc(short_name(user["full_name"])), label=esc(ua["label"])),
+    await ctx.reply(T.REVOKED.format(name=esc(short_name(user["full_name"])), label=esc(ua["full_text"])),
                     _menu_kb([K.gbtn(T.BTN_MANAGE, "acc_list", ua["id"])]))
 
 
@@ -255,9 +255,9 @@ async def _already(ctx: Ctx, inv: Row) -> bool:
     """Собственник открыл свою ссылку или доступ уже есть — ответить и не тратить приглашение."""
     ua = await ctx.repo.user_address(ctx.user["id"], inv["address_id"])
     if ua and ua["role"] == "owner":
-        await ctx.reply(T.SELF.format(label=esc(ua["label"])), _menu_kb([K.gbtn(T.BTN_MANAGE, "acc_list", ua["id"])]))
+        await ctx.reply(T.SELF.format(label=esc(ua["full_text"])), _menu_kb([K.gbtn(T.BTN_MANAGE, "acc_list", ua["id"])]))
     elif ua and ua["access"] == "granted":
-        await ctx.reply(T.ALREADY.format(label=esc(ua["label"])), _menu_kb([K.gbtn(PT.BTN_SUBMIT, "submit")]))
+        await ctx.reply(T.ALREADY.format(label=esc(ua["full_text"])), _menu_kb([K.gbtn(PT.BTN_SUBMIT, "submit")]))
     else:
         return False
     return True
@@ -273,7 +273,7 @@ async def accept(ctx: Ctx) -> None:
     if await _already(ctx, inv) or not await use_invite(ctx, inv):
         return
     ua = await ctx.repo.user_address(ctx.user["id"], inv["address_id"])
-    await ctx.reply(T.ACCEPTED.format(label=esc(ua["label"])), _menu_kb([K.gbtn(PT.BTN_SUBMIT, "submit")]))
+    await ctx.reply(T.ACCEPTED.format(label=esc(ua["full_text"])), _menu_kb([K.gbtn(PT.BTN_SUBMIT, "submit")]))
 
 
 @on_global("inv_no")
@@ -294,7 +294,7 @@ async def use_invite(ctx: Ctx, inv: Row) -> bool:
     if owner_ua is not None:
         try:
             await ctx.api.send(
-                T.OWNER_ACCEPTED.format(name=esc(short_name(u["full_name"])), label=esc(owner_ua["label"])),
+                T.OWNER_ACCEPTED.format(name=esc(short_name(u["full_name"])), label=esc(owner_ua["full_text"])),
                 user_id=owner["max_user_id"], keyboard=_menu_kb([K.gbtn(T.BTN_MANAGE, "acc_list", aid)]))
         except MaxApiError as e:
             log.warning("invite accepted notice to owner failed: %s", e)
