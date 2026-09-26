@@ -496,6 +496,7 @@ async def shares(request: Request, init: InitData = Depends(current_user)) -> di
         elif a["access"] == "granted":
             received.append({"address_id": a["id"], "label": a["label"], "full_text": a["full_text"],
                              "owner": short_name(SH.sharer(a)) if SH.sharer(a) else None,
+                             "owner_gen": short_name_gen(SH.sharer(a)) if SH.sharer(a) else None,
                              "since": _day(a.get("granted_at") or a.get("linked_at"))})
     invites = [await invite_json(deps, inv) for inv in await deps.repo.owner_invites(user["id"], clock.now())]
     return {"owned": owned, "invites": invites, "received": received, "limits": {"active_invites": SH.INVITE_LIMIT}}

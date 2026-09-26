@@ -149,6 +149,8 @@
     limit: 'Активных приглашений уже слишком много. Отмените ненужное и создайте новое.',
     not_owner: 'Делиться можно только своими адресами.',
     empty: 'Выберите хотя бы один адрес.',
+    invite_used: 'Эту ссылку уже приняли. Закрыть доступ можно в списке людей.',
+    no_username: 'Сейчас ссылку не создать. Попробуйте позже или поделитесь доступом в чате с ботом.',
   };
   const STATUS_MSG = {
     401: 'Не получилось вас узнать. Закройте мини-приложение и откройте его снова из чата.',
@@ -585,7 +587,10 @@
   const fromLine = a => (a.owner_gen || a.owner ? 'доступ от ' + (a.owner_gen || genName(a.owner)) : 'общий доступ');
   const sharedCount = a => (a.shared_count != null ? +a.shared_count : (a.members || []).filter(m => m.access === 'granted').length);
   const sid = a => String(a.address_id != null ? a.address_id : a.id);
-  const labels = as => (as || []).map(a => a.label).join('; ');
+  // Полный адрес по id (в приглашении сервер отдаёт только короткую подпись для кнопок).
+  const fullById = id => { const a = addrList(me).find(x => String(x.id) === String(id)); return a ? aFull(a) : ''; };
+  const fulls = as => (as || []).map(a => a.full_text || fullById(a.address_id) || a.label);
+  const labels = as => fulls(as).join('; ');
   // Подзаголовок плашки — одна строка о том, что сейчас с доступом.
   function shareSub(d) {
     const list = addrList(d), open = list.filter(a => isOwned(a) && sharedCount(a) > 0), got = list.filter(isShared);
@@ -632,19 +637,19 @@
       return h('div', { class: 'arow' }, h('span', { class: 'ava sm', 'aria-hidden': 'true' }, initials(m.name)),
         h('span', { class: 'grow' }, h('b', {}, m.name),
           h('small', { class: 'sl t-' + (ok ? 'ok' : winOpen ? 'warn' : 'other') }, h('i', { class: 'sd' }),
-            ok ? 'показания переданы ' + fmtDay(m.last_submitted_at) : 'показаний за месяц нет')),
+            ok ? 'подано ' + fmtDay(m.last_submitted_at) : 'показаний за месяц нет')),
         h('button', { class: 'mini q', type: 'button', 'aria-label': 'Закрыть доступ: ' + m.name, onclick: () => closeMember(o, m) }, 'Закрыть'));
     };
     const invCard = inv => h('div', { class: 'card inv', 'data-addrs': (inv.addresses || []).map(sid).join(',') },
       h('div', { class: 'ih' }, ibox('link', 'accent', 18),
-        h('span', { class: 'grow' }, h('b', {}, labels(inv.addresses)),
+        h('span', { class: 'grow' }, fulls(inv.addresses).map(t => h('b', {}, t)),
           h('small', {}, 'до ' + fmtDate(inv.expires_at) + ' · сработает один раз'))),
       h('div', { class: 'ia' },
         h('button', { class: 'mini', type: 'button', onclick: () => sendLink(inv) }, icon('send', 16), 'Отправить ссылку'),
         h('button', { class: 'link q', type: 'button', onclick: () => cancelInvite(inv) }, 'Отменить')));
     const got = received.length > 0 && [section('Вам открыли доступ', received.length),
       h('div', { class: 'list' }, received.map(a => h('div', { class: 'arow' }, ibox('home', 'accent', 18),
-        h('span', { class: 'grow' }, h('b', {}, aFull(a)), h('small', {}, fromLine(a) + (a.since ? ' · с ' + shortDate(fmtDate(a.since)) : ''))),
+        h('span', { class: 'grow' }, h('b', {}, aFull(a)), h('small', {}, fromLine(a) + (a.since ? ' · с\u00a0' + shortDate(fmtDate(a.since)).replace(' ', '\u00a0') : ''))),
         h('button', { class: 'mini q', type: 'button', 'aria-label': 'Убрать у себя: ' + a.label, onclick: () => dropReceived(a) }, 'Убрать'))))];
     let top;
     if (!mine.length) {
@@ -704,7 +709,7 @@
         }, true),
         list.length > 1 && h('div', { class: 'sep' }),
         ...list.map(a => {
-          return row(a.label, a.full_text !== a.label && a.full_text, sel.has(sid(a)), () => { if (!sel.delete(sid(a))) sel.add(sid(a)); hapticTick(); note(errBox); paint(); });
+          return row(a.full_text || a.label, null, sel.has(sid(a)), () => { if (!sel.delete(sid(a))) sel.add(sid(a)); hapticTick(); note(errBox); paint(); });
         })].filter(Boolean));
       make.disabled = !sel.size;
     }
@@ -777,7 +782,8 @@
       haptic('success'); render(); toast(done);
     } catch (e) {
       haptic('error');
-      if (e.status === 404) { render(); toast('Уже изменилось — обновили список'); } else toast(e.status === 0 ? 'Нет связи с сервером. Проверьте интернет и повторите.' : e.message);
+      // 404 — уже нет, 409 — ссылку успели принять: показываем причину и свежий список.
+      if (e.status === 404 || e.status === 409) { render(); toast(e.status === 409 ? e.message : 'Уже изменилось — обновили список'); } else toast(e.status === 0 ? 'Нет связи с сервером. Проверьте интернет и повторите.' : e.message);
     }
   }
   const enc = encodeURIComponent;

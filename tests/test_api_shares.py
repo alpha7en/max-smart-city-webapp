@@ -96,7 +96,7 @@ def test_members_received_close_and_remove(client, api):
 
     shares = client.get("/api/shares", headers=auth(TENANT)).json()
     assert shares["received"] == [{"address_id": owner["address_id"], "label": ANY, "full_text": ANY,
-                                   "owner": "Анна И.", "since": "2026-10-19"}]
+                                   "owner": "Анна И.", "owner_gen": "Анны И.", "since": "2026-10-19"}]
     assert [a["address_id"] for a in shares["owned"]] == [tenant["address_id"]]
     shared = next(a for a in client.get("/api/me", headers=auth(TENANT)).json()["addresses"]
                   if a["id"] == owner["address_id"])
@@ -153,6 +153,7 @@ def test_demo_profile_shares_in_api(client, api):
     assert by_id[first["address_id"]]["shared_count"] == len(first["members"])
     assert by_id[second["address_id"]]["invites_count"] == 1
     shared = by_id[received["address_id"]]
-    assert shared["role"] == "tenant" and shared["owner"] == received["owner"] and shared["owner_gen"]
+    assert shared["role"] == "tenant" and shared["owner"] == received["owner"]
+    assert shared["owner_gen"] == received["owner_gen"]  # «доступ от Анны И.» одинаково в /api/me и /api/shares
     assert all(kw["user_id"] > 0 for kw in api.named("send") if kw["user_id"] is not None)
 
