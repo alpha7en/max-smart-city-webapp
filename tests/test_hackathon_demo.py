@@ -85,6 +85,23 @@ async def test_after_deleting_profile(demo_chat, api, repo):
     await assert_demo_profile(repo)
 
 
+async def test_new_profile_after_deleting_demo_does_not_reuse_old_addresses(demo_chat, api, repo):
+    """SQLite отдаёт удалённому последнему пользователю тот же id, а адреса и счётчики после удаления
+    остаются за адресом: ключ демо-адреса не должен зависеть от id, иначе вернутся старые адреса."""
+    await demo_chat.text("/demo_profile")
+    old = await repo.get_user(UID)
+    old_addrs = {a["id"] for a in await repo.user_addresses(old["id"])}
+    old_meters = {m["id"] for m in await repo.user_meters(old["id"])}
+    await repo.delete_user_data(old["id"])
+
+    await demo_chat.text("/demo_profile")
+    user = await assert_demo_profile(repo)
+    assert user["id"] == old["id"]  # тот же id — из-за этого и был баг
+    assert not {a["id"] for a in await repo.user_addresses(user["id"])} & old_addrs
+    meters = await repo.user_meters(user["id"])
+    assert not {m["id"] for m in meters} & old_meters and 4 <= len(meters) <= 6  # старые не вернулись
+
+
 async def test_two_reviewers_both_own_their_addresses(demo_router, api, repo):
     for uid in (UID, UID2):
         await Chat(demo_router, api, uid).text("/demo_profile")

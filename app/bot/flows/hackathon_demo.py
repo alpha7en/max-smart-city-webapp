@@ -11,12 +11,15 @@
 texts/hackathon_demo.py и yaml/hackathon_demo.yaml, импорт в flows/__init__.py, bot_commands в main.py,
 repo.backdate_reading, переменную в config.py и .env.example, tests/test_hackathon_demo.py.
 
-Адреса тестового профиля свои у каждого пользователя (norm_key 'hackathon-demo:<user_id>:<n>'): так
-пользователь всегда их собственник, а двое проверяющих не делят один адрес по модели прав.
+Адреса тестового профиля новые при каждой генерации (norm_key 'hackathon-demo:<uuid>:<n>'): так пользователь
+всегда их собственник, двое проверяющих не делят один адрес по модели прав, а после «Удалить мои данные» старые
+адреса не возвращаются. id пользователя в ключ не берём: SQLite выдаёт id удалённого последнего пользователя
+заново, а адреса со счётчиками после удаления остаются за адресом.
 """
 from __future__ import annotations
 
 import random
+import uuid
 from dataclasses import dataclass
 from datetime import timedelta
 
@@ -106,8 +109,9 @@ def enabled(ctx: Ctx) -> bool:
     return ctx.settings.hackathon_demo_profile
 
 
-def _norm_key(user_id: int, n: int) -> str:
-    return f"hackathon-demo:{user_id}:{n}"
+def _norm_key(token: str, n: int) -> str:
+    """Ключ демо-адреса: token — случайный на каждый /demo_profile, n — номер адреса (0, 1)."""
+    return f"hackathon-demo:{token}:{n}"
 
 
 def random_name(rnd: random.Random) -> str:
@@ -149,16 +153,17 @@ async def create_profile(ctx: Ctx, profile: DemoProfile) -> None:
     """Регистрация, адреса, счётчики и история показаний — одной транзакцией."""
     repo, uid, today = ctx.repo, ctx.user["id"], ctx.now.date()
     period = current_period(today)
-    rnd = random.Random(uid)
+    token = uuid.uuid4().hex  # не из id пользователя: см. docstring модуля
+    rnd = random.Random()
     async with repo.tx():
         for n, (text, meters) in enumerate(profile.addresses):
             (c,) = _ADDRESSES.parse_local(text)
             if n == 0:
                 res = await repo.complete_registration(
                     uid, full_name=profile.full_name, phone=profile.phone, phone_verified=False,
-                    address=c.to_dict(), norm_key=_norm_key(uid, n), raw_input=None, now=ctx.now)
+                    address=c.to_dict(), norm_key=_norm_key(token, n), raw_input=None, now=ctx.now)
             else:
-                res = await repo.add_user_address(uid, c.to_dict(), _norm_key(uid, n), None, today)
+                res = await repo.add_user_address(uid, c.to_dict(), _norm_key(token, n), None, today)
             for m in meters:
                 due = (ctx.now + timedelta(days=m.verification_days)).date().isoformat()
                 mid = await repo.create_meter(res["address_id"], m.type, len(m.start), None, uid, due, "user")
