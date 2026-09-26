@@ -312,7 +312,7 @@ async def test_i14_miniapp_deeplinks(owner, router, api, repo):
     _, aid = await owner_ids(repo)
     await owner.payload("g|prof_phone|")  # открытый сценарий профиля отменяется
     await start(owner, f"inv_new_{aid}")
-    assert api.last_text().startswith("Изменение профиля отменили.")
+    assert api.last_text().startswith(C.PROFILE_CANCELLED)
     assert "start=inv_" in api.texts()[-2]
     assert (await session(repo)).state == S.IDLE
     await start(owner, f"inv_acc_{aid}")
