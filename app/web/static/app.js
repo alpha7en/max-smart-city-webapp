@@ -603,7 +603,7 @@
     const open = addrList(d).filter(a => isOwned(a) && sharedCount(a) > 0);
     if (open.length === 1) { const n = sharedCount(open[0]); return 'Вы делитесь с ' + n + ' ' + plural(n, PEOPLE_INS); }
     if (open.length > 1) return 'Открыт доступ к ' + open.length + ' ' + plural(open.length, ADDR_DAT);
-    return 'Семья или арендатор смогут передавать показания';
+    return 'с семьёй или арендаторами';
   }
   // Быстрая кнопка у своего адреса: «человек+» — сразу ссылка на этот адрес; «человек-шестерёнка» — к управлению его доступом.
   const PEOPLE_WORDS = ['человек', 'человека', 'человек'];
