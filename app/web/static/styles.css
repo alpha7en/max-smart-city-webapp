@@ -252,9 +252,7 @@ body.has-bar main { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px
 @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
 
 /* ---------- выбор адреса (нижний лист) ---------- */
-.sheet.ls { align-items: stretch; gap: 8px; padding-top: 12px; text-align: left; }
-.sheet.ls::before { content: ""; align-self: center; width: 38px; height: 5px; margin-bottom: 8px; border-radius: 3px; background: var(--line); }
-.sheet.ls h2 { padding: 0 8px 4px; }
+.opts.choose { padding: 6px; }
 .opts { display: flex; flex-direction: column; gap: 2px; }
 .opt { display: flex; align-items: center; gap: 12px; padding: 11px 10px; border: 0; border-radius: 16px; background: none; text-align: left; }
 .opt.on { background: var(--accent-soft); }
