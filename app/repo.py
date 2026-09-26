@@ -710,3 +710,9 @@ class Repo:
                 return denial
             await self._exec("UPDATE meters SET active=0, serial_norm=NULL WHERE id=? AND active=1", (meter_id,))
             return "ok"
+
+    # === Хакатон: демо-профиль для проверяющих (не основной функционал, flows/hackathon_demo.py) ===
+
+    async def backdate_reading(self, reading_id: int, created_at: datetime) -> None:
+        """Сгенерированной истории показаний ставим дату подачи в её месяце, а не «сейчас»."""
+        await self._exec("UPDATE readings SET created_at=? WHERE id=?", (ts(created_at), reading_id))

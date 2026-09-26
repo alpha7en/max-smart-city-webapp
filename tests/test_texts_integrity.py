@@ -30,6 +30,7 @@ MODULES = [
     "notify",
     "arshin",
     "api",
+    "hackathon_demo",
 ]
 
 
