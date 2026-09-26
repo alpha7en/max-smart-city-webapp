@@ -209,7 +209,7 @@ async def test_demo_close_access_remove_and_delete_send_nothing_to_demo_people(d
     await chat.press(next(b for b in labels(last_kb(api)) if b.startswith("Закрыть")))
     await chat.press(IT.BTN_REVOKE_YES)
     assert (await repo.user_address(first["user_id"], own0["id"]))["access"] == "denied"
-    # убрать у себя чужой демо-адрес: демо-собственник уходит вместе с ним, адрес и показания остаются
+    # выйти из общего доступа к чужому демо-адресу: демо-собственник уходит вместе с ним, адрес и показания остаются
     owner_id = shared["owner_id"]
     await chat.payload(f"g|sh_rm_ok|{shared['id']}")
     assert api.last_text() == IT.REMOVED.format(label=shared["full_text"])

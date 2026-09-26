@@ -19,7 +19,7 @@ from app.bot.texts import profile as PT
 from app.bot.texts import registration as RT
 from app.db import MIGRATIONS, SCHEMA_FILE, SCHEMA_VERSION
 from app.domain.addresses import norm_key
-from app.domain.people import genitive, short_name, short_name_gen
+from app.domain.people import genitive, is_female, past, short_name, short_name_gen
 from app.integrations.address_service import AddressService
 from app.repo import Repo
 from tests import fakes
@@ -352,7 +352,7 @@ def test_sh12_no_bad_link_text_is_missing():
     assert set(IT.INVALID) == {"unknown", "expired", "used", "cancelled", "gone"}
 
 
-# --- SH13–SH15: «Общий доступ», закрыть доступ, убрать у себя ---
+# --- SH13–SH15: «Общий доступ», закрыть доступ, выйти из общего доступа ---
 
 async def _petr_granted(owner, petr, api) -> None:
     token = await share_one(owner, api)
@@ -389,9 +389,12 @@ async def test_sh13_owner_list_statuses_and_close(owner, petr, router, api, repo
     assert len(await repo.history(meter)) == 1  # поданное остаётся
     await owner.press(IT.BTN_REVOKE_YES)
     assert api.last_text() == IT.REVOKE_ALREADY.format(name="Пётр П.")
-    # у Петра адрес помечен, можно убрать у себя — собственнику не пишем (доступ уже закрыт)
+    # у Петра адрес помечен, можно выйти из общего доступа — собственнику не пишем (доступ уже закрыт)
     await petr.payload("g|sh_list|")
     assert f"Арбат 47к1, кв 32 — {PT.ROLE[('tenant', 'denied')]}" in api.last_text()
+    await petr.payload(f"g|sh_rm|{aid}")
+    assert api.last_text() == (f"Выйти из общего доступа к адресу {ARBAT}?\n\n"
+                               "Адрес пропадёт из вашего списка. Переданные показания сохранятся.")
     # новая ссылка возвращает доступ (denied → granted)
     token = await share_one(owner, api)
     await start(petr, "inv_" + token)
@@ -414,12 +417,14 @@ async def test_sh14_remove_at_self_notifies_owner(owner, petr, api, repo):
     assert "Изменить адрес может только собственник" in api.last_text()
     assert labels(last_kb(api)) == [IT.BTN_REMOVE, C.BTN_BACK, C.BTN_MENU]
     await petr.press(IT.BTN_REMOVE)
-    assert api.last_text() == IT.REMOVE_ASK.format(label=ARBAT)
+    assert api.last_text() == (f"Выйти из общего доступа к адресу {ARBAT}?\n\nАдрес пропадёт только у вас, "
+                               "Анна И. получит уведомление. Переданные показания сохранятся.")
+    assert labels(last_kb(api)) == ["Выйти", "Отмена"]
     api.clear()
     await petr.press(IT.BTN_REMOVE_YES)
-    assert api.last_text() == IT.REMOVED_NOTIFIED.format(label=ARBAT)
+    assert api.last_text() == f"Вы вышли из общего доступа к адресу {ARBAT}. Анна И. получит уведомление."
     assert await repo.user_address(tid, aid) is None
-    assert sent_to(api, UID) == [IT.OWNER_REMOVED.format(name="Пётр П.", label=ARBAT)]
+    assert sent_to(api, UID) == [f"Пётр П. вышел из общего доступа к адресу {ARBAT}. Переданные показания остались."]
     assert (await repo.history(meter))[0]["user_id"] == tid  # показания остались за адресом
     await owner.payload(f"g|acc_list|{aid}")
     assert api.last_text() == IT.MEMBERS_EMPTY.format(label=f"**{ARBAT}**")
@@ -562,6 +567,12 @@ def test_start_prefix_and_names():
              "Игорь": "Игоря", "Олег": "Олега", "Пётр": "Петра", "Павел": "Павла", "Любовь": "Любови",
              "Наталья": "Натальи", "Никита": "Никиты", "Нелли": "Нелли"}
     assert {k: genitive(k) for k in cases} == cases
+    # род для «вышел/вышла», «открыл/открыла»: отчество главнее имени; не угадать — «(а)»
+    people = {"Смирнова Мария Павловна": "вышла", "Петров Пётр Иванович": "вышел", "Кузьмин Никита": "вышел",
+              "Орлова Анна": "вышла", "Козлов Игорь": "вышел", "Иванова Любовь": "вышла", "Белых Саша": "вышел(а)",
+              "Ким Женя Сергеевна": "вышла", "Аскаров Ильдар Тимур оглы": "вышел", "Пётр": "вышел"}
+    assert {k: past(k, "вышел") for k in people} == people
+    assert past("Смирнова Мария Павловна", "открыл") == "открыла" and is_female(None) is None
 
 
 # --- repo: принятие, свой адрес, адрес уже не отправителя ---

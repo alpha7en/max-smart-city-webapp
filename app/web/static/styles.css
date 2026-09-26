@@ -248,7 +248,8 @@ body.has-bar main { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px
 .sheet { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; max-width: 560px; padding: 26px 16px calc(14px + env(safe-area-inset-bottom, 0px)); border-radius: 28px 28px 0 0; background: var(--card); text-align: center; animation: up .22s ease-out; }
 .sheet .ib.si { width: 60px; height: 60px; margin-bottom: 4px; }
 .sheet p { color: var(--muted); max-width: 34ch; }
-.toast { position: fixed; left: 16px; right: 16px; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); z-index: 30; max-width: 480px; margin: 0 auto; padding: 12px 16px; border-radius: 14px; background: #1B1F27; color: #fff; font-size: 14px; text-align: center; }
+.toast { position: fixed; left: 16px; right: 16px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 30; max-width: 480px; margin: 0 auto; padding: 12px 16px; border-radius: 14px; background: #1B1F27; color: #fff; font-size: 14px; text-align: center; }
+body.has-bar .toast { bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }  /* над нижней кнопкой, без неё — у края */
 .sk { border-radius: var(--r); background: linear-gradient(90deg, var(--card) 30%, var(--card2) 50%, var(--card) 70%); background-size: 300% 100%; animation: sh 1.3s linear infinite; }
 .sk.s1 { height: 226px; border-radius: 26px; } .sk.s2 { height: 98px; } .sk.s3 { height: 220px; }
 @keyframes sh { from { background-position: 100% 0; } to { background-position: -50% 0; } }

@@ -5,7 +5,7 @@
   max.ru/<бот>?start=inv_<token> на 7 дней, не больше INVITE_LIMIT действующих.
 - Принявший получает access='granted', role='tenant' (в интерфейсе — «доступ от Анны И.», не «арендатор»),
   granted_by — собственник. Свой адрес пропускаем, pending/denied → granted.
-- Получатель может только «убрать у себя» (строка user_addresses удаляется), менять адрес — нет.
+- Получатель может только выйти из общего доступа («Выйти»: строка user_addresses удаляется), менять адрес — нет.
   Собственник может «закрыть доступ» (access='denied'). Показания всегда остаются за адресом.
 - Удаление аккаунта: получатель — у собственника всё остаётся, ему уведомление; собственник — адрес
   переходит к первому получателю с доступом (repo.delete_user_data), ему уведомление.
@@ -25,7 +25,7 @@ from app.bot.texts import invite as T
 from app.bot.texts import profile as PT
 from app.bot.texts.fmt import day_month, esc, month_name, short_date, with_notes
 from app.domain.meters import current_period
-from app.domain.people import short_name, short_name_gen
+from app.domain.people import past, short_name, short_name_gen
 from app.repo import Repo, Row, is_demo_person
 
 log = logging.getLogger(__name__)
@@ -171,12 +171,13 @@ async def notify_closed(repo: Repo, api, member_id: int, address_id: int) -> boo
 
 
 async def notify_removed(repo: Repo, api, user: Row, removed: Row) -> bool:
-    """Собственнику: «Пётр С. убирает у себя адрес …» (removed — удалённая связь, как user_address)."""
+    """Собственнику: «Пётр С. вышел из общего доступа к адресу …» (removed — удалённая связь, как user_address)."""
     owner = await repo.get_user_by_id(removed["owner_id"]) if removed.get("owner_id") else None
     owner_ua = await repo.user_address(owner["id"], removed["id"]) if owner else None
     if owner_ua is None:
         return False
     return await notify(api, owner, T.OWNER_REMOVED.format(name=esc(short_name(user["full_name"])),
+                                                           left=past(user["full_name"], "вышел"),
                                                            label=esc(owner_ua["full_text"])),
                         menu_kb([K.gbtn(T.BTN_SHARED, SHARED)]))
 

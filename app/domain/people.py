@@ -85,6 +85,41 @@ def genitive(name: str) -> str:
     return name
 
 
+_MALE_A = {"никита", "илья", "фома", "кузьма", "лука", "савва", "данила", "гаврила", "миша", "гоша", "паша",
+           "дима", "лёша", "алёша", "ваня", "вова", "петя", "коля", "толя", "юра"}
+_BOTH = {"саша", "женя", "валя", "шура", "слава"}
+
+
+def is_female(full_name: str | None) -> bool | None:
+    """Род по «Фамилия Имя Отчество»: сначала отчество (-вна/-чна → ж, -ич → м), затем имя (-а/-я → ж, кроме
+    Никиты, Ильи…). None — не угадать (Саша, Женя, незнакомое имя на -ь)."""
+    words = (full_name or "").split()
+    if len(words) >= 3:
+        patronymic = words[2].lower()
+        if patronymic.endswith(("вна", "чна", "кызы")):
+            return True
+        if patronymic.endswith(("ич", "оглы")):
+            return False
+    name = first_name(full_name).lower()
+    if not name or name in _BOTH:
+        return None
+    if name == "любовь":
+        return True
+    if name.endswith(("а", "я")):
+        return name not in _MALE_A
+    if name.endswith("ь"):
+        return False if name in ("игорь", "лазарь") else None
+    return False
+
+
+def past(full_name: str | None, masc: str) -> str:
+    """Глагол прошедшего времени по роду: past(«Смирнова Мария Павловна», «вышел») → «вышла»;
+    «открыл» → «открыла»; род не угадать → «вышел(а)»."""
+    fem = masc[:-2] + "ла" if masc.endswith("ел") else masc + "а"
+    female = is_female(full_name)
+    return fem if female else masc if female is False else masc + "(а)"
+
+
 def short_name_gen(full_name: str | None) -> str:
     """«Иванова Анна Сергеевна» → «Анны И.» (short_name в родительном падеже)."""
     words = (full_name or "").split()

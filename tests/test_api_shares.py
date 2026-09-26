@@ -109,7 +109,7 @@ def test_members_received_close_and_remove(client, api):
     tm = client.get(f"/api/meters/{mid}", headers=auth(TENANT)).json()
     assert tm["last"]["by"] is None and tm["history"][0]["by"] is None  # своё показание — без подписи
 
-    # права: получатель не закрывает чужой доступ, собственник не «убирает у себя» свой адрес
+    # права: получатель не закрывает чужой доступ, собственник не может «выйти» из своего адреса
     path = f"/api/shares/{owner['address_id']}/members/{tenant['id']}"
     assert_error(client.delete(path, headers=auth(TENANT)), 403, "not_owner")
     assert_error(client.delete(f"/api/shares/{owner['address_id']}/members/{owner['id']}", headers=auth()),
@@ -135,7 +135,7 @@ def test_members_received_close_and_remove(client, api):
     assert resp.json() == {"status": "removed", "address_id": owner["address_id"]}
     assert run(client, repo(client).user_address, tenant["id"], owner["address_id"]) is None
     (notice,) = sent_to(api, UID)
-    assert notice.startswith("Пётр П. убирает у себя адрес")
+    assert notice.startswith("Пётр П. вышел из общего доступа к адресу")
     assert len(run(client, repo(client).history, mid)) == 1  # показания остались
 
 

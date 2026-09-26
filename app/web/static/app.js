@@ -69,7 +69,8 @@
     send: '<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/>',
     userPlus: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',
     userCog: '<path d="M10 15H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><circle cx="18" cy="15" r="3"/><path d="m21.7 16.4-.9-.3M15.2 13.9l-.9-.3M16.6 18.7l.3-.9M19.1 12.2l.3-.9M19.6 18.7l-.4-1M16.8 12.3l-.4-1M14.3 16.6l1-.4M20.7 13.8l1-.4"/>',
-    keys: '<circle cx="12" cy="5" r="2.5"/><circle cx="7" cy="11.5" r="3"/><path d="M5.6 14.2 3.5 21M4.2 18.8l2 .6"/><circle cx="17" cy="11.5" r="3"/><path d="M18.4 14.2 20.5 21M19.8 18.8l-2 .6M10.2 6.8 8.6 9M13.8 6.8 15.4 9"/>',
+    // связка ключей: кольцо сверху; левый ключ (круглая головка) отклонён влево, правый (прямоугольная) — чуть вправо
+    keys: '<circle cx="12" cy="3.6" r="2.2"/><g transform="rotate(24 8.2 9.6)"><circle cx="8.2" cy="9.6" r="2.9"/><path d="M8.2 12.5v8.8M8.2 21.3H6.2M8.2 18.7H6.6"/></g><g transform="rotate(-5 15.4 9.7)"><rect x="12.6" y="7.2" width="5.6" height="5" rx="1.6"/><path d="M15.4 12.2v9M15.4 21.2h2.2M15.4 18.6h1.8"/></g>',
     copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
     phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>',
   };
@@ -147,11 +148,11 @@
     no_access: 'Нет доступа к этому адресу. Попросите собственника открыть доступ в боте.',
     too_large: 'Фото слишком большое. Снимите ещё раз или введите показание вручную.',
     not_image: 'Это не похоже на фото. Сфотографируйте счётчик ещё раз.',
-    limit: 'Активных приглашений уже слишком много. Отмените ненужное и создайте новое.',
+    limit: 'Неоткрытых ссылок уже слишком много. Отмените ненужную и создайте новую.',
     not_owner: 'Делиться можно только своими адресами.',
     empty: 'Выберите хотя бы один адрес.',
-    invite_used: 'Эту ссылку уже приняли. Закрыть доступ можно в списке людей.',
-    no_username: 'Сейчас ссылку не создать. Попробуйте позже или поделитесь доступом в чате с ботом.',
+    invite_used: 'Эту ссылку уже приняли — отменить её нельзя. Закройте доступ человеку в списке.',
+    no_username: 'Сейчас не получилось создать ссылку. Попробуйте чуть позже.',
   };
   const STATUS_MSG = {
     401: 'Не получилось вас узнать. Закройте мини-приложение и откройте его снова из чата.',
@@ -313,6 +314,7 @@
 
   function render() {
     renderId++; closeDialog(); guardClose(false); syncBack(); window.scrollTo(0, 0);
+    const t = document.querySelector('.toast'); if (t) t.remove();  // итог действия — только на своём экране
     const cur = stack[stack.length - 1];
     SCREENS[cur.name](cur.params);
   }
@@ -609,18 +611,18 @@
   function shareBtn(d, a) {
     if (!isOwned(a)) return null;
     const n = sharedCount(a), busy = n > 0 || +a.invites_count > 0;
-    const label = busy ? 'Доступ к ' + a.label + ': ' + (n ? n + ' ' + plural(n, PEOPLE_WORDS) : 'ждёт приглашение') : 'Поделиться доступом к ' + a.label;
+    const label = busy ? 'Доступ к ' + a.label + ': ' + (n ? n + ' ' + plural(n, PEOPLE_WORDS) : 'есть неоткрытая ссылка') : 'Поделиться доступом к ' + a.label;
     return h('button', { class: 'ibtn', type: 'button', 'aria-label': label, title: label, onclick: e => {
       e.stopPropagation(); hapticTick();
       if (busy) go('share', { focus: aKey(a) }); else go('share_new', { addrs: ownedList(d), sel: [aKey(a)] });
     } }, icon(busy ? 'userCog' : 'userPlus', 21));
   }
-  // У общего адреса — ключи: страница «кто открыл доступ» с одной кнопкой «Убрать у себя».
+  // У общего адреса — ключи: страница «кто открыл доступ» с одной кнопкой «Выйти».
   // Закрытый (denied) и ждущий (pending) общий адрес — тоже с ключами: убрать его у себя можно только там.
   const isGuest = a => !!a.role && a.role !== 'owner';
   function keyBtn(a) {
     if (!isGuest(a)) return null;
-    const label = 'Общий адрес ' + a.label + (a.owner ? ': доступ открыл(а) ' + a.owner : '');
+    const label = 'Общий адрес ' + a.label + (a.owner ? ': доступ ' + opened(a) + ' ' + a.owner : '');
     return h('button', { class: 'ibtn', type: 'button', 'aria-label': label, title: label, onclick: e => {
       e.stopPropagation(); hapticTick(); go('shared', { id: aKey(a) });
     } }, icon('keys', 22));
@@ -661,7 +663,7 @@
     const got = received.length > 0 && [section('Вам открыли доступ', received.length),
       h('div', { class: 'list' }, received.map(a => h('div', { class: 'arow' }, ibox('home', 'accent', 18),
         h('span', { class: 'grow' }, h('b', {}, aFull(a)), h('small', {}, fromLine(a) + (a.since ? ' · с\u00a0' + shortDate(fmtDate(a.since)).replace(' ', '\u00a0') : ''))),
-        h('button', { class: 'mini q', type: 'button', 'aria-label': 'Убрать у себя: ' + a.label, onclick: () => dropReceived(a) }, 'Убрать'))))];
+        h('button', { class: 'mini q', type: 'button', 'aria-label': 'Выйти из общего доступа: ' + a.label, onclick: () => dropReceived(a) }, 'Выйти'))))];
     let top;
     if (!mine.length) {
       // Делиться нечем: только общие адреса или адресов нет вовсе.
@@ -701,26 +703,29 @@
     }
   }
 
-  // Общий адрес у получателя: кто и когда открыл доступ; «Убрать у себя» — с подтверждением.
-  // Род по имени: «Анна» → открыла, «Пётр», «Никита» → открыл; «Саша», «Женя» — не угадываем.
+  // Общий адрес у получателя: кто и когда открыл доступ; «Выйти» — с подтверждением.
+  // Род: owner_female с сервера (по отчеству), иначе по имени: «Анна» → открыла, «Никита» → открыл; «Саша» — «открыл(а)».
   const MALE_A = /^(Никита|Илья|Фома|Кузьма|Лука|Савва|Данила|Гаврила|Святослава?|Миша|Гоша|Паша|Дима|Лёша|Алёша|Сеня|Ваня|Вова|Петя|Коля|Толя|Юра|Слава)$/;
   const BOTH = /^(Саша|Женя|Валя|Шура|Слава)$/;
-  function opened(name) {
-    const w = String(name || '').split(/\s+/)[0];
+  const nb = s => String(s || '').replace(/ /g, '\u00a0');  // «Анна И.» не разрывать переносом
+  function opened(a) {
+    if (a.owner_female === true) return 'открыла';
+    if (a.owner_female === false) return 'открыл';
+    const w = String(a.owner || '').split(/\s+/)[0];
     return BOTH.test(w) ? 'открыл(а)' : /[ая]$/.test(w) && !MALE_A.test(w) ? 'открыла' : w ? 'открыл' : 'открыл(а)';
   }
   function screenShared(p) {
     const a = addrList(me).find(x => aKey(x) === p.id && isGuest(x));
     if (!a) return toHome();
     const addr = h('b', {}, aFull(a));
-    const line = a.access === 'granted' ? ['Доступ к адресу ', addr, ' вам ' + opened(a.owner) + ' ' + String(a.owner || 'собственник').replace(/\.?$/, '.')]
+    const line = a.access === 'granted' ? ['Доступ к адресу ', addr, ' вам ' + opened(a) + ' ' + nb(a.owner || 'собственник').replace(/\.?$/, '.')]
       : a.access === 'pending' ? ['Ждём, когда собственник откроет вам доступ к адресу ', addr, '.']
         : ['Доступ к адресу ', addr, ' закрыт. Показания, которые вы передали, сохранены.'];
     setScreen('Общий адрес',
       h('div', { class: 'state' }, ibox('keys', a.access === 'granted' ? 'accent' : 'warn', 34, 'si'),
         h('p', { class: 'who-open' }, line),
         a.access === 'granted' && a.since && h('p', { class: 'foot' }, 'С ' + fmtDate(a.since)),
-        h('div', { class: 'acts' }, btn('Убрать у себя', () => dropReceived(Object.assign({ address_id: a.id }, a), true), 'del'))),
+        h('div', { class: 'acts' }, btn('Выйти', () => dropReceived(Object.assign({ address_id: a.id }, a), true), 'del'))),
       a.access === 'granted' && h('p', { class: 'foot' }, 'Передавать показания по этому адресу можно, пока доступ открыт. Менять адрес может только тот, кто открыл доступ.'));
   }
 
@@ -775,7 +780,7 @@
     const inv = p.inv;
     if (!inv || !inv.url) return back();
     const box = h('button', { class: 'lnk', type: 'button', 'aria-label': 'Скопировать ссылку', onclick: () => copyLink(inv.url, box) }, inv.url.replace(/^https:\/\//, ''));
-    setScreen('Приглашение',
+    setScreen('Новая ссылка',
       h('div', { class: 'state' }, ibox('link', 'ok', 30, 'si'), h('h2', {}, 'Ссылка готова'),
         h('p', {}, 'Отправьте её тому, с кем делитесь. Сработает один раз, действует до ' + fmtDate(inv.expires_at) + '.'),
         box, h('p', { class: 'foot' }, 'Доступ к: ' + labels(inv.addresses)),
@@ -822,7 +827,7 @@
       haptic('error');
       if (e.status === 404 || e.status === 409) meStale = true;
       // 404 — уже нет, 409 — ссылку успели принять: показываем причину и свежий список.
-      if (e.status === 404 || e.status === 409) { render(); toast(e.status === 409 ? e.message : 'Уже изменилось — обновили список'); } else toast(e.status === 0 ? 'Нет связи с сервером. Проверьте интернет и повторите.' : e.message);
+      if (e.status === 404 || e.status === 409) { render(); toast(e.status === 409 ? e.message : 'Список уже изменился — показываем актуальный'); } else toast(e.status === 0 ? 'Нет связи с сервером. Проверьте интернет и повторите.' : e.message);
     }
   }
   const enc = encodeURIComponent;
@@ -832,14 +837,15 @@
     if (yes) change('/api/shares/' + enc(o.address_id) + '/members/' + enc(m.member_id), 'Доступ закрыт');
   }
   async function cancelInvite(inv) {
-    const yes = await ask({ icon: 'link', tone: 'bad', title: 'Отменить приглашение?', ok: 'Отменить приглашение', okCls: 'del', cancel: 'Не отменять',
-      text: 'Ссылка перестанет работать. Если вы её уже отправили, по ней нельзя будет открыть доступ.' });
-    if (yes) change('/api/shares/invites/' + enc(inv.id), 'Приглашение отменено');
+    const yes = await ask({ icon: 'link', tone: 'bad', title: 'Отменить ссылку?', ok: 'Отменить ссылку', okCls: 'del', cancel: 'Не отменять',
+      text: 'Ссылка перестанет работать, даже если вы её уже отправили.' });
+    if (yes) change('/api/shares/invites/' + enc(inv.id), 'Ссылка отменена');
   }
   async function dropReceived(a, leave) {
-    const yes = await ask({ icon: 'home', tone: 'bad', title: 'Убрать адрес у себя?', ok: 'Убрать', okCls: 'del', cancel: 'Отмена',
-      text: 'Адрес исчезнет только у вас' + (a.owner ? ', ' + a.owner + ' получит уведомление' : '') + '. Переданные показания сохранятся.' });
-    if (yes) change('/api/shares/received/' + enc(a.address_id), 'Адрес убран', leave);
+    const yes = await ask({ icon: 'keys', tone: 'bad', title: 'Выйти из общего доступа?', ok: 'Выйти', okCls: 'del', cancel: 'Отмена',
+      text: 'Адрес ' + aFull(a) + ' пропадёт только у вас' + (a.owner && a.access !== 'denied' ? ', ' + nb(a.owner) + ' получит уведомление' : '') +
+        '. Переданные показания сохранятся.' });
+    if (yes) change('/api/shares/received/' + enc(a.address_id), 'Вы вышли из общего доступа', leave);
   }
 
   // ---------- экран: подать показания ----------
