@@ -26,7 +26,7 @@ from app.web import api
 
 log = logging.getLogger("app")
 STATIC_DIR = Path(__file__).parent / "web" / "static"
-COMMANDS = [("start", "Главное меню"), ("demo", "Примеры уведомлений")]
+COMMANDS = [("start", "Главное меню"), ("demo", "Примеры уведомлений (хакатон)")]
 
 
 def bot_commands(settings: Settings) -> list[tuple[str, str]]:

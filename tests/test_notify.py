@@ -178,7 +178,7 @@ async def test_demo_keeps_user_verification_date_and_disabled(chat, api, repo, d
     off = Chat(Router(replace(deps, settings=replace(deps.settings, demo_mode=False))), api)
     await off.text("/demo")
     assert api.last_text().startswith(C.UNKNOWN_COMMAND)
-    assert ("start", "Главное меню") in COMMANDS and ("demo", "Примеры уведомлений") in COMMANDS
+    assert ("start", "Главное меню") in COMMANDS and ("demo", "Примеры уведомлений (хакатон)") in COMMANDS
 
 
 # --- N6: кому и как рассылаем ---

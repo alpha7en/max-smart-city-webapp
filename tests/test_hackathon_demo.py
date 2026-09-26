@@ -94,16 +94,20 @@ async def test_two_reviewers_both_own_their_addresses(demo_router, api, repo):
 async def test_random_profiles_are_valid():
     for seed in range(200):
         p = D.random_profile(random.Random(seed))
-        texts = [t for t, _ in p.addresses]
-        assert len(set(texts)) == 2
-        for t in texts:
-            (c,) = D._ADDRESSES.parse_local(t)  # адрес разбирается однозначно, с домом и квартирой
-            assert c.house and c.flat
+        cities = [t.split(", ")[0] for t, _ in p.addresses]
+        assert len(set(cities)) == 2  # два разных города
         surname, first, father = p.full_name.split()
         female = first in D.FEMALE
         assert surname.endswith("а") == female and father.endswith("на" if female else "ич")
         assert D.URGENT_DAYS[0] <= p.addresses[0][1][0].verification_days <= D.URGENT_DAYS[1]
         assert 4 <= p.meters <= 6
+
+
+def test_every_real_house_parses_with_flat():
+    for city, houses in D.HOUSES.items():
+        for house in houses:
+            (c,) = D._ADDRESSES.parse_local(f"{city}, {house}, кв. 17")  # однозначно, с домом и квартирой
+            assert c.house == house.rsplit("д. ", 1)[1] and c.flat == "17", (city, house, c)
 
 
 async def test_disabled_by_default(chat, api, repo):
