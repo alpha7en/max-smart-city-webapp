@@ -294,7 +294,8 @@ body.has-bar main { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px
 .inv .ih { display: flex; align-items: flex-start; gap: 12px; }
 .inv b { display: block; font-size: 15px; font-weight: 650; }
 .inv small { display: block; }
-.inv .ia { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-left: 42px; }
+.inv .ia { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-left: 42px; }
+.inv .link.q { padding: 8px 4px; }
 .cb { display: grid; place-items: center; flex: none; width: 24px; height: 24px; margin: 0 3px; border: 2px solid var(--dim); border-radius: 8px; color: transparent; }
 .opt.on .cb { border-color: var(--accent); background: var(--accent); color: #fff; }
 .opts .sep { height: 1px; margin: 4px 10px; background: var(--line); }
