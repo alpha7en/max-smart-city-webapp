@@ -35,7 +35,7 @@ app/
     router.py        глобальные правила + @on_state/@on_repeat/@on_global/@on_command/@on_hook
     states.py session.py ctx.py photos.py keyboards.py (кнопки + payload "flow|action|arg")
     flows/           registration, profile, invite, submission, menu, notify;
-                     hackathon_demo — ТОЛЬКО для хакатона: демо-профиль после регистрации (HACKATHON_DEMO_PROFILE)
+                     hackathon_demo — ТОЛЬКО для хакатона: /demo_profile без профиля (HACKATHON_DEMO_PROFILE)
     texts/           ВСЕ тексты бота (значения в texts/yaml/*.yaml, для редактора); fmt.py
   web/               auth.py (initData), api.py (/api/*), static/ (мини-приложение, vanilla JS)
 tests/               pytest; conftest.py (фикстура chat), fakes.py (FakeMaxApi + апдейты в формате MAX)

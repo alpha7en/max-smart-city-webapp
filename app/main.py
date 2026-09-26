@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.bot.ctx import Deps
+from app.bot.texts import hackathon_demo as HT
 from app.bot.texts.api import MSG
 from app.config import Settings, load_settings
 from app.integrations.arshin import ArshinClient
@@ -26,6 +27,11 @@ from app.web import api
 log = logging.getLogger("app")
 STATIC_DIR = Path(__file__).parent / "web" / "static"
 COMMANDS = [("start", "Главное меню"), ("demo", "Примеры уведомлений")]
+
+
+def bot_commands(settings: Settings) -> list[tuple[str, str]]:
+    """Список команд для MAX (PATCH /me/commands); /demo_profile — только для хакатона."""
+    return COMMANDS + ([("demo_profile", HT.COMMAND_DESCRIPTION)] if settings.hackathon_demo_profile else [])
 
 
 def _address_service(settings: Settings):
@@ -52,7 +58,7 @@ async def _start_bot(deps: Deps) -> asyncio.Task | None:
     except Exception as e:  # noqa: BLE001 — бот поднимется, poller будет повторять
         log.error("GET /me failed: %s", e)
     try:
-        await deps.api.set_commands(COMMANDS)
+        await deps.api.set_commands(bot_commands(deps.settings))
     except Exception as e:  # noqa: BLE001
         log.warning("set commands failed: %s", e)
     poller = Poller(deps.api, deps.repo, Router(deps))

@@ -47,7 +47,7 @@ class Settings:
     arshin_mode: str = "live"           # ФГИС «Аршин»: live | fixtures (демо-данные) | off
     arshin_base: str = "https://fgis.gost.ru/fundmetrology/eapi"
     arshin_fallback_ips: tuple[str, ...] = ("212.164.138.19", "212.164.138.14")  # если DNS не резолвит хост
-    # ХАКАТОН: после регистрации предлагать демо-профиль для проверяющих (flows/hackathon_demo.py).
+    # ХАКАТОН: /demo_profile — тестовый профиль для пользователя без профиля (flows/hackathon_demo.py).
     # Здесь False, чтобы тесты шли по обычному сценарию; из env (load_settings) по умолчанию включено.
     hackathon_demo_profile: bool = False
 

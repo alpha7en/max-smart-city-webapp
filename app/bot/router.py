@@ -8,6 +8,7 @@
     @on_repeat(S.REG_NAME)                         # заново задать вопрос шага (с клавиатурой)
     @on_global("menu")                             # кнопка g|menu|arg из любого состояния
     @on_command("/demo")                           # команда в чате
+    @on_command("/demo_profile", unregistered=True)  # команда работает и без профиля
     @on_hook("menu")                               # точки входа, которые вызывает роутер (см. HOOK_NAMES)
 
 В обработчике: ctx.action / ctx.arg — действие нажатой кнопки сценария; ctx.text — текст;
@@ -48,6 +49,7 @@ START_PAYLOADS = {
 # и до регистрации (приглашение жильца: inv_<token>, inv_new_<address_id>, inv_acc_<address_id>).
 START_PREFIXES = {"inv_": "invite.start"}
 COMMANDS: dict[str, Handler] = {}
+OPEN_COMMANDS: set[str] = set()  # команды, которые работают и без профиля (в том числе посреди регистрации)
 HOOKS: dict[str, Handler] = {}
 BUTTON_STATES: set[S] = set()
 ACCEPTS: dict[S, frozenset[str]] = {}
@@ -101,9 +103,12 @@ def on_global(action: str):
     return deco
 
 
-def on_command(name: str):
+def on_command(name: str, *, unregistered: bool = False):
+    """unregistered=True — команда доступна и без профиля: до приветствия и посреди регистрации."""
     def deco(fn: Handler) -> Handler:
         COMMANDS[name.lower()] = fn
+        if unregistered:
+            OPEN_COMMANDS.add(name.lower())
         return fn
     return deco
 
@@ -325,6 +330,12 @@ class Router:
         # Диплинк с аргументом (приглашение) — свой обработчик в любом состоянии.
         if ev.kind == "start" and (target := start_prefix(ev.start_payload)):
             await HOOKS[target[0]](ctx, arg=target[1])
+            return
+
+        # Команды для пользователя без профиля (on_command(..., unregistered=True)): регистрацию бросаем.
+        if not ctx.registered and ev.kind == "text" and (cmd := low.split(maxsplit=1)[:1]) and cmd[0] in OPEN_COMMANDS:
+            await drop_scenario(ctx)
+            await COMMANDS[cmd[0]](ctx)
             return
 
         # 2. Незарегистрированный вне регистрации → приветствие и регистрация.
