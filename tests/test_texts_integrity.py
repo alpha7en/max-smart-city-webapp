@@ -161,5 +161,7 @@ def test_no_prohibited_emoji():
     for yaml_file in YAML_DIR.glob("*.yaml"):
         with yaml_file.open("r", encoding="utf-8") as f:
             content = f.read()
+        # «✓» (U+2713 CHECK MARK) — текстовый символ, не эмодзи по Unicode: отметка в кнопках выбора адресов.
+        content = content.replace("✓", "")
         emojis = emoji_pattern.findall(content)
         assert not emojis, f"В файле {yaml_file.name} найдены эмодзи: {emojis}"

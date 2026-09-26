@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 
+from app import sharing as SH
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx
 from app.bot.flows import invite
@@ -19,7 +20,7 @@ from app.bot.texts import registration as RT
 from app.bot.texts.fmt import esc, with_notes
 from app.domain.addresses import AddressCandidate, norm_key
 from app.integrations.max_api import MaxApiError
-from app.repo import Row
+from app.repo import Row, is_demo_person
 
 log = logging.getLogger(__name__)
 ACCESS_KIND = "access"  # notifications.kind для запросов доступа; dedup_key = "{uid}:{aid}"
@@ -38,19 +39,21 @@ async def show_profile(ctx: Ctx, footnotes: list[str] | tuple = ()) -> None:
     ctx.session.reset()
     u = ctx.user
     addrs = await ctx.repo.user_addresses(u["id"])
-    lines, owned, shared = [], [], False
+    lines, owned, shared = [], False, False
     for a in addrs:
-        lines.append(f"{esc(a['full_text'])} — {T.ROLE.get((a['role'], a['access']), a['access'])}")
         if a["role"] == "owner":  # собственнику — кто ещё передаёт показания по адресу
             members = await ctx.repo.address_members(a["id"])
+            lines.append(f"{esc(a['full_text'])} — {T.ROLE[('owner', 'granted')]}")
             lines.append(invite.members_line(members))
-            owned.append(a["id"])
-            shared = shared or any(m["access"] != "denied" for m in members)
+            owned, shared = True, shared or any(m["access"] != "denied" for m in members)
+        else:  # общий адрес: «доступ от Анны И.», запрос или отказ
+            lines.append(f"{esc(a['full_text'])} — {invite.received_role(a)}")
+            shared = True
     pending = [a for a in addrs if a["access"] == "pending"]
     req = [K.gbtn(T.BTN_REQUEST if len(pending) == 1 else T.BTN_REQUEST_FOR.format(label=a["label"]),
                   "acc_req", a["id"]) for a in pending]
-    arg = owned[0] if len(owned) == 1 else ""  # несколько адресов — спросим, какой
-    access = [K.gbtn(IT.BTN_INVITE, "inv_new", arg), shared and K.gbtn(IT.BTN_MANAGE, "acc_list", arg)] if owned else []
+    shared = shared or bool(owned and await ctx.repo.owner_invites(u["id"], ctx.now))
+    access = [K.gbtn(IT.BTN_SHARE, "share") if owned else None, K.gbtn(IT.BTN_SHARED, "sh_list") if shared else None]
     await ctx.reply(
         with_notes(T.PROFILE.format(name=esc(u.get("full_name")),
                                     phone=phone_line(u.get("phone"), u.get("phone_verified")),
@@ -150,8 +153,10 @@ async def ask_delete(ctx: Ctx) -> None:
 @on_state(S.PROFILE_DELETE_CONFIRM, buttons=True)
 async def got_delete(ctx: Ctx) -> None:
     if ctx.action in ("delete", "yes"):
-        await ctx.repo.delete_user_data(ctx.user["id"])  # сессия, фото с файлами, адреса, пользователь
+        # сессия, фото с файлами, адреса, пользователь; общие адреса — см. app/sharing.py
+        info = await ctx.repo.delete_user_data(ctx.user["id"])
         ctx.drop_session = True
+        await SH.after_account_deleted(ctx.repo, ctx.api, ctx.user.get("full_name"), info)
         await ctx.reply(T.DELETED, K.kb([K.gbtn(T.BTN_START_OVER, "menu")]))
     elif ctx.action in ("keep", "no", "back"):
         ctx.note(T.DELETE_KEPT)
@@ -194,7 +199,8 @@ async def demo_grant(ctx: Ctx) -> None:
     if ua is None or ua["access"] != "pending":
         await send_no_access(ctx, aid)  # нет адреса или демо выключено — меню/«нет прав»; отказ — «не открыл»
         return
-    await ctx.repo.set_access(ctx.user["id"], aid, "granted")
+    owner = await ctx.repo.address_owner(aid)
+    await ctx.repo.set_access(ctx.user["id"], aid, "granted", by=owner["id"] if owner else None)
     # Собственник позже нажмёт «Разрешить» — «уже решено», без второго сообщения арендатору.
     await ctx.repo.try_mark_sent(ctx.user["id"], DECISION_KIND, f"{ctx.user['id']}:{aid}", ctx.now)
     await ctx.reply(with_notes(T.DEMO_GRANTED, T.DEMO_GRANTED_NOTE), K.kb([K.gbtn(T.BTN_SUBMIT, "submit"), K.gbtn(C.BTN_MENU, "menu")]))
@@ -221,6 +227,9 @@ async def request_access(ctx: Ctx) -> None:
         await ctx.reply(with_notes(T.ACCESS_CLAIMED.format(label=esc(ua["full_text"])), T.RIGHTS_MODEL), _menu_kb([K.gbtn(T.BTN_SUBMIT, "submit")]))
         return
     key = f"{u['id']}:{aid}"
+    if is_demo_person(owner):  # ТОЛЬКО ДЛЯ ХАКАТОНА: у демо-собственника нет чата в MAX
+        await ctx.reply(T.REQUEST_SENT, _menu_kb())
+        return
     if not await ctx.repo.try_mark_sent(u["id"], ACCESS_KIND, key, ctx.now):
         await ctx.reply(T.REQUEST_DUP, _menu_kb())
         return
@@ -273,7 +282,7 @@ async def _decide(ctx: Ctx, *, grant: bool) -> None:
         await _notify_tenant(ctx, tenant, tenant_ua)
         await ctx.reply(T.DECIDED[tenant_ua["access"]], _menu_kb())
         return
-    await ctx.repo.set_access(tid, aid, "granted" if grant else "denied")
+    await ctx.repo.set_access(tid, aid, "granted" if grant else "denied", by=owner["id"])
     await _notify_tenant(ctx, tenant, await ctx.repo.user_address(tid, aid))  # до ответа собственнику
     owner_label = esc((await ctx.repo.user_address(owner["id"], aid))["full_text"])
     name = esc(tenant.get("full_name"))
@@ -282,7 +291,7 @@ async def _decide(ctx: Ctx, *, grant: bool) -> None:
 
 async def _notify_tenant(ctx: Ctx, tenant: Row, ua: Row) -> None:
     """Решение собственника — арендатору, один раз (отметка в notifications; сбой MAX — отметку снимаем)."""
-    if ua["access"] not in ("granted", "denied"):
+    if ua["access"] not in ("granted", "denied") or is_demo_person(tenant):
         return
     key = f"{tenant['id']}:{ua['id']}"
     if not await ctx.repo.try_mark_sent(tenant["id"], DECISION_KIND, key, ctx.now):

@@ -60,6 +60,39 @@ def short_name(full_name: str | None) -> str:
     return f"{words[1]} {words[0][0]}."
 
 
+_GEN_IRREGULAR = {"пётр": "Петра", "петр": "Петра", "павел": "Павла", "лев": "Льва", "любовь": "Любови"}
+
+
+def genitive(name: str) -> str:
+    """Русское имя в родительном падеже (для «доступ от Анны И.»): Анна → Анны, Ольга → Ольги,
+    Мария → Марии, Илья → Ильи, Сергей → Сергея, Игорь → Игоря, Олег → Олега, Пётр → Петра.
+    Незнакомое окончание (Нелли, Жан-Поль…) — без изменений."""
+    low = name.lower()
+    if low in _GEN_IRREGULAR:
+        return _GEN_IRREGULAR[low]
+    if not name or not name[-1].isalpha() or "-" in name:
+        return name
+    if low.endswith("ия"):
+        return name[:-1] + "и"
+    if low.endswith("а"):
+        return name[:-1] + ("и" if low[-2:-1] in "гкхжчшщ" else "ы")
+    if low.endswith("я"):
+        return name[:-1] + "и"
+    if low.endswith(("й", "ь")):
+        return name[:-1] + "я"
+    if low[-1] in "бвгджзклмнпрстфхцчшщ":
+        return name + "а"
+    return name
+
+
+def short_name_gen(full_name: str | None) -> str:
+    """«Иванова Анна Сергеевна» → «Анны И.» (short_name в родительном падеже)."""
+    words = (full_name or "").split()
+    if len(words) < 2:
+        return genitive(words[0]) if words else "собственника"
+    return f"{genitive(words[1])} {words[0][0]}."
+
+
 def normalize_phone(text: str | None) -> str | None:
     """Российский номер → '+7XXXXXXXXXX' или None. Принимает 8…, 7…, +7…, 10 цифр."""
     if not text or re.search(r"[^\d\s()+\-.]", text.strip()):

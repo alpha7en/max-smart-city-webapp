@@ -7,6 +7,7 @@ from app.bot.texts.loader import load_texts
 _D = load_texts("api.yaml")
 
 MSG: dict[str, str] = _D["MSG"]
+SHARE_MSG: dict[str, str] = _D["SHARE_MSG"]  # «Поделиться доступом» (/api/shares*)
 CHAT_SAVED: str = _D["CHAT_SAVED"]
 CHAT_FLAGGED: str = _D["CHAT_FLAGGED"]
 CHAT_MOCK: str = _D["CHAT_MOCK"]

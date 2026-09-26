@@ -42,7 +42,7 @@ async def test_p1_profile(chat, api):
     text = api.last_text()
     assert text == PT.PROFILE.format(name="Иванова Анна Сергеевна", phone="+7 912 345-67-89",
                                      addresses="г. Москва, Арбат, д. 47, корп. 1, кв. 32 — собственник\nДоступ: только вы")
-    assert labels(last_kb(api)) == [PT.BTN_EDIT_PHONE, PT.BTN_ADD_ADDRESS, IT.BTN_INVITE, PT.BTN_DELETE, C.BTN_MENU]
+    assert labels(last_kb(api)) == [PT.BTN_EDIT_PHONE, PT.BTN_ADD_ADDRESS, IT.BTN_SHARE, PT.BTN_DELETE, C.BTN_MENU]
     assert all(b["payload"].startswith("g|") for b in buttons(last_kb(api)))
 
 
