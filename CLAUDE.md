@@ -99,8 +99,9 @@ sqlite3 data/bot.db 'select user_id,state,data from sessions'  # состоян�
 - Reply-клавиатуры нет, меню прикладывается к сообщению. Лимиты: 30 рядов, 7 кнопок в ряду,
   не больше 3 link/open_app/request_* в ряду. Длинные подписи клиент MAX обрезает многоточием.
 - ФИО из Госуслуг MAX боту не отдаёт. Телефон берётся кнопкой `request_contact` (vcf_info + max_info).
-- URL мини-приложения закреплён в MAX организаторами: `https://alpha7en.github.io/max-smart-city-webapp/`.
-  НЕ МЕНЯТЬ. Бэкенд для него должен быть на постоянном HTTPS (переменная `MINIAPP_API_BASE`), не на туннеле.
+- Прод (слова владельца): бот, API и мини-приложение на одном сервере `https://maxsmartcity.ru` (Docker compose
+  за nginx; статика мини-приложения в `/var/www/maxsmartcity.ru`, API тот же origin). Не GitHub Pages.
+  Устройство и обновление: `docs/DEPLOY_SERVER.md`, `bash deploy/update.sh`. nginx на сервере не трогать.
 - ФГИС «Аршин» доступен только с российских IP: живьём работает с машины владельца (в Docker понадобился
   ARSHIN_FALLBACK_IPS), из облачных агентов недоступен; реальные ответы — `tests/fixtures/arshin/`. Лимит 2 rps, без
   `verification_date_start`/`year` ищет только текущий год. Проверка с сервера:
@@ -113,7 +114,7 @@ sqlite3 data/bot.db 'select user_id,state,data from sessions'  # состоян�
 - «проверь бота живьём» → скилл `live-smoke` (`tools/live_smoke.py`: /me, вебхуки, команды, все виды кнопок).
 - «пройди сценарий в MAX» → скилл `live-scenario` (бот + web.max.ru + чек-лист `docs/LIVE_CHECKLIST.md`).
 - «разбери логи» → скилл `fix-from-logs` (trace_id / MaxApiError → тест → фикс → pytest).
-- «задеплой на сервер» → скилл `deploy` (VPS, Caddy HTTPS, MINIAPP_API_BASE, /api/health).
+- «задеплой на сервер» → скилл `deploy` (maxsmartcity.ru: `deploy/update.sh`, nginx не трогать, /api/health).
 - «подними туннель», «мини-приложение пишет сервер не подключён» → скилл `miniapp-tunnel` (cloudflared к
   localhost:8080 → MINIAPP_API_BASE → пересборка Pages; только для проверки, адрес временный).
 Отчёты живых прогонов пишутся в `data/` (`data/live_report.md`, `data/live_updates.jsonl`): data/ в .gitignore, не коммитить.
