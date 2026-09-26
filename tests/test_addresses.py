@@ -226,6 +226,33 @@ def test_dadata_max_five():
     assert len(run(service(lambda r: httpx.Response(200, json={'suggestions': many})), 'Арбат')) == 5
 
 
+def dadata_says(*suggestions):
+    return lambda r: httpx.Response(200, json={'suggestions': list(suggestions)})
+
+
+def test_dadata_only_houses():
+    """Живой ответ «Екатеринбург, Ленина 5»: соор 5 и стр 5 с house_fias_id — не показываем их как «д. 5»."""
+    soor, stroenie = sugg(block=None, house_fias='soor'), sugg(block=None, house_fias='str')
+    soor['data']['house_type'], stroenie['data']['house_type'] = 'соор', 'стр'
+    assert run(service(dadata_says(soor, stroenie)), 'Екатеринбург, Ленина 5') == []
+
+
+def test_dadata_flats_of_prefix_follow_query():
+    """DaData дописывает квартиры: «кв 8» → 8, 80, 81; без квартиры → кв 1, 2. Остаётся квартира из запроса."""
+    flats = [sugg(block=None, flat=f, flat_fias=f'ff-{f}') for f in ('8', '80', '81')]
+    res = run(service(dadata_says(*flats)), 'Москва, Арбат 47, кв 8')
+    assert [(c.flat, c.flat_fias_id, c.status) for c in res] == [('8', 'ff-8', 'verified_flat')]
+    res = run(service(dadata_says(sugg(block=None), *flats[1:])), 'Москва, Арбат 47')
+    assert [(c.flat, c.flat_fias_id, c.status) for c in res] == [(None, None, 'verified_house')]
+    res = run(service(dadata_says(sugg(block=None, flat='89', flat_fias='ff-89'))), 'Москва, Арбат 47-89')
+    assert [(c.flat, c.status) for c in res] == [('89', 'verified_flat')]  # «47-89»: квартиру поняла DaData
+
+
+def test_dadata_same_text_shown_once():
+    res = run(service(dadata_says(sugg(house_fias='a'), sugg(house_fias='b'))), 'Москва, Арбат 47к1')
+    assert len(res) == 1
+
+
 def _timeout(req):
     raise httpx.ReadTimeout('slow', request=req)
 

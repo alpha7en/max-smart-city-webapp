@@ -157,9 +157,10 @@ def _num(v: Any, kind: type) -> Any:
 
 
 def from_dadata(s: dict[str, Any]) -> AddressCandidate | None:
-    """Подсказка DaData → кандидат; без house_fias_id — None (дом не подтверждён)."""
+    """Подсказка DaData → кандидат; без house_fias_id — None (дом не подтверждён).
+    Только дома («д»): сооружение или строение с тем же номером показали бы как «д. 5»."""
     d = s.get('data') or {}
-    if not d.get('house_fias_id'):
+    if not d.get('house_fias_id') or (d.get('house_type') or 'д') != 'д':
         return None
     c = AddressCandidate(
         full_text='', region=d.get('region_with_type'),
@@ -194,6 +195,13 @@ class DadataProvider:
 
 # ---------- сервис ----------
 
+def _typed_flat(text: str, cands: list[AddressCandidate]) -> str | None:
+    """Квартира, которую DaData поняла без «кв» («Сухонская 11-89»): у всех вариантов с квартирой она одна
+    и есть в тексте отдельным числом, не номером дома."""
+    nums = set(re.findall(r'\d+[а-яё]?', text.lower())) - {(c.house or '').lower() for c in cands}
+    flats = {c.flat.lower() for c in cands if c.flat}
+    return flats.pop().upper() if len(flats) == 1 and flats <= nums else None
+
 class AddressService:
     def __init__(self, api_key: str | None = None, *, timeout: float = 3.0,
                  transport: httpx.AsyncBaseTransport | None = None):
@@ -222,12 +230,15 @@ class AddressService:
             status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else '-'
             log.warning('dadata suggest failed: %s status=%s; fallback to local parser', type(e).__name__, status)
             return self.local.parse(text)
-        flat = self.local.flat_of(text) or next((c.flat for c in self.local.parse(text)), None)
+        # DaData дописывает квартиры по префиксу («кв 8» → 8, 80, 81; без квартиры → кв 1, 2, 3):
+        # всем вариантам ставим квартиру из запроса, а если её нет — убираем
+        flat = self.local.flat_of(text) or next((c.flat for c in self.local.parse(text)), None) \
+            or _typed_flat(text, cands)
         out: dict[str, AddressCandidate] = {}
         for c in cands:
-            if flat and not c.flat:
-                c = c.with_flat(flat)
-            out.setdefault(norm_key(c), c)
+            c = c.with_flat(flat)
+            if c.full_text not in {x.full_text for x in out.values()}:  # разные fias_id, одинаковый текст
+                out.setdefault(norm_key(c), c)
         return list(out.values())[:MAX_RESULTS]
 
     async def aclose(self) -> None:
