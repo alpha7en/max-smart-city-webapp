@@ -87,7 +87,7 @@ async def test_menu_keyboard_with_urgent_verification(chat, api, repo):
     (bill,) = await repo.unpaid_bills(user["id"])
     pay = T.BTN_PAY.format(amount=money(bill["amount_kop"]))
     assert labels(kb) == [[pay], ["Запишитесь на поверку: 10 дней"], ["Подать показания"],
-                          ["Мои счётчики", "Профиль"], [C.BTN_MINIAPP]]
+                          ["Мои счётчики", "Профиль"], [C.BTN_MINIAPP, T.BTN_HELP]]
     b = rows(kb)
     assert b[0][0]["payload"] == f"g|pay|{bill['id']}"
     assert b[1][0]["payload"] == f"g|verify|{mid}" and b[2][0]["payload"] == "g|submit|"
@@ -210,7 +210,8 @@ async def test_my_meters_list_and_add(chat, api, repo, hooks):
     assert text.startswith(T.METERS_TITLE)
     assert f"Хол. вода · {ADDR['full_text']}\nПоследнее: **123,456 м³** (19.10), поверка до **15.03.2030**" in text
     assert f"Свет · {ADDR['full_text']}\nПоказаний пока нет" in text
-    assert labels(kb) == [[f"Хол. вода · {ARBAT}"], [f"Свет · {ARBAT}"], ["Добавить счётчик", "В меню"]]
+    assert labels(kb) == [[f"Хол. вода · {ARBAT}"], [f"Свет · {ARBAT}"], ["Поделиться доступом"],
+                          ["Добавить счётчик", "В меню"]]
     assert rows(kb)[0][0]["payload"].startswith("g|meter|")
     await chat.press("Добавить счётчик")
     assert hooks == ["submission.add_meter"]

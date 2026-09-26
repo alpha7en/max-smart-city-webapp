@@ -29,6 +29,7 @@ from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import arshin_service as AS
+from app import sharing as SH
 from app import clock
 from app.bot import keyboards as K
 from app.bot import photos
@@ -37,10 +38,10 @@ from app.bot.texts import common as C
 from app.bot.texts import fmt
 from app.bot.texts import meters as TM
 from app.bot.texts import submission as TS
-from app.bot.texts.api import BTN_MORE, CHAT_FLAGGED, CHAT_MOCK, CHAT_SAVED, MSG
+from app.bot.texts.api import BTN_MORE, CHAT_FLAGGED, CHAT_MOCK, CHAT_SAVED, MSG, SHARE_MSG
 from app.domain import meters as M
 from app.domain.dashboard import Dashboard, load_dashboard
-from app.domain.people import short_name
+from app.domain.people import short_name, short_name_gen
 from app.domain.serials import clean_serial, usable_serial, validate_serial
 from app.integrations.recognizer import Recognition
 from app.readings import submit_reading
@@ -99,16 +100,23 @@ def iso(ts: str | None) -> str | None:
     return datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC).astimezone(clock.TZ).isoformat()
 
 
-def reading_json(r: Row) -> dict:
+def by_json(name: str | None, user_id: int | None, me: int | None) -> str | None:
+    """Кто подал показание («Пётр С.»), если не сам пользователь; None — сам или человек удалил данные."""
+    return short_name(name) if name and user_id != me else None
+
+
+def reading_json(r: Row, me: int | None = None) -> dict:
     return {"id": r["id"], "period": r["period"], "values": units(values_of(r)), "source": r["source"],
-            "status": r["status"], "created_at": iso(r["created_at"])}
+            "status": r["status"], "created_at": iso(r["created_at"]),
+            "by": by_json(r.get("by_name"), r.get("user_id"), me)}
 
 
-def meter_json(m: Row, today: date) -> dict:
-    """m — строка repo.user_meters (с address_label и last_*)."""
+def meter_json(m: Row, today: date, me: int | None = None) -> dict:
+    """m — строка repo.user_meters (с address_label и last_*); me — users.id смотрящего (для last.by)."""
     last = None
     if m.get("last_id"):
-        last = {"period": m["last_period"], "values": units(values_of(m)), "created_at": iso(m["last_created_at"])}
+        last = {"period": m["last_period"], "values": units(values_of(m)), "created_at": iso(m["last_created_at"]),
+                "by": by_json(m.get("last_by_name"), m.get("last_user_id"), me)}
     return {
         "id": m["id"], "type": m["type"], "type_label": M.TYPE_LABELS[m["type"]], "unit": M.UNITS[m["type"]],
         "tariffs": m["tariffs"], "address_id": m["address_id"], "address_label": m["address_label"],
@@ -125,10 +133,18 @@ def verification_json(m: Row) -> dict:
             "arshin_demo": m.get("verification_source") == "arshin" and AS.is_demo(m)}
 
 
-def address_json(a: Row) -> dict:
-    """Адрес профиля: короткая подпись, полный текст, доступ; verified=False — адрес не сверен с ФИАС."""
+def address_json(a: Row, invites: list[Row] = ()) -> dict:
+    """Адрес профиля: короткая подпись, полный текст, доступ; verified=False — адрес не сверен с ФИАС.
+    Общий адрес (не собственник, доступ открыт): owner — «Анна И.», owner_gen — «Анны И.» («доступ от Анны И.»).
+    Свой адрес: shared_count — сколько людей с доступом, кроме него; invites_count — действующих ссылок с ним
+    (invites — repo.owner_invites)."""
+    by = SH.sharer(a) if a["role"] != "owner" and a["access"] == "granted" else None
+    own = a["role"] == "owner"
     return {"id": a["id"], "label": a["label"], "full_text": a["full_text"], "access": a["access"],
-            "role": a["role"], "verified": a["status"] != "unverified"}
+            "role": a["role"], "verified": a["status"] != "unverified",
+            "owner": short_name(by) if by else None, "owner_gen": short_name_gen(by) if by else None,
+            "shared_count": (a.get("shared_count") or 0) if own else 0,
+            "invites_count": sum(a["id"] in i["address_ids"] for i in invites) if own else 0}
 
 
 async def _with_members(repo: Repo, a: dict) -> dict:
@@ -218,14 +234,15 @@ async def me(request: Request, init: InitData = Depends(current_user)) -> dict:
     today = clock.today()
     meters = await deps.repo.user_meters(user["id"])
     addresses = await deps.repo.user_addresses(user["id"])
+    invites = await deps.repo.owner_invites(user["id"], clock.now())
     return {
         "registered": True,
         "user": {"full_name": user["full_name"], "phone": user["phone"],
                  "phone_verified": bool(user["phone_verified"]),
                  "photo_url": await profile_photo(request, init, user)},
         "dashboard": (await dashboard(deps, user["id"], today)).to_api(),
-        "meters": [meter_json(m, today) for m in meters],
-        "addresses": [await _with_members(deps.repo, address_json(a)) for a in addresses],
+        "meters": [meter_json(m, today, user["id"]) for m in meters],
+        "addresses": [await _with_members(deps.repo, address_json(a, invites)) for a in addresses],
         "bot_username": deps.bot_username,
     }
 
@@ -233,9 +250,10 @@ async def me(request: Request, init: InitData = Depends(current_user)) -> dict:
 @router.get("/meters/{meter_id}")
 async def meter_detail(meter_id: str, request: Request, init: InitData = Depends(current_user)) -> dict:
     repo = _deps(request).repo
-    _, meter = await _meter(repo, init, meter_id)
+    user, meter = await _meter(repo, init, meter_id)
     history = await repo.history(meter["id"], limit=12)
-    return {**meter_json(meter, clock.today()), "history": [reading_json(r) for r in history]}
+    return {**meter_json(meter, clock.today(), user["id"]),
+            "history": [reading_json(r, user["id"]) for r in history]}
 
 
 @router.delete("/meters/{meter_id}")
@@ -434,3 +452,122 @@ async def notify_chat(deps: Deps, user: Row, meter: Row, reading: Row, typed: di
                             keyboard=K.kb([K.gbtn(BTN_MORE, "submit"), K.gbtn(C.BTN_MENU, "menu")]))
     except Exception as e:  # noqa: BLE001
         log.warning("miniapp reading %s: chat notify failed: %s", reading["id"], e)
+
+
+# === «Поделиться доступом» (модель и сервис — app/sharing.py) ===
+
+async def _user(repo: Repo, init: InitData) -> Row:
+    """Зарегистрированный пользователь; нет профиля → 403 no_access."""
+    user = await _registered(repo, init)
+    if not user:
+        raise api_error(403, "no_access")
+    return user
+
+
+def _day(stamp: str | None) -> str | None:
+    """'YYYY-MM-DD HH:MM:SS' (UTC) → 'YYYY-MM-DD' по МСК."""
+    d = SH.local_date(stamp)
+    return d.isoformat() if d else None
+
+
+async def invite_json(deps: Deps, inv: Row) -> dict:
+    addrs = await SH.invite_addresses(deps.repo, inv)
+    url = SH.invite_url(deps.bot_username, inv["token"]) if deps.bot_username else None
+    return {"id": inv["id"], "addresses": [{"address_id": a["id"], "label": a["label"]} for a in addrs],
+            "expires_at": _day(inv["expires_at"]), "url": url}
+
+
+@router.get("/shares")
+async def shares(request: Request, init: InitData = Depends(current_user)) -> dict:
+    """owned — адреса, которыми делится (люди с доступом и когда подавали показания), invites — действующие
+    ссылки, received — адреса, к которым открыли доступ ему."""
+    deps = _deps(request)
+    user = await _user(deps.repo, init)
+    today = clock.today()
+    period = M.current_period(today)
+    owned, received = [], []
+    for a in await deps.repo.user_addresses(user["id"]):
+        if a["role"] == "owner":
+            members = [m for m in await deps.repo.address_members(a["id"]) if m["access"] == "granted"]
+            owned.append({"address_id": a["id"], "label": a["label"], "full_text": a["full_text"], "members": [
+                {"member_id": m["user_id"], "name": short_name(m["full_name"]), "since": _day(m["since"]),
+                 "last_submitted_at": _day(m["last_at"]), "submitted_this_period": m["last_period"] == period}
+                for m in members]})
+        elif a["access"] == "granted":
+            received.append({"address_id": a["id"], "label": a["label"], "full_text": a["full_text"],
+                             "owner": short_name(SH.sharer(a)) if SH.sharer(a) else None,
+                             "owner_gen": short_name_gen(SH.sharer(a)) if SH.sharer(a) else None,
+                             "since": _day(a.get("granted_at") or a.get("linked_at"))})
+    invites = [await invite_json(deps, inv) for inv in await deps.repo.owner_invites(user["id"], clock.now())]
+    return {"owned": owned, "invites": invites, "received": received, "limits": {"active_invites": SH.INVITE_LIMIT}}
+
+
+class InviteIn(BaseModel):
+    address_ids: list[int]
+
+
+@router.post("/shares/invites", status_code=201)
+async def create_share_invite(body: InviteIn, request: Request, init: InitData = Depends(current_user)) -> dict:
+    """Ссылка на адреса собственника: 422 empty, 403 not_owner, 409 limit, 503 no_username (имя бота неизвестно)."""
+    deps = _deps(request)
+    user = await _user(deps.repo, init)
+    if not deps.bot_username:
+        raise api_error(503, "no_username", SHARE_MSG["no_username"])
+    inv, err = await SH.create_invite(deps.repo, user["id"], body.address_ids, clock.now())
+    if err:
+        status = {"empty": 422, "not_owner": 403, "limit": 409}[err]
+        raise api_error(status, err, SHARE_MSG[err].format(count=SH.INVITE_LIMIT))
+    texts = await SH.invite_texts(deps.repo, inv, deps.bot_username)
+    return {"id": inv["id"], "url": texts["url"], "expires_at": _day(inv["expires_at"]),
+            "share_text": texts["share_text"]}
+
+
+@router.delete("/shares/invites/{invite_id}")
+async def cancel_share_invite(invite_id: str, request: Request, init: InitData = Depends(current_user)) -> dict:
+    """Отмена своей ссылки: чужая или несуществующая → 404 not_found; уже принята → 409 invite_used."""
+    deps = _deps(request)
+    user = await _user(deps.repo, init)
+    iid = K.parse_id(invite_id)
+    inv = await deps.repo.get_invite_by_id(iid) if iid else None
+    if inv is None or inv["owner_user_id"] != user["id"]:
+        raise api_error(404, "not_found", SHARE_MSG["invite_not_found"])
+    if inv["used_at"]:
+        raise api_error(409, "invite_used", SHARE_MSG["invite_used"])
+    await deps.repo.cancel_invite(inv["id"], clock.now())
+    return {"status": "cancelled", "id": inv["id"]}
+
+
+@router.delete("/shares/{address_id}/members/{member_id}")
+async def close_share(address_id: str, member_id: str, request: Request, background: BackgroundTasks,
+                      init: InitData = Depends(current_user)) -> dict:
+    """Собственник закрывает доступ (access=denied); получателю — сообщение в чат (в фоне).
+    403 not_owner — адрес не его; 404 not_found — такого человека с доступом нет."""
+    deps = _deps(request)
+    user = await _user(deps.repo, init)
+    aid, mid = K.parse_id(address_id), K.parse_id(member_id)
+    ua = await deps.repo.user_address(user["id"], aid) if aid else None
+    if ua is None or ua["role"] != "owner":
+        raise api_error(403, "not_owner", SHARE_MSG["not_owner"])
+    member = await deps.repo.user_address(mid, aid) if mid and mid != user["id"] else None
+    if member is None or member["role"] == "owner" or member["access"] == "denied":
+        raise api_error(404, "not_found", SHARE_MSG["member_not_found"])
+    await deps.repo.set_access(mid, aid, "denied")
+    background.add_task(SH.notify_closed, deps.repo, deps.api, mid, aid)
+    return {"status": "closed", "address_id": aid, "member_id": mid}
+
+
+@router.delete("/shares/received/{address_id}")
+async def remove_received(address_id: str, request: Request, background: BackgroundTasks,
+                          init: InitData = Depends(current_user)) -> dict:
+    """Получатель убирает общий адрес у себя; собственнику — сообщение в чат (в фоне).
+    404 not_found — такого общего адреса нет (свой адрес так не убрать)."""
+    deps = _deps(request)
+    user = await _user(deps.repo, init)
+    aid = K.parse_id(address_id)
+    ua = await deps.repo.user_address(user["id"], aid) if aid else None
+    if ua is None or ua["role"] == "owner":
+        raise api_error(404, "not_found", SHARE_MSG["address_not_found"])
+    removed = await deps.repo.remove_address(user["id"], aid)
+    if removed and removed["access"] == "granted":
+        background.add_task(SH.notify_removed, deps.repo, deps.api, user, removed)
+    return {"status": "removed", "address_id": aid}

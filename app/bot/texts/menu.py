@@ -54,3 +54,9 @@ METERS_PENDING: str = _D["METERS_PENDING"]
 # --- Честные заглушки ---
 VERIFICATION_STUB: str = _D["VERIFICATION_STUB"]
 PAY_STUB: str = _D["PAY_STUB"]
+
+# --- Поделиться доступом и помощь ---
+SHARED: str = _D["SHARED"]
+SHARED_MANY: str = _D["SHARED_MANY"]
+LAST_BY: str = _D["LAST_BY"]
+BTN_HELP: str = _D["BTN_HELP"]

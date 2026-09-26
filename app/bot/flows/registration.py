@@ -9,6 +9,7 @@ import re
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
+from app import sharing as SH
 from app.bot import keyboards as K
 from app.bot import photos
 from app.bot.ctx import Ctx
@@ -396,6 +397,7 @@ async def _address_back(ctx: Ctx) -> None:
 async def _address_chosen(ctx: Ctx, c: AddressCandidate) -> None:
     reg = _reg(ctx)
     reg.pop("norm_key", None)
+    reg.pop("no_address", None)
     reg["address"] = c.to_dict()
     reg["raw_address"] = ctx.data.pop("addr_raw", None)
     reg["notes_shown"] = ctx.data.pop("addr_shown", [])
@@ -408,15 +410,7 @@ REG_ADDRESS = AddressFlow(
 )
 
 
-# --- Адрес из приглашения: первым вопросом шага адреса ---
-
-async def _invite_address(ctx: Ctx) -> dict | None:
-    """Адрес действующего приглашения из сессии, если пользователь не выбрал «Другой адрес»."""
-    if not ctx.data.get("invite") or ctx.data.get("invite_skip"):
-        return None
-    inv, err = await invite.check_invite(ctx, ctx.data["invite"])
-    return None if err else await ctx.repo.get_address(inv["address_id"])
-
+# --- Регистрация по ссылке «Поделиться доступом»: свой адрес необязателен ---
 
 async def start_address(ctx: Ctx) -> None:
     ctx.data.pop("addr", None)
@@ -425,50 +419,62 @@ async def start_address(ctx: Ctx) -> None:
 
 @on_repeat(S.REG_ADDRESS)
 async def ask_address(ctx: Ctx, text: str | None = None) -> None:
-    addr = None if ctx.data.get("addr") else await _invite_address(ctx)
-    if addr is None:
+    shared = None if ctx.data.get("addr") else await invite.pending_invite(ctx)
+    if shared is None:
         await REG_ADDRESS.ask(ctx, text)
         return
     ctx.session.go(S.REG_ADDRESS)
-    await ctx.reply(IT.ASK_INVITE_ADDRESS.format(address=esc(addr["full_text"])), K.kb(
-        [ctx.btn(IT.BTN_THIS_ADDRESS, "inv_yes"), ctx.btn(IT.BTN_OTHER_ADDRESS, "inv_other")],
-        [ctx.btn(C.BTN_BACK, "back")]))
+    await ctx.reply(IT.ASK_INVITE_ADDRESS.format(addresses=esc(SH.addresses_text(shared[1]))), K.kb(
+        [ctx.btn(IT.BTN_NO_OWN_ADDRESS, "inv_none")], [ctx.btn(C.BTN_BACK, "back")]))
 
 
 @on_state(S.REG_ADDRESS)
 async def got_address(ctx: Ctx) -> None:
-    act = said(ctx)
-    offered = not ctx.data.get("addr") and await _invite_address(ctx)
-    if offered and act in ("inv_yes", "yes"):
-        reg = _reg(ctx)
-        reg.update(address=AddressCandidate.from_dict(offered).to_dict(), norm_key=offered["norm_key"],
-                   raw_address=None, notes_shown=[])
-        await to_confirm(ctx)
-    elif act == "inv_other":
-        ctx.data["invite_skip"] = True
-        await REG_ADDRESS.ask(ctx)
-    elif act == "inv_yes":  # приглашение перестало действовать, пока шла регистрация
-        await REG_ADDRESS.ask(ctx)
-    else:
-        await REG_ADDRESS.got_input(ctx)
+    if said(ctx) == "inv_none":
+        if not ctx.data.get("addr") and await invite.pending_invite(ctx):
+            reg = _reg(ctx)
+            for key in ("address", "norm_key", "raw_address", "notes_shown"):
+                reg.pop(key, None)
+            reg["no_address"] = True
+            await to_confirm(ctx)
+        else:  # ссылка перестала действовать, пока шла регистрация — адрес нужен
+            await REG_ADDRESS.ask(ctx)
+        return
+    await REG_ADDRESS.got_input(ctx)
 
 
 # === Подтверждение ===
 
 def _missing_step(reg: dict) -> S | None:
     for key, state in (("name", S.REG_NAME), ("phone", S.REG_PHONE), ("address", S.REG_ADDRESS)):
-        if not reg.get(key):
+        if not reg.get(key) and not (key == "address" and reg.get("no_address")):
             return state
     return None
 
 
-def _summary(ctx: Ctx, template: str, notes: bool = True) -> str:
-    """Сводка регистрации; пометки к адресу — только те, что ещё не показывали на «Мы поняли так»."""
+def _summary(ctx: Ctx, template: str, shared: tuple[str, list[str]] | None, notes: bool = True) -> str:
+    """Сводка регистрации: свой адрес и/или «Доступ от Анны И.: …» по ссылке; пометки к адресу — только те,
+    что ещё не показывали на «Мы поняли так»."""
     reg = _reg(ctx)
-    c = AddressCandidate.from_dict(reg["address"])
+    c = AddressCandidate.from_dict(reg["address"]) if reg.get("address") else None
+    lines = [esc(c.full_text)] if c else []
+    if shared:
+        lines.append(IT.REG_SHARED_LINE.format(by=esc(shared[0]), labels=esc("; ".join(shared[1]))))
     text = template.format(name=esc(reg["name"]), phone=phone_line(reg["phone"], reg.get("phone_verified")),
-                           address=esc(c.full_text))
-    return _with_notes(text, address_notes(ctx, c, reg.get("notes_shown", ())) if notes else [])
+                           address="\n".join(lines))
+    return _with_notes(text, address_notes(ctx, c, reg.get("notes_shown", ())) if notes and c else [])
+
+
+async def _shared_or_address(ctx: Ctx) -> tuple[str, list[str]] | None | bool:
+    """Ссылка из сессии для сводки. Без своего адреса ссылка обязательна: истекла — False (шаг адреса заново)."""
+    shared = await invite.pending_invite(ctx)
+    if shared is None and _reg(ctx).get("no_address"):
+        _reg(ctx).pop("no_address")
+        ctx.data.pop("invite", None)
+        ctx.note(IT.REG_NOT_APPLIED)
+        await start_address(ctx)
+        return False
+    return shared
 
 
 async def to_confirm(ctx: Ctx) -> None:
@@ -484,7 +490,10 @@ async def ask_confirm(ctx: Ctx) -> None:
         ctx.session.go(missing)
         await repeat_step(ctx)
         return
-    await ctx.reply(_summary(ctx, T.CONFIRM), K.kb(
+    shared = await _shared_or_address(ctx)
+    if shared is False:
+        return
+    await ctx.reply(_summary(ctx, T.CONFIRM, shared), K.kb(
         [ctx.btn(T.BTN_ALL_OK, "yes")],
         [ctx.btn(T.BTN_EDIT_NAME, "edit_name"), ctx.btn(T.BTN_EDIT_PHONE, "edit_phone")],
         [ctx.btn(T.BTN_EDIT_ADDRESS, "edit_address")],
@@ -510,41 +519,51 @@ async def got_confirm(ctx: Ctx) -> None:
 
 
 async def finish(ctx: Ctx) -> None:
-    """«Всё верно»: одна транзакция в БД, затем «нет прав» / подача отложенного фото / меню с шапкой."""
+    """«Всё верно»: одна транзакция в БД, доступ по ссылке (если есть), затем «нет прав» / подача отложенного
+    фото / меню с шапкой. Без своего адреса (только общий по ссылке) — регистрируем без адреса."""
     reg = _reg(ctx)
     missing = _missing_step(reg)
     if missing:
         ctx.session.go(missing)
         await repeat_step(ctx)
         return
-    c = AddressCandidate.from_dict(reg["address"])
-    res = await ctx.repo.complete_registration(
-        ctx.user["id"], full_name=reg["name"], phone=reg["phone"], phone_verified=bool(reg.get("phone_verified")),
-        address=c.to_dict(), norm_key=reg.get("norm_key") or norm_key(c), raw_input=reg.get("raw_address"),
-        now=ctx.now,
-    )
+    shared = await _shared_or_address(ctx)
+    if shared is False:
+        return
+    summary = _summary(ctx, T.SAVED, shared, notes=False)
+    if reg.get("address"):
+        c = AddressCandidate.from_dict(reg["address"])
+        res = await ctx.repo.complete_registration(
+            ctx.user["id"], full_name=reg["name"], phone=reg["phone"], phone_verified=bool(reg.get("phone_verified")),
+            address=c.to_dict(), norm_key=reg.get("norm_key") or norm_key(c), raw_input=reg.get("raw_address"),
+            now=ctx.now,
+        )
+    else:
+        res = None
+        await ctx.repo.update_user(ctx.user["id"], full_name=reg["name"], phone=reg["phone"],
+                                   phone_verified=int(bool(reg.get("phone_verified"))), registered_at=ts(ctx.now))
     ctx.user = await ctx.repo.get_user_by_id(ctx.user["id"])
     if ctx.is_callback:  # сводка остаётся в чате без кнопок
-        await ctx.reply(_summary(ctx, T.SAVED, notes=False))
-    by_invite = None
-    if res["access"] != "granted" and ctx.data.get("invite"):
-        by_invite = await invite.accept_after_registration(ctx, res["address_id"])
+        await ctx.reply(summary)
+    shared_ok, shared_note = await invite.accept_after_registration(ctx)
+    own = await ctx.repo.user_address(ctx.user["id"], res["address_id"]) if res else None
     pending = ctx.data.get("pending_photo_id")
     ctx.session.reset()
-    if by_invite != "accepted" and res["access"] != "granted":
+    if own and own["access"] != "granted" and not shared_ok:
         await photos.delete_photo(ctx.repo, pending)
-        ctx.note(T.DONE_SHORT)
-        if by_invite:
-            ctx.note(IT.REG_NOT_APPLIED)
+        for line in (T.DONE_SHORT, shared_note):
+            if line:
+                ctx.note(line)
         await call_hook("access.no_access", ctx, address_id=res["address_id"])
         await show_menu(ctx)
         return
-    invited = [IT.REG_ACCEPTED.format(label=esc(c.full_text))] if by_invite else []
     if pending and await photo_alive(ctx, pending):
-        for line in (T.DONE_PHOTO, *invited):
-            ctx.note(line)
+        for line in (T.DONE_PHOTO, shared_note):
+            if line:
+                ctx.note(line)
         await call_hook("submission.with_photo", ctx, photo_id=pending)
         return
-    for line in (T.DONE_PHOTO_EXPIRED if pending else T.DONE, *invited):
-        ctx.note(line)
+    for line in (T.DONE_PHOTO_EXPIRED if pending else T.DONE, shared_note):
+        if line:
+            ctx.note(line)
     await show_menu(ctx)

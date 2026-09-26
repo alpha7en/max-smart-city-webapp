@@ -345,7 +345,7 @@ async def test_migration_v2_to_v3_keeps_meters(tmp_path):
     repo = await Repo.open(path)
     try:
         async with repo.db.execute("PRAGMA user_version") as cur:
-            assert (await cur.fetchone())[0] == SCHEMA_VERSION == 3
+            assert (await cur.fetchone())[0] == SCHEMA_VERSION
         m = await repo.get_meter(7)
         assert (m["serial"], m["verification_due"], m["verification_source"], m["arshin_vri_id"]) == (
             "123", "2030-01-01", "user", None)

@@ -10,12 +10,14 @@ from datetime import date
 
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx
-from app.bot.router import call_hook, on_global, on_hook, on_state
+from app.bot.router import call_hook, on_command, on_global, on_hook, on_state
 from app.bot.states import S
 from app import arshin_service as AS
+from app import sharing as SH
 from app.bot.texts import arshin as TA
 from app.bot.texts import common as C
 from app.bot.texts import menu as T
+from app.bot.texts import invite as TI
 from app.bot.texts import meters as TM
 from app.bot.texts import notify as N
 from app.bot.texts.fmt import esc, full_date, money, short_date, with_notes
@@ -28,12 +30,13 @@ from app.domain.dashboard import (
     meter_names,
 )
 from app.domain.meters import days_left, field_labels, format_value, spec
+from app.domain.people import short_name_gen
 
 log = logging.getLogger(__name__)
 
 # Действия кнопок меню (g|action|arg).
-SUBMIT, METERS, PROFILE, ADD_METER, VERIFY, PAY, MENU = (
-    "submit", "meters", "profile", "add_meter", "verify", "pay", "menu",
+SUBMIT, METERS, PROFILE, ADD_METER, VERIFY, PAY, MENU, HELP = (
+    "submit", "meters", "profile", "add_meter", "verify", "pay", "menu", "help",
 )
 ANTIFRAUD_DAYS = 365
 METER_CARD = "meter"   # карточка счётчика (flows/meters.py)
@@ -86,8 +89,16 @@ async def send_menu(ctx: Ctx, header: str | None = None, **_) -> None:
         urgent_button(d.urgent) if d.urgent and d.urgent.kind != "bill" else None,  # счёт уже в кнопке оплаты
         None if d.urgent and d.urgent.kind == "submit" else K.gbtn(T.BTN_SUBMIT, SUBMIT),
         [K.gbtn(T.BTN_METERS, METERS), K.gbtn(T.BTN_PROFILE, PROFILE)],
-        await app_button(ctx),
+        [await app_button(ctx), K.gbtn(T.BTN_HELP, HELP)],
     ))
+
+
+@on_global(HELP)
+@on_command("/help")
+async def help_(ctx: Ctx) -> None:
+    """«Помощь» и /help: снова стартовое приветствие со списком возможностей (регистрацию не запускаем)."""
+    ctx.session.reset()
+    await ctx.reply(C.WELCOME, K.kb([K.gbtn(T.BTN_SUBMIT, SUBMIT), K.gbtn(C.BTN_MENU, MENU)]))
 
 
 def back_to_menu() -> dict:
@@ -172,7 +183,10 @@ async def my_meters(ctx: Ctx) -> None:
     for m in meters:
         if m.get("last_id"):
             when = local_time(m.get("last_created_at"))
-            info = T.METERS_LAST.format(value=last_values(m), date=short_date(when.date()) if when else m["last_period"])
+            day = short_date(when.date()) if when else m["last_period"]
+            if m.get("last_by_name") and m.get("last_user_id") != ctx.user["id"]:  # подал другой человек
+                day = T.LAST_BY.format(date=day, by=esc(short_name_gen(m["last_by_name"])))
+            info = T.METERS_LAST.format(value=last_values(m), date=day)
         else:
             info = T.METERS_NO_READINGS
         if m.get("verification_due"):
@@ -184,9 +198,16 @@ async def my_meters(ctx: Ctx) -> None:
     text = T.METERS_TITLE + "\n\n" + "\n\n".join(blocks) + "\n\n" + TM.LIST_HINT if meters else T.NO_METERS
     if line := _antifraud(meters, ctx.now.date()):
         text += "\n\n" + line
+    with_meters = {m["address_id"] for m in meters}
+    shared = [T.SHARED.format(label=esc(a["label"]), by=esc(short_name_gen(SH.sharer(a))))
+              for a in addresses if a["id"] in with_meters and SH.role_text(a)]
+    if shared:  # общие адреса: «Арбат 47к1, кв 32 — доступ от Анны И.»
+        text += "\n\n" + "\n".join(shared)
     if any(a["access"] == "pending" for a in addresses):
         text += "\n\n" + T.METERS_PENDING
+    owner = any(a["role"] == "owner" for a in addresses)
     await ctx.reply(with_notes(text, *notes), K.kb(
         *[K.gbtn(buttons[m["id"]], METER_CARD, m["id"]) for m in meters[:METER_BUTTONS]],
+        K.gbtn(TI.BTN_SHARE, "share") if owner and meters else None,
         [K.gbtn(T.BTN_ADD_METER, ADD_METER), K.gbtn(C.BTN_MENU, MENU)],
     ))
