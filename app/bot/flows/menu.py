@@ -1,4 +1,5 @@
-"""Главное меню = короткий дашборд + кнопки (SPEC §5.7), «Мои счётчики», заглушки поверки и оплаты.
+"""Главное меню = короткий дашборд + кнопки (SPEC §5.7): первой «Оплатить счёт · сумма»,
+«Мои счётчики», заглушки поверки и оплаты.
 
 Кнопки меню глобальные (g|…): работают из любого состояния и отвечают новым сообщением.
 """
@@ -17,7 +18,7 @@ from app.bot.texts import common as C
 from app.bot.texts import menu as T
 from app.bot.texts import meters as TM
 from app.bot.texts import notify as N
-from app.bot.texts.fmt import esc, full_date, short_date, with_notes
+from app.bot.texts.fmt import esc, full_date, money, short_date, with_notes
 from app.domain.dashboard import (
     VERIFICATION_SHOW_DAYS,
     Dashboard,
@@ -59,6 +60,15 @@ def urgent_button(u: Urgent) -> K.Button:
     return K.gbtn(u.text, URGENT_ACTIONS[u.kind], u.ref or "")
 
 
+def pay_button(d: Dashboard) -> K.Button | None:
+    """«Оплатить счёт · 4 312 ₽» (один счёт → его id) или «Оплатить счета · сумма» (несколько)."""
+    if not d.bill:
+        return None
+    if len(d.bills) == 1:
+        return K.gbtn(T.BTN_PAY.format(amount=d.bill["amount_text"]), PAY, d.bill["id"])
+    return K.gbtn(T.BTN_PAY_MANY.format(amount=money(sum(b["amount_kop"] for b in d.bills))), PAY)
+
+
 def render(d: Dashboard) -> str:
     """Дашборд в разметке MAX (собирает domain/dashboard: срочное и сроки жирным, демо — цитатой в конце)."""
     return d.markdown
@@ -72,7 +82,8 @@ async def send_menu(ctx: Ctx, header: str | None = None, **_) -> None:
         ctx.note(header)
     d = await dashboard(ctx)
     await ctx.reply(render(d), K.kb(
-        urgent_button(d.urgent) if d.urgent else None,
+        pay_button(d),
+        urgent_button(d.urgent) if d.urgent and d.urgent.kind != "bill" else None,  # счёт уже в кнопке оплаты
         None if d.urgent and d.urgent.kind == "submit" else K.gbtn(T.BTN_SUBMIT, SUBMIT),
         [K.gbtn(T.BTN_METERS, METERS), K.gbtn(T.BTN_PROFILE, PROFILE)],
         await app_button(ctx),

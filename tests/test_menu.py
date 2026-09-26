@@ -12,6 +12,7 @@ from app.bot.session import load_session
 from app.bot.states import S
 from app.bot.texts import common as C
 from app.bot.texts import menu as T
+from app.bot.texts.fmt import money
 from app.db import ts
 from tests import fakes
 from tests.conftest import NOW
@@ -82,12 +83,15 @@ async def test_menu_keyboard_with_urgent_verification(chat, api, repo):
     assert text.startswith("**Запишитесь на поверку: 10 дней**\n\nПоказания за октябрь — до **25 октября**, "
                            "осталось **6 дней**")
     assert text.endswith(f"{T.FOOTER}\n\n> {T.BILL_NOTE}")
-    assert labels(kb) == [["Запишитесь на поверку: 10 дней"], ["Подать показания"],
+    (bill,) = await repo.unpaid_bills(user["id"])
+    pay = T.BTN_PAY.format(amount=money(bill["amount_kop"]))
+    assert labels(kb) == [[pay], ["Запишитесь на поверку: 10 дней"], ["Подать показания"],
                           ["Мои счётчики", "Профиль"], [C.BTN_MINIAPP]]
     b = rows(kb)
-    assert b[0][0]["payload"] == f"g|verify|{mid}" and b[1][0]["payload"] == "g|submit|"
-    assert b[2][1]["payload"] == "g|profile|"
-    assert b[3][0] == {"type": "open_app", "text": C.BTN_MINIAPP, "web_app": "test_bot"}
+    assert b[0][0]["payload"] == f"g|pay|{bill['id']}"
+    assert b[1][0]["payload"] == f"g|verify|{mid}" and b[2][0]["payload"] == "g|submit|"
+    assert b[3][1]["payload"] == "g|profile|"
+    assert b[4][0] == {"type": "open_app", "text": C.BTN_MINIAPP, "web_app": "test_bot"}
     assert await state(repo) == S.IDLE
 
 
@@ -97,8 +101,8 @@ async def test_urgent_submit_replaces_plain_submit_button(chat, api, repo):
     clock.set_now(datetime(2026, 10, 23, 12, 0, tzinfo=clock.TZ))
     await chat.text("меню")
     _, kb = api.outgoing()[-1]
-    assert labels(kb)[:2] == [["Подайте показания: 2 дня"], ["Мои счётчики", "Профиль"]]
-    assert rows(kb)[0][0]["payload"] == "g|submit|"
+    assert labels(kb)[1:3] == [["Подайте показания: 2 дня"], ["Мои счётчики", "Профиль"]]
+    assert rows(kb)[1][0]["payload"] == "g|submit|"
 
 
 async def test_open_app_username_from_get_me(chat, api, repo, deps):
@@ -143,6 +147,54 @@ async def test_verification_and_payment_stubs(chat, api, repo):
     await chat.payload(f"g|pay|{bill['id']}")
     text, kb = api.outgoing()[-1]
     assert text == T.PAY_STUB and "демо" in text and labels(kb) == [[C.BTN_MENU]]
+
+
+async def test_pay_button_first_in_menu_opens_stub(chat, api, repo):
+    user, _ = await make_user(repo)
+    await chat.text("/start")
+    (bill,) = await repo.unpaid_bills(user["id"])
+    pay = T.BTN_PAY.format(amount=money(bill["amount_kop"]))
+    _, kb = api.outgoing()[-1]
+    assert labels(kb)[0] == [pay] and rows(kb)[0][0]["payload"] == f"g|pay|{bill['id']}"
+    api.clear()
+    await chat.press(pay)
+    text, kb = api.outgoing()[-1]
+    assert text == T.PAY_STUB and text.startswith("**Оплата появится скоро**") and labels(kb) == [[C.BTN_MENU]]
+    assert api.named("answer")[0]["message"] is None  # новым сообщением, меню остаётся
+
+
+async def test_pay_button_replaces_urgent_bill(chat, api, repo):
+    user, _ = await make_user(repo)
+    (bill,) = await repo.unpaid_bills(user["id"])
+    await repo._exec("UPDATE bills SET due_date=? WHERE id=?", ((NOW.date() + timedelta(days=2)).isoformat(), bill["id"]))
+    await chat.text("/start")
+    text, kb = api.outgoing()[-1]
+    assert text.startswith("**Оплатите счёт: 2 дня**")  # срочное остаётся в тексте дашборда
+    flat = [b for row in labels(kb) for b in row]
+    assert flat[0] == T.BTN_PAY.format(amount=money(bill["amount_kop"]))
+    assert not any(b.startswith("Оплатите счёт") for b in flat)  # без второй кнопки про тот же счёт
+
+
+async def test_pay_button_sums_several_bills(chat, api, repo):
+    user, _ = await make_user(repo)
+    addr2 = dict(ADDR, full_text="г Москва, ул Тверская, д 1, кв 2")
+    res = await repo.add_user_address(user["id"], addr2, "k2", None, NOW.date())
+    await repo.ensure_demo_bill(res["address_id"], NOW.date())
+    bills = await repo.unpaid_bills(user["id"])
+    assert len(bills) == 2
+    await chat.text("/start")
+    _, kb = api.outgoing()[-1]
+    assert labels(kb)[0] == [T.BTN_PAY_MANY.format(amount=money(sum(b["amount_kop"] for b in bills)))]
+    assert rows(kb)[0][0]["payload"] == "g|pay|"
+
+
+async def test_no_pay_button_when_paid(chat, api, repo):
+    user, _ = await make_user(repo)
+    (bill,) = await repo.unpaid_bills(user["id"])
+    await repo.set_bill_status(bill["id"], "paid")
+    await chat.text("/start")
+    _, kb = api.outgoing()[-1]
+    assert not any(b.startswith("Оплатить") for row in labels(kb) for b in row)
 
 
 # --- M3: Мои счётчики ---

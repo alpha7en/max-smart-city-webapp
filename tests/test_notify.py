@@ -163,7 +163,7 @@ async def test_demo_notifications(chat, api, repo):
     assert await sent_kinds(repo) == []  # демо не пишет дедуп
 
     await chat.text("/start")  # срочная кнопка после демо-поверки
-    assert labels(api.outgoing()[-1][1])[0] == ["Запишитесь на поверку: 20 дней"]
+    assert labels(api.outgoing()[-1][1])[:2] == [["Оплатить счёт · 5 918 ₽"], ["Запишитесь на поверку: 20 дней"]]
 
 
 async def test_demo_keeps_user_verification_date_and_disabled(chat, api, repo, deps):

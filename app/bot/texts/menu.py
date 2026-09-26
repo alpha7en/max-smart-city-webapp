@@ -39,6 +39,8 @@ URGENT_SUBMIT_TODAY: str = _D["URGENT_SUBMIT_TODAY"]
 # --- Кнопки меню ---
 BTN_SUBMIT: str = _D["BTN_SUBMIT"]
 BTN_METERS: str = _D["BTN_METERS"]
+BTN_PAY: str = _D["BTN_PAY"]            # {amount} — сумма ближайшего неоплаченного счёта
+BTN_PAY_MANY: str = _D["BTN_PAY_MANY"]  # {amount} — сумма всех неоплаченных
 BTN_PROFILE: str = _D["BTN_PROFILE"]
 BTN_ADD_METER: str = _D["BTN_ADD_METER"]
 
