@@ -122,7 +122,7 @@ RECOGNIZER_URL=http://meter-reader:8000/recognize
 
 - `8080/tcp` (HTTP, в compose проброшен на хост как `8080:8080`): `/api/health`, `/api/*` для мини-приложения,
   `/app/` статика мини-приложения, `/` перенаправляет на `/app/`. Входящих портов для бота не нужно: он сам опрашивает MAX.
-- Исходящие соединения: `platform-api2.max.ru:443` (TLS проверяется, сертификат Минцифры лежит в `app/integrations/certs/`),
+- Исходящие соединения: `platform-api2.max.ru:443` (TLS проверяется, публичный CA Минцифры лежит в `certs/`),
   CDN MAX для скачивания фото, `suggestions.dadata.ru:443` при заданном ключе, `RECOGNIZER_URL` при заданном URL,
   `fgis.gost.ru:443` при `ARSHIN_MODE=live`.
 - `meter-reader` (если включён): `8000/tcp` внутри сети compose, на хост только `127.0.0.1:8000`;

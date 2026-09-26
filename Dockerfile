@@ -14,6 +14,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY app/ app/
+COPY certs/ certs/
 RUN mkdir -p /app/data && chown app:app /app/data
 
 EXPOSE 8080

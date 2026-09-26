@@ -1,5 +1,6 @@
 *
 !app/
+!certs/russian_trusted_ca.pem
 !requirements.txt
 **/__pycache__
 **/*.pyc
