@@ -47,6 +47,9 @@ class Settings:
     arshin_mode: str = "live"           # ФГИС «Аршин»: live | fixtures (демо-данные) | off
     arshin_base: str = "https://fgis.gost.ru/fundmetrology/eapi"
     arshin_fallback_ips: tuple[str, ...] = ("212.164.138.19", "212.164.138.14")  # если DNS не резолвит хост
+    # ХАКАТОН: после регистрации предлагать демо-профиль для проверяющих (flows/hackathon_demo.py).
+    # Здесь False, чтобы тесты шли по обычному сценарию; из env (load_settings) по умолчанию включено.
+    hackathon_demo_profile: bool = False
 
     @property
     def db_path(self) -> Path:
@@ -76,5 +79,6 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         arshin_base=e.get("ARSHIN_BASE", "").strip().rstrip("/") or Settings.arshin_base,
         arshin_fallback_ips=Settings.arshin_fallback_ips if e.get("ARSHIN_FALLBACK_IPS") is None
         else _list(e["ARSHIN_FALLBACK_IPS"]),
+        hackathon_demo_profile=_bool(e.get("HACKATHON_DEMO_PROFILE"), True),
         miniapp_origins=tuple(o.rstrip("/") for o in _list(e.get("MINIAPP_ORIGINS", ""))),
     )
