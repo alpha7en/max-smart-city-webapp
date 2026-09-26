@@ -1,6 +1,6 @@
 """Тонкий async-клиент MAX Bot API (https://platform-api2.max.ru).
 
-TLS проверяется всегда: системные корни + certifi + сертификаты Минцифры (certs/).
+TLS проверяется всегда: certifi + публичные корневые сертификаты Минцифры (certs/ в корне репозитория).
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import certifi
 import httpx
 
 log = logging.getLogger(__name__)
-RUSSIAN_CA = Path(__file__).with_name("certs") / "russian_trusted_ca.pem"
+RUSSIAN_CA = Path(__file__).resolve().parents[2] / "certs" / "russian_trusted_ca.pem"
 UPDATE_TYPES = ("message_created", "message_callback", "bot_started")
 RETRY_DELAYS = (1, 2, 4)
 KEEP = object()  # edit(): не трогать вложения
@@ -30,8 +30,9 @@ class MaxApiError(Exception):
 def ssl_context() -> ssl.SSLContext:
     ctx = ssl.create_default_context()
     ctx.load_verify_locations(cafile=certifi.where())
-    if RUSSIAN_CA.exists():
-        ctx.load_verify_locations(cafile=str(RUSSIAN_CA))
+    if not RUSSIAN_CA.is_file():  # без него TLS до MAX не пройдёт — лучше упасть сразу и понятно
+        raise FileNotFoundError(f"нет сертификата Минцифры: {RUSSIAN_CA} (см. certs/README.md)")
+    ctx.load_verify_locations(cafile=str(RUSSIAN_CA))
     return ctx
 
 

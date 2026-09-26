@@ -25,7 +25,7 @@ app/
   clock.py           время МСК (в тестах подменяется)
   scheduler.py       уведомления, чистка фото, раз в сутки обновление поверки по ФГИС
   domain/            чистые функции без I/O: meters, people, addresses, access, serials, verification (+dashboard)
-  integrations/      ВЕСЬ внешний HTTP: max_api.py (клиент MAX + certs/ Минцифры),
+  integrations/      ВЕСЬ внешний HTTP: max_api.py (клиент MAX; CA Минцифры в certs/ корня),
                      recognizer.py (клиент meter-reader или демо-заглушка), address_service.py (DaData/локально),
                      arshin.py (ФГИС «Аршин», поверка по заводскому номеру; ARSHIN_MODE=live|fixtures|off,
                      ARSHIN_FALLBACK_IPS — IP хоста, если DNS в контейнере его не резолвит)
@@ -41,6 +41,7 @@ tests/               pytest; conftest.py (фикстура chat), fakes.py (Fake
 services/meter_reader/  сервис распознавания (автор — коллега, свой README): POST /recognize, фото → Qwen
                      в Yandex Cloud → показание, тип, серийник. Свои Dockerfile и тесты, контейнер meter-reader в корневом compose
 tools/live_smoke.py  живая проверка MAX API (нужен доступ к MAX, то есть запуск из РФ)
+certs/               публичный CA Минцифры (russian_trusted_ca.pem) для TLS к MAX; приватных ключей в репо нет
 ```
 
 ## Команды

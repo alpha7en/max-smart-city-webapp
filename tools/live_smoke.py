@@ -44,7 +44,7 @@ MINIAPP_URL = "https://alpha7en.github.io/max-smart-city-webapp/"  # закре�
 FLOW = "smoke"  # payload тестовых callback-кнопок: для работающего бота это «устаревшая кнопка»
 SAVE_UPDATES = ROOT / "data" / "live_updates.jsonl"  # data/ в .gitignore
 HINTS = {
-    "CERTIFICATE": "TLS: нет сертификата Минцифры? Проверьте app/integrations/certs/russian_trusted_ca.pem",
+    "CERTIFICATE": "TLS: нет сертификата Минцифры? Проверьте certs/russian_trusted_ca.pem",
     "401": "токен неверный или отозван (business.max.ru → бот → токен)",
     "not.found": "open_app: web_app должен быть username бота, не URL",
     "proto.payload": "кнопка не прошла валидацию MAX (link — только публичный http(s)-URL)",
