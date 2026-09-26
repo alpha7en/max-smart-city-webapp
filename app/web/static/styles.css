@@ -97,7 +97,9 @@ body.has-bar main { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px
 .btn.white { background: #fff; color: var(--accent-ink); box-shadow: 0 6px 16px -8px rgba(0, 20, 80, .5); }
 .btn .ib.mi { width: 28px; height: 28px; border-radius: 9px; color: #fff; }
 .link { border: 0; background: none; color: var(--accent); font-weight: 650; font-size: 14px; padding: 0 2px; }
-.mini { flex: none; border: 0; border-radius: 999px; padding: 8px 14px; background: var(--accent-soft); color: var(--accent); font-size: 14px; font-weight: 650; }
+.mini { flex: none; display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 999px; padding: 8px 14px; background: var(--accent-soft); color: var(--accent); font-size: 14px; font-weight: 650; }
+.mini.q { background: var(--card2); color: var(--muted); }
+.link.q { color: var(--muted); font-weight: 550; }
 .spin { width: 18px; height: 18px; border: 2.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -273,8 +275,6 @@ body.has-bar main { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px
 .arow + .arow::before { content: ""; position: absolute; top: 0; right: 0; left: 58px; height: 1px; background: var(--line); }
 .arow b { display: block; font-size: 15px; font-weight: 650; }
 .arow small { display: block; }
-.arow .acc { display: block; margin-top: 3px; font-size: 13px; text-align: left; }
-.acc-chat { align-self: center; padding: 8px; font-size: 14px; }
 .item .chev { flex: none; color: var(--dim); }
 .btn.danger { color: var(--bad); }
 .btn.quiet { min-height: 44px; margin-top: 6px; font-size: 15px; font-weight: 550; }
@@ -283,3 +283,31 @@ body.has-bar main { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px
 .btn.sq { padding: 0; }
 .acts-list .item + .item::before { left: 58px; }
 .grp { margin: 2px 4px -4px; font-size: 13px; font-weight: 650; color: var(--muted); }
+
+/* ---------- общий доступ ---------- */
+.lead { padding: 0 4px; color: var(--muted); font-size: 15px; }
+.ava.sm { width: 30px; height: 30px; margin: 0; font-size: 12px; }
+.arow .sl { display: flex; align-items: baseline; gap: 6px; }
+.arow b, .grp { text-wrap: pretty; }
+.sd { flex: none; align-self: flex-start; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: var(--c); }
+.inv { display: flex; flex-direction: column; gap: 10px; padding: 14px 14px 12px 16px; }
+.inv .ih { display: flex; align-items: flex-start; gap: 12px; }
+.inv b { display: block; font-size: 15px; font-weight: 650; }
+.inv small { display: block; }
+.inv .ia { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-left: 42px; }
+.cb { display: grid; place-items: center; flex: none; width: 24px; height: 24px; margin: 0 3px; border: 2px solid var(--dim); border-radius: 8px; color: transparent; }
+.opt.on .cb { border-color: var(--accent); background: var(--accent); color: #fff; }
+.opts .sep { height: 1px; margin: 4px 10px; background: var(--line); }
+.lnk { width: 100%; padding: 12px 14px; border: 1.5px dashed var(--line); border-radius: 14px; background: var(--card2); color: var(--text); font: 13px/1.45 var(--mono); text-align: center; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
+.offscreen { position: fixed; top: 0; left: -9999px; opacity: 0; }
+.sk.s4 { width: 45%; height: 22px; margin: 10px 4px 0; border-radius: 8px; }
+.sk.s5 { height: 150px; }
+/* быстрая кнопка доступа у своего адреса: тихая иконка, зона нажатия 44px */
+.ibtn { flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin: -4px -8px -4px 0; border: 0; border-radius: 14px; background: none; color: var(--muted); }
+.ibtn:hover, .ibtn:active { background: var(--accent-soft); color: var(--accent); }
+.optw { display: flex; align-items: center; gap: 4px; padding-right: 12px; border-radius: 16px; }
+.optw > .opt { flex: 1; min-width: 0; }
+.optw.on { background: var(--accent-soft); }
+.optw > .opt.on { background: none; }
+.hl { animation: hl 1.8s ease-out; }
+@keyframes hl { from { box-shadow: 0 0 0 2px var(--accent), var(--shadow); } }
