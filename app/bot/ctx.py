@@ -1,6 +1,7 @@
 """Контекст обработки одного события: зависимости, событие, сессия, пользователь, ответы."""
 from __future__ import annotations
 
+import contextlib
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -24,7 +25,7 @@ class Deps:
     repo: Repo
     settings: Settings
     recognizer: Recognizer
-    addresses: Any = None      # AddressService (поток S3); None — сервис не подключён
+    addresses: Any = None      # AddressService; None — локальный разбор (flows/registration.address_service)
     bot_username: str = ""     # для кнопок open_app
     arshin: Any = None         # ArshinClient (ФГИС «Аршин»); None — проверка выключена
 
@@ -54,10 +55,6 @@ class Ctx:
     @property
     def settings(self) -> Settings:
         return self.deps.settings
-
-    @property
-    def state(self):
-        return self.session.state
 
     @property
     def data(self) -> dict:
@@ -155,7 +152,5 @@ class Ctx:
 
     async def typing(self) -> None:
         if self.event.chat_id:
-            try:
+            with contextlib.suppress(MaxApiError):
                 await self.api.typing(self.event.chat_id)
-            except MaxApiError:
-                pass

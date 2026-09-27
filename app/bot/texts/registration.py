@@ -1,4 +1,4 @@
-"""Тексты регистрации (SPEC §5.5, §8 эталоны 1–4) и общих шагов адреса.
+"""Тексты регистрации и общих шагов адреса (регистрация, профиль).
 
 Текстовые значения вынесены в yaml/registration.yaml.
 """
@@ -9,7 +9,6 @@ _D = load_texts("registration.yaml")
 # --- Имя ---
 ASK_NAME: str = _D["ASK_NAME"]
 ASK_NAME_AGAIN: str = _D["ASK_NAME_AGAIN"]
-NAME_EXAMPLE: str = _D["NAME_EXAMPLE"]
 NAME_ERRORS: dict[str, str] = _D["NAME_ERRORS"]
 NAME_ERROR_DEFAULT: str = _D["NAME_ERROR_DEFAULT"]
 BTN_ITS_ME: str = _D["BTN_ITS_ME"]
@@ -26,7 +25,6 @@ FROM_MAX: str = _D["FROM_MAX"]
 BTN_SHARE_PHONE: str = _D["BTN_SHARE_PHONE"]
 
 # --- Адрес (регистрация и профиль) ---
-ADDRESS_EXAMPLE: str = _D["ADDRESS_EXAMPLE"]
 ASK_ADDRESS: str = _D["ASK_ADDRESS"]
 ADDRESS_RETRY: str = _D["ADDRESS_RETRY"]
 ADDRESS_NOT_FOUND: str = _D["ADDRESS_NOT_FOUND"]

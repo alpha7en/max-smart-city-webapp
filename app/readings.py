@@ -1,21 +1,10 @@
-"""Сервис подачи показаний — общий для бота (flows/submission.py) и API мини-приложения (web/api.py).
+"""Подача показания — общая для бота (flows/submission.py) и API мини-приложения (web/api.py).
 
-Использование в API (S5b):
-
-    from app.readings import submit_reading, values_to_units
-
-    res = await submit_reading(repo, user_id=user["id"], meter_id=body.meter_id, draft=None,
-                               values=body.values,            # {'t1': '123,456', ...} — строки как ввёл пользователь
-                               source="miniapp", recognized=None,
-                               confirm=body.confirm, replace=body.replace, today=clock.today())
-    res.status → HTTP:
-        accepted | flagged                → 200 {status, reading: {id, values: values_to_units(res.values)}}
-        bad_format | less_than_previous   → 422 {code: res.status, message: res.message}
-        needs_confirm | already_submitted → 409 {code: res.status, message: res.message}
-        no_access                         → 403 {code: 'no_access', message: res.message}
-    no_access возвращается и для несуществующего счётчика (404 API определяет само через repo.get_meter).
-
-Значения в SubmitResult (values, previous, delta) — int в тысячных; в JSON — через values_to_units().
+submit_reading() проверяет и записывает показание одной транзакцией и возвращает SubmitResult:
+accepted | flagged — записано; bad_format | less_than_previous — ошибка ввода; needs_confirm — большой
+прирост, нужен confirm=True; already_submitted — за месяц уже подано, нужен replace=True; no_access — нет
+прав (и для несуществующего счётчика). web/api.py переводит статус в HTTP-код (ERROR_STATUS).
+Значения в SubmitResult (values, previous, delta) — int в тысячных долях единицы.
 """
 from __future__ import annotations
 
@@ -29,10 +18,10 @@ from app.domain.access import can_submit
 from app.domain.meters import (
     FIELDS,
     ValueParseError,
-    format_stored,
     check_plausibility,
     current_period,
     fields_for,
+    format_stored,
     format_value,
     months_between,
     parse_value,
@@ -64,15 +53,6 @@ class SubmitResult:
     @property
     def ok(self) -> bool:
         return self.status in ("accepted", "flagged")
-
-
-def to_units(v: int | None) -> float | None:
-    """Тысячные → число в единицах счётчика для JSON: 123456 → 123.456."""
-    return None if v is None else v / 1000
-
-
-def values_to_units(values: Values | dict[str, int] | None) -> dict[str, float | None]:
-    return {f: to_units(v) for f, v in (values or {}).items()}
 
 
 def format_values(values: Values, meter_type: str, tariffs: int = 1, *, stored: bool = False) -> str:
@@ -152,7 +132,7 @@ async def submit_reading(
     source: 'photo' | 'photo_edited' | 'manual' | 'miniapp'. recognized — что вернул распознаватель
     ({t1,t2,t3,serial,confidence,stub,brand,model}) пишется в readings.recognized_json; его serial сохраняется
     у счётчика без серийника, brand/model остаются только там (служебные, пользователю не показываются).
-    Порядок проверок (SPEC_REVIEW C5): права → формат → уже подано (если не replace) →
+    Порядок проверок: права → формат → уже подано (если не replace) →
     меньше прошлого (последнее показание ДО текущего периода) → прирост выше порога × месяцев (если не confirm).
     Первое показание счётчика проверяется только на формат. confirm=True с большим приростом → 'flagged'.
     serial — номер, введённый вручную: сохраняется у счётчика без номера (важнее номера из recognized).

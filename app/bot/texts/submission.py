@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 
-from app.bot.texts.fmt import TYPE_GEN, esc
+from app.bot.texts import fmt
 from app.bot.texts.loader import load_texts
 
 _D = load_texts("submission.yaml")
@@ -81,7 +81,7 @@ def issue_lines(issues: list[str], note: str | None, meter_type: str, *, markup:
     codes = [c for c in dict.fromkeys(issues) if c in ISSUE_TEXTS]
     if note and codes != ["service"]:
         codes = [c for c in codes if c != "other"]  # у «другого» пояснение модели точнее
-    lines = [ISSUE_TEXTS[c].format(kind=TYPE_GEN.get(meter_type, "")) for c in codes[:MAX_ISSUES]]
+    lines = [ISSUE_TEXTS[c].format(kind=fmt.TYPE_GEN.get(meter_type, "")) for c in codes[:MAX_ISSUES]]
     note = (note or "").strip()
     if note and "service" not in codes:
         if len(note) > NOTE_LIMIT:
@@ -89,7 +89,7 @@ def issue_lines(issues: list[str], note: str | None, meter_type: str, *, markup:
         stems, seen = _stems(note), _stems(" ".join(lines))
         if not stems or len(stems & seen) < len(stems) * 0.6:
             note = note[0].upper() + note[1:]
-            lines.append((esc(note) if markup else note) + ("" if note[-1] in ".!?…" else "."))
+            lines.append((fmt.esc(note) if markup else note) + ("" if note[-1] in ".!?…" else "."))
     return lines
 
 

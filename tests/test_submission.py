@@ -42,7 +42,7 @@ async def no_orphan_photos(repo, settings):
 
 @pytest.fixture
 def no_access(monkeypatch) -> list:
-    """Подменяет точку входа S1 «нет прав»: запоминает address_id."""
+    """Подменяет точку входа «нет прав» (access.no_access): запоминает address_id."""
     calls: list = []
 
     async def fake(ctx, address_id=None, **_):
@@ -55,7 +55,7 @@ def no_access(monkeypatch) -> list:
 
 @pytest.fixture
 def hook_button(monkeypatch):
-    """Глобальная кнопка g|t_<hook>|, вызывающая точку входа потока (как это делают меню/регистрация)."""
+    """Глобальная кнопка g|t_<hook>|, вызывающая точку входа сценария (как это делают меню/регистрация)."""
     def install(name: str, **kw) -> str:
         async def handler(ctx):
             await call_hook(name, ctx, **kw)
@@ -91,7 +91,7 @@ def cand(text: str) -> AddressCandidate:
 
 
 async def register(repo, uid: int = UID, address: str = ARBAT) -> tuple[int, int]:
-    """Зарегистрированный пользователь с адресом (минуя поток регистрации). → (user_id, address_id)."""
+    """Зарегистрированный пользователь с адресом (минуя сценарий регистрации). → (user_id, address_id)."""
     u = await repo.ensure_user(uid, fakes.chat_of(uid))
     c = cand(address)
     r = await repo.complete_registration(u["id"], full_name="Иванова Анна", phone="+79123456789",
@@ -175,7 +175,8 @@ async def test_f3_photo_recognize_send(chat, api, repo, settings, user, cold):
     (_, row) = await readings(repo, cold)
     assert (row["source"], row["status"]) == ("photo", "accepted") and row["t1"] > 118_200
     done = api.last_text()
-    assert done.startswith(T.DONE.split("\n")[0].format(month="октябрь")) and "Холодная вода · г. Москва, Арбат, д. 47, корп. 1, кв. 32" in done
+    assert done.startswith(T.DONE.split("\n")[0].format(month="октябрь"))
+    assert "Холодная вода · г. Москва, Арбат, д. 47, корп. 1, кв. 32" in done
     assert done.endswith(f"\n\n> {T.UK_MOCK}") and T.STUB_NOTE not in done  # о демо-распознавании сказали на проверке
     assert buttons(api) == [C.BTN_MENU, T.BTN_MORE]
     assert api.button(T.BTN_MORE)["payload"] == "g|submit|"
@@ -246,7 +247,7 @@ async def test_f23_add_meter_manual_and_photo(chat, api, repo, user, hook_button
     assert api.last_text() == T.ADD_PROMPT and buttons(api) == [T.BTN_MANUAL, C.BTN_CANCEL]
     assert await repo.address_meters(user[1]) == []
     await chat.press(T.BTN_MANUAL)
-    await chat.press(C.BTN_BACK)  # C4: первое поле → снова просьба прислать фото
+    await chat.press(C.BTN_BACK)  # «Назад» на первом поле → снова просьба прислать фото
     assert api.last_text() == T.ADD_PROMPT
     await chat.press(T.BTN_MANUAL)
     await chat.text("1234,5")

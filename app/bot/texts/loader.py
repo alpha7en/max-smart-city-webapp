@@ -7,7 +7,7 @@ app/bot/texts/yaml/<section>.yaml
 """
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +16,7 @@ import yaml
 YAML_DIR = Path(__file__).parent / "yaml"
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_texts(filename: str) -> dict[str, Any]:
     """Загружает словарь текстов из YAML-файла в app/bot/texts/yaml/."""
     file_path = YAML_DIR / filename
@@ -25,8 +25,3 @@ def load_texts(filename: str) -> dict[str, Any]:
     with file_path.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     return data
-
-
-def clear_cache() -> None:
-    """Сбрасывает кэш текстов (используется в тестах и при перезагрузке)."""
-    load_texts.cache_clear()

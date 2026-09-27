@@ -1,4 +1,4 @@
-"""Дашборд главного меню (SPEC §5.7) — один и тот же для бота и /api/me.
+"""Дашборд главного меню — один и тот же для бота и /api/me.
 
 build_dashboard() — чистая функция от строк репозитория и даты; load_dashboard() — загрузка + сборка.
 Строки дашборда (lines) — простой текст, блоки разделены пустой строкой ""; markdown — то же для бота
@@ -13,26 +13,14 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from app import clock
-from app.bot.texts import verification as TA
 from app.bot.texts import menu as T
+from app.bot.texts import verification as TA
 from app.bot.texts.fmt import b, day_month, days, esc, money, month_name, n_days, quote, short_date
-from app.domain.meters import (
-    TYPE_LABELS,
-    UNITS,
-    Window,
-    current_period,
-    days_left,
-    fields_for,
-    format_value,
-    meter_labels,
-    submission_window,
-)
+from app.domain.meters import Window, current_period, days_left, meter_labels, submission_window
 from app.domain.people import short_name_gen
-from app.domain.serials import format_serial
 from app.domain.verification import is_demo_id
 
 UrgentKind = Literal["verification", "bill", "submit"]
-MAX_LINES = 9                  # непустых строк в тексте дашборда
 VERIFICATION_SHOW_DAYS = 60    # поверку показываем, если до неё ≤ 60 дней
 URGENT_VERIFICATION_DAYS = 30
 URGENT_BILL_DAYS = 5
@@ -67,22 +55,17 @@ class Dashboard:
     lines: list[str]                  # простой текст (для /api/me)
     urgent: Urgent | None
     markdown: str = ""                # тот же дашборд в разметке MAX (для бота)
-    meters: list[dict] = field(default_factory=list)      # для /api/me (SPEC §6)
-    addresses: list[dict] = field(default_factory=list)   # [{label, full_text, access, role}]
-    all_submitted: bool = False                           # счётчики есть и все поданы за текущий период
+    all_submitted: bool = False       # счётчики есть и все поданы за текущий период
     period: str = ""
-    # Структура для мини-приложения (SPEC §6): даты — ISO 'YYYY-MM-DD'.
+    # Структура для мини-приложения: даты — ISO 'YYYY-MM-DD'.
     window: dict | None = None        # {period, month_label, from, to, open, days_left, next_from}
-    bill: dict | None = None          # ближайший неоплаченный: {id, address_id, amount_kop, amount_text, due, days_left, demo, count}
+    # ближайший неоплаченный счёт: {id, address_id, amount_kop, amount_text, due, days_left, demo, count}
+    bill: dict | None = None
     bills: list[dict] = field(default_factory=list)     # все неоплаченные (как bill, без count) — фильтр по адресу
     verification: dict | None = None  # ближайшая поверка ≤ 60 дн.: {meter_id, meter_label, type, due, days_left}
     pending: list[dict] = field(default_factory=list)   # [{label, full_text}] — адреса, ждущие подтверждения
     submitted: int = 0                # счётчиков подано за текущий период
     total: int = 0                    # всего счётчиков
-
-    @property
-    def text(self) -> str:
-        return "\n".join(self.lines)
 
     def to_api(self) -> dict:
         """Поле dashboard ответа /api/me."""
@@ -123,25 +106,6 @@ def meter_names(meters: list[Row], full: bool = True) -> dict[int, str]:
 
 def submitted(meter: Row, period: str) -> bool:
     return meter.get("last_period") == period
-
-
-def _api_meter(m: Row, period: str) -> dict:
-    last = None
-    if m.get("last_id"):
-        created = local_time(m.get("last_created_at"))
-        last = {
-            "period": m["last_period"],
-            "values": {f: (format_value(m[f"last_{f}"], m["type"]) if m.get(f"last_{f}") is not None else None)
-                       for f in fields_for(m["tariffs"])},
-            "created_at": created.isoformat() if created else None,
-        }
-    return {
-        "id": m["id"], "type": m["type"], "type_label": TYPE_LABELS[m["type"]], "unit": UNITS[m["type"]],
-        "tariffs": m["tariffs"], "address_label": m.get("address_label") or "",
-        "address_full": m.get("address_full") or m.get("address_label") or "", "serial": format_serial(m.get("serial"), m["type"]),
-        "last": last, "submitted_this_period": submitted(m, period),
-        "verification_due": m.get("verification_due"), "verification_source": m.get("verification_source"),
-    }
 
 
 def _urgent_text(kind: UrgentKind, n: int) -> str:
@@ -288,10 +252,6 @@ def build_dashboard(data: DashboardData, today: date, day_from: int = 15, day_to
         lines=text_lines(md=False),
         markdown="\n".join(text_lines(md=True)),
         urgent=urgent,
-        meters=[_api_meter(m, period) for m in meters],
-        addresses=[{"label": a.get("label") or "", "full_text": a.get("full_text") or "",
-                    "access": a["access"], "role": a["role"]}
-                   for a in data.addresses],
         all_submitted=bool(meters) and not not_done,
         period=period,
         window=_window_json(window, period),

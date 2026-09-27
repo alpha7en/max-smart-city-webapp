@@ -1,6 +1,6 @@
-"""Фоновые задачи: sweeper (фото, сессии), уведомления и раз в сутки — обновление поверки по ФГИС «Аршин».
+"""Фоновые задачи: чистка просроченных фото, уведомления и раз в сутки — обновление поверки по ФГИС «Аршин».
 
-Уведомления (S4): срок подачи, поверка, демо-счёт; отправка только 9:00–21:00 МСК,
+Уведомления: срок подачи, поверка, демо-счёт; отправка только 9:00–21:00 МСК,
 не больше одного уведомления пользователю за тик, дедуп через repo.try_mark_sent.
 """
 from __future__ import annotations
@@ -10,9 +10,9 @@ import logging
 from datetime import datetime
 
 from app import clock
-from app.verification import refresh_tick
 from app.bot import photos
 from app.bot.ctx import Deps
+from app.verification import refresh_tick
 
 log = logging.getLogger(__name__)
 TICK_SECONDS = 60
@@ -29,7 +29,7 @@ async def sweep(deps: Deps, now: datetime) -> None:
 async def notify_tick(deps: Deps, now: datetime) -> int:
     """Разослать положенные уведомления зарегистрированным. Сбой у одного не прерывает рассылку.
     → сколько отправили."""
-    from app.bot.flows.notify import send_due_notice  # флоу импортируем лениво: они тянут роутер
+    from app.bot.flows.notify import send_due_notice  # лениво: сценарии тянут роутер
 
     if now.hour not in NOTIFY_HOURS:
         return 0

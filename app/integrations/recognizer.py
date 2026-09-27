@@ -1,7 +1,8 @@
 """Распознавание показаний по фото: HTTP-клиент микросервиса services/recognizer или демо-заглушка.
 
 Контракт микросервиса (services/recognizer/README.md; маппинг только в HttpRecognizer._parse):
-POST {RECOGNIZER_URL} multipart: image=<фото> (+ meter_type, tariffs: по ним сервис берёт промпт типа и отмечает wrong_type)
+POST {RECOGNIZER_URL} multipart: image=<фото> (+ meter_type, tariffs: по ним сервис берёт промпт типа
+и отмечает wrong_type)
 → 200 JSON {"meter_type": "hot_water", "reading_text": "00595.825", "integer_digits": "00595",
             "fraction_digits": "825", "tariff": null, "serial_number": "123456", "confidence": 0.95,
             "readable": true, "issues": [], "issue_note": null, ...}
@@ -13,7 +14,8 @@ issues — коды из ISSUES (почему не читается / что н�
   — есть blurry / digits_not_visible / partially_covered и целых цифр меньше типичного (MIN_WHOLE).
 Прочитано, но есть сомнения → свои коды в issues: LOW_CONF (confidence сервиса ниже SERVICE_SURE),
 FEW_DIGITS (целых цифр меньше типичного) — бот показывает по ним конкретные предупреждения.
-texts — показание как прочитано ('2168'), без дописанных нулей: его и показываем пользователю. 400 не картинка, 413 больше 20 МБ, 502 ошибка Yandex Cloud.
+texts — показание как прочитано ('2168'), без дописанных нулей: его и показываем пользователю.
+Ошибки сервиса: 400 — не картинка, 413 — больше 20 МБ, 502 — ошибка Yandex Cloud.
 """
 from __future__ import annotations
 

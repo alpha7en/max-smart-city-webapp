@@ -1,5 +1,5 @@
 /* Мини-приложение «ЖКХ» для MAX. Vanilla JS, без сборки.
-   Контракт API: SPEC §6. Все запросы несут заголовок X-Max-Init-Data.
+   Контракт API — docs/api.md. Все запросы несут заголовок X-Max-Init-Data.
    Иконки — inline SVG, пути нарисованы по мотивам набора Lucide (ISC License, https://lucide.dev). */
 'use strict';
 (function () {
@@ -265,9 +265,9 @@
   const METER_WORDS = ['счётчик', 'счётчика', 'счётчиков'];
 
   // ---------- адреса ----------
-  // Ключ адреса — id из /api/me (старый сервер без id — подпись). Выбор живёт до закрытия: при каждом входе — все адреса.
-  const mKey = m => String(m.address_id != null ? m.address_id : m.address_label);
-  const aKey = a => String(a.id != null ? a.id : a.label);
+  // Ключ адреса — id из /api/me. Выбор живёт до закрытия: при каждом входе — все адреса.
+  const mKey = m => String(m.address_id);
+  const aKey = a => String(a.id);
   let addrSel = '';
   function setAddr(k) { addrSel = k; }
   const addrList = d => (d && d.addresses) || [];
@@ -278,7 +278,6 @@
     return g.length > 1 && g.some(a => aKey(a) === addrSel) ? addrSel : '';
   }
   const visMeters = d => { const k = curAddr(d), ms = (d && d.meters) || []; return k ? ms.filter(m => mKey(m) === k) : ms; };
-  const normSerial = s => String(s || '').replace(/[\s-]/g, '').toLowerCase();
 
   // ---------- навигация ----------
   const stack = [];
@@ -366,8 +365,7 @@
 
   // ---------- экран: главная ----------
   // Главная рисуется из структурированных полей dashboard (/api/me): window, bill, verification, pending,
-  // submitted/total. Строки dashboard.lines — текст для бота; здесь они только запасной вариант,
-  // если сервер старый и структуры нет.
+  // submitted/total. Строки dashboard.lines — текст для бота, здесь не нужны.
   function openUrgent(u) {
     if (u.kind === 'submit') return go('submit');
     if (u.kind === 'verification') {
@@ -430,12 +428,6 @@
     }
     return out.length > 0 && h('div', { class: 'tiles' }, out);
   }
-  // Старый сервер без структуры: показываем его строки как есть (кроме сноски, срочного и доступа — они есть отдельно).
-  function legacyLines(dash) {
-    if (dash.window !== undefined) return [];
-    return (dash.lines || []).map(l => String(l || '').trim())
-      .filter(l => l && !/мини-приложени|^Доступ /i.test(l) && !(dash.urgent && l === dash.urgent.text)).map(fixDays);
-  }
   function meterItem(m, showAddr) {
     return h('div', { class: 'item' },
       h('button', { class: 'item-main', type: 'button', onclick: () => go('meter', { id: m.id }) },
@@ -469,7 +461,6 @@
     }
     const all = d.meters || [], dash = d.dashboard || {}, key = curAddr(d), meters = visMeters(d);
     let pending = key ? [] : dash.pending || addrList(d).filter(a => a.access === 'pending');
-    const legacy = legacyLines(dash);
     const waitOnly = !grantedAddrs(d).length && pending.length > 0;  // жилец ждёт доступа — добавлять счётчик рано
     const top = meters.length ? hero(meters, dash) : waitOnly
       ? stateCard('clock', 'warn', 'Ждём одобрения собственника', 'Когда собственник откроет доступ к адресу ' + aFull(pending[0]) + ', здесь появятся счётчики.',
@@ -485,8 +476,6 @@
       tiles(meters, dash, key),
       pending.map(a => h('div', { class: 'row' }, ibox('clock', 'warn', 18),
         h('span', { class: 'grow' }, h('b', {}, aFull(a)), h('small', {}, 'Доступ ждёт подтверждения собственника')))),
-      legacy.length > 0 && h('div', { class: 'row' }, ibox('alert', 'accent', 18),
-        h('span', { class: 'grow' }, legacy.map(l => h('small', {}, l)))),
       meters.length > 0 && [section('Счётчики', meters.length),
         groups.map((g, i) => [g.label && h('p', { class: 'grp' }, g.label),
           h('div', { class: 'list' }, g.ms.map(m => meterItem(m)), i === groups.length - 1 && addMeterItem())]),
@@ -585,12 +574,8 @@
   const ADDR_DAT = ['адресу', 'адресам', 'адресам'];
   const isOwned = a => a.access === 'granted' && a.role === 'owner';
   const isShared = a => a.access === 'granted' && !!a.role && a.role !== 'owner';
-  // «доступ от Анны И.»: API отдаёт имя в именительном («Анна И.»), склоняем первое слово (или берём owner_gen).
-  const GEN_EXC = { 'Павел': 'Павла', 'Пётр': 'Петра', 'Лев': 'Льва', 'Любовь': 'Любови' };
-  const genName = n => String(n || '').replace(/^[А-ЯЁ][а-яё]+/, w => GEN_EXC[w] ||
-    (/[гкхжшчщ]а$/.test(w) ? w.slice(0, -1) + 'и' : /а$/.test(w) ? w.slice(0, -1) + 'ы' : /я$/.test(w) ? w.slice(0, -1) + 'и'
-      : /[йь]$/.test(w) ? w.slice(0, -1) + 'я' : /[бвгджзклмнпрстфхцчшщ]$/.test(w) ? w + 'а' : w));
-  const fromLine = a => (a.owner_gen || a.owner ? 'доступ от ' + (a.owner_gen || genName(a.owner)) : 'общий доступ');
+  // «доступ от Анны И.»: имя в родительном падеже (owner_gen) склоняет сервер.
+  const fromLine = a => (a.owner_gen ? 'доступ от ' + a.owner_gen : 'общий доступ');
   const sharedCount = a => (a.shared_count != null ? +a.shared_count : (a.members || []).filter(m => m.access === 'granted').length);
   const sid = a => String(a.address_id != null ? a.address_id : a.id);
   // Полный адрес по id (в приглашении сервер отдаёт только короткую подпись для кнопок).
@@ -637,9 +622,7 @@
   }
   function drawShare(s, focus) {
     const owned = s.owned || [], invites = s.invites || [], received = s.received || [];
-    // Свои адреса: из /api/shares, а если сервер отдал только адреса с людьми — добираем из /api/me.
-    const mine = owned.slice();
-    addrList(me).filter(isOwned).forEach(a => { if (!mine.some(o => sid(o) === sid(a))) mine.push({ address_id: a.id, label: a.label, full_text: a.full_text, members: [] }); });
+    const mine = owned;  // все свои адреса, в том числе без людей
     const withPeople = owned.filter(o => (o.members || []).length);
     const people = new Set(withPeople.flatMap(o => o.members.map(m => (m.member_id != null ? m.member_id : m.name)))).size;
     const limit = s.limits && s.limits.active_invites;
@@ -975,9 +958,6 @@
         else if (missing.length) parts2.push(missing.map(k => 'Т' + k.slice(1)).join(', ') + ': на фото не видно — введите вручную.');
         if (r.serial_note) parts2.push(r.serial_note);
         if (r.serial_required && !sel.serial) parts2.push('Введите серийный номер счётчика.');
-        else if (r.serial_mismatch === undefined && r.serial && sel.serial && normSerial(r.serial) !== normSerial(sel.serial)) {
-          parts2.push('Номер на фото — ' + r.serial + ', у счётчика — ' + sel.serial + '. Проверьте, тот ли счётчик выбран.');
-        }
         note(recBox, parts2.length > 1 || r.stub || missing.length ? 'warn' : 'info', parts2.join(' '));
         if (missing.length) inputs[missing[0]].focus();
       } catch (e) {
@@ -1076,7 +1056,7 @@
 
   // ---------- экран: счётчик ----------
   function screenMeter(p) {
-    load('Счётчик', () => api('/api/meters/' + encodeURIComponent(p.id)), d => drawMeter(d.meter ? Object.assign({}, d.meter, { history: d.history }) : d));
+    load('Счётчик', () => api('/api/meters/' + encodeURIComponent(p.id)), drawMeter);
   }
   const SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
   function chart(m, hist) {

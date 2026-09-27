@@ -5,12 +5,8 @@ import json
 import httpx
 import pytest
 
-from app.domain.addresses import (
-    AddressCandidate, format_full, norm_key,
-)
-from app.integrations.address_service import (
-    DADATA_URL, AddressService, LocalParser,
-)
+from app.domain.addresses import AddressCandidate, format_full, norm_key
+from app.integrations.address_service import DADATA_URL, AddressService, LocalParser
 
 parse = LocalParser().parse
 MSK = 'г Москва'
@@ -70,7 +66,8 @@ def test_dadata_success_maps_fields_and_moves_flat():
         ]})
 
     res = run(service(handler), 'Москва, Арбат 47к1, кв 32')
-    assert seen == {'url': DADATA_URL, 'auth': 'Token test-key', 'body': {'query': 'Москва, Арбат 47к1, кв 32', 'count': 5}}
+    assert seen == {'url': DADATA_URL, 'auth': 'Token test-key',
+                    'body': {'query': 'Москва, Арбат 47к1, кв 32', 'count': 5}}
     assert len(res) == 2  # без house_fias_id отброшен, дубль схлопнут
     c = res[0]
     assert (c.source, c.status, c.flat, c.flat_fias_id, c.fias_id) == ('dadata', 'verified_house', '32', None, 'hf-47')

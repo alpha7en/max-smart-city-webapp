@@ -3,7 +3,8 @@
     python -m tools.transcript > docs/DIALOG_EXAMPLE.md
 
 Сеть и токен не нужны: MAX подменён FakeMaxApi из tests/fakes.py, адреса разбираются локально
-(без DaData), распознавание — демо-заглушка, ФГИС «Аршин» — демо-данные (ARSHIN_MODE=fixtures). Время заморожено: 19.10.2026 12:00 МСК (окно подачи открыто).
+(без DaData), распознавание — демо-заглушка, ФГИС «Аршин» — демо-данные (ARSHIN_MODE=fixtures).
+Время заморожено: 19.10.2026 12:00 МСК (окно подачи открыто).
 """
 from __future__ import annotations
 
@@ -12,9 +13,8 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from app import clock
+from app import clock, sharing
 from app.bot.ctx import Deps
-from app import sharing
 from app.bot.events import parse_update
 from app.bot.router import Router
 from app.config import Settings

@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 # certs/README.md: отпечатки SHA-256 с https://www.gosuslugi.ru/crt

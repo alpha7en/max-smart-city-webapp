@@ -238,12 +238,6 @@ TOO_BIG: |-
   Большой прирост: **{delta}** за {months}. Обычно не больше {limit}.
 
   Всё верно?
-TYPE_GEN:
-  cold_water: холодной воды
-  hot_water: горячей воды
-  electricity: электричества
-  gas: газа
-  heat: отопления
 TYPICAL_WHOLE:
   cold_water: обычно 5
   hot_water: обычно 5

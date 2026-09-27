@@ -17,6 +17,7 @@ from app.bot.ctx import Deps
 from app.bot.texts import hackathon_demo as HT
 from app.bot.texts.api import MSG
 from app.config import Settings, load_settings
+from app.integrations.address_service import get_address_service
 from app.integrations.arshin import ArshinClient
 from app.integrations.max_api import MaxApi
 from app.integrations.recognizer import get_recognizer
@@ -32,16 +33,6 @@ COMMANDS = [("start", "Главное меню"), ("help", "Что умеет б
 def bot_commands(settings: Settings) -> list[tuple[str, str]]:
     """Список команд для MAX (PATCH /me/commands); /demo_profile — только для хакатона."""
     return COMMANDS + ([("demo_profile", HT.COMMAND_DESCRIPTION)] if settings.hackathon_demo_profile else [])
-
-
-def _address_service(settings: Settings):
-    """AddressService из потока S3; без модуля — None (регистрация адреса недоступна)."""
-    try:
-        from app.integrations.address_service import get_address_service
-    except ImportError:
-        log.warning("address service module is missing")
-        return None
-    return get_address_service(settings)
 
 
 async def _start_bot(deps: Deps) -> asyncio.Task | None:
@@ -74,14 +65,14 @@ async def lifespan(app: FastAPI):
     arshin = ArshinClient(settings.arshin_mode, settings.arshin_base, repo,
                           fallback_ips=settings.arshin_fallback_ips)
     log.info("ARSHIN_MODE=%s", arshin.mode)
+    addresses = get_address_service(settings)
     deps = Deps(api=api_client, repo=repo, settings=settings, recognizer=get_recognizer(settings),
-                addresses=_address_service(settings), bot_username=settings.bot_username, arshin=arshin)
+                addresses=addresses, bot_username=settings.bot_username, arshin=arshin)
     app.state.repo, app.state.deps = repo, deps
     app.state.profile_photos = {}  # web/api.py: profile_photo
     tasks: list[asyncio.Task] = [asyncio.create_task(run_scheduler(deps), name="scheduler")]
     if api_client:
-        bot_task = await _start_bot(deps)
-        if bot_task:
+        if bot_task := await _start_bot(deps):
             tasks.append(bot_task)
     else:
         log.warning("BOT_TOKEN is not set — bot is disabled, only the web part is running")
@@ -95,6 +86,7 @@ async def lifespan(app: FastAPI):
                 await t
         if api_client:
             await api_client.close()
+        await addresses.aclose()
         await arshin.close()
         await repo.close()
 

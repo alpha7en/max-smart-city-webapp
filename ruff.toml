@@ -1,0 +1,13 @@
+# Линтер: ruff check app tools tests (services/recognizer — отдельный сервис со своими правилами).
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "I", "B", "BLE", "UP", "SIM", "RUF"]
+ignore = [
+    "RUF001", "RUF002", "RUF003",  # кириллица и типографские символы в строках, docstring и комментариях
+    "B008",                        # Depends() в аргументах эндпоинтов — штатный приём FastAPI
+]
+
+[lint.isort]
+known-first-party = ["app", "tests", "tools"]

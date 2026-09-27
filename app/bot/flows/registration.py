@@ -1,4 +1,4 @@
-"""Регистрация (SPEC §5.5): приветствие → ФИО → телефон → адрес → подтверждение.
+"""Регистрация: приветствие → ФИО → телефон → адрес → подтверждение.
 
 Шаги адреса (ввод → вариант → квартира) общие с профилем: класс AddressFlow.
 Данные сессии: {reg: {name, phone, phone_verified, address, raw_address, editing}, addr: {...}, pending_photo_id}.
@@ -17,15 +17,15 @@ from app.bot.flows import sharing
 from app.bot.router import REG_KEEP, call_hook, on_hook, on_repeat, on_state, repeat_step, show_menu
 from app.bot.states import S
 from app.bot.texts import common as C
-from app.bot.texts import sharing as IT
 from app.bot.texts import registration as T
+from app.bot.texts import sharing as IT
 from app.bot.texts.fmt import esc, flats, format_phone, with_notes
 from app.db import ts
 from app.domain.addresses import AddressCandidate, button_text, house_short, norm_key
 from app.domain.people import first_name, normalize_name, normalize_phone, validate_name
 from app.integrations.address_service import AddressService
 
-_LOCAL_ADDRESSES = AddressService()  # если сервис не подключён — локальный разбор
+_LOCAL_ADDRESSES = AddressService()  # сервис не подключён (тесты) — локальный разбор без сети
 _FLAT = re.compile(r"^(?:кв|квартира)?\.?\s*№?\s*(\d{1,5}[а-яa-z]?)$", re.IGNORECASE)
 
 
@@ -38,6 +38,7 @@ def phone_line(phone: str | None, verified: bool | int | None) -> str:
 
 
 def address_service(ctx: Ctx) -> AddressService:
+    """Поиск адреса: DaData или локальный разбор (регистрация, профиль, адрес нового счётчика)."""
     return ctx.deps.addresses or _LOCAL_ADDRESSES
 
 
@@ -65,7 +66,7 @@ def said(ctx: Ctx) -> str | None:
 
 def address_notes(ctx: Ctx, c: AddressCandidate, shown: list[str] | tuple = ()) -> list[str]:
     """Пометки к адресу, кроме уже показанных (`shown`): не сверен с ФИАС (демо без справочника;
-    «сохранить как есть» говорит об этом сам); квартира больше, чем в доме по ФИАС (C12)."""
+    «сохранить как есть» говорит об этом сам); квартира больше, чем в доме по ФИАС."""
     notes = []
     if c.source == "local" and not address_service(ctx).verified:
         notes.append(T.LOCAL_NOTE)
@@ -169,7 +170,7 @@ class AddressFlow:
 
     async def search(self, ctx: Ctx, text: str) -> None:
         if ctx.data.get("addr"):
-            ctx.session.new_flow()  # новый поиск: «Да» под прошлыми вариантами устарело (QA-5)
+            ctx.session.new_flow()  # новый поиск: «Да» под прошлыми вариантами устарело
         svc = address_service(ctx)
         cands = await svc.suggest(text)
         d = ctx.data["addr"] = {"raw": text}
@@ -209,7 +210,7 @@ class AddressFlow:
         act = said(ctx)
         cands = self.draft(ctx).get("cands", [])
         if not ctx.is_callback and act is None and ctx.text:
-            await self.search(ctx, ctx.text)  # текст на шаге выбора — новый поиск (B9)
+            await self.search(ctx, ctx.text)  # текст на шаге выбора — новый поиск
         elif act == "back":
             await self.on_back(ctx)
         elif act == "no":
@@ -267,7 +268,7 @@ class AddressFlow:
 
 @on_hook("registration.begin")
 async def start_registration(ctx: Ctx) -> None:
-    """Приветствие (§8 эталон 1) и вопрос ФИО отдельным сообщением; отложенное фото и приглашение сохраняем."""
+    """Приветствие и вопрос ФИО отдельным сообщением; отложенное фото и приглашение сохраняем."""
     keep = {k: v for k, v in ctx.data.items() if k in REG_KEEP and v}
     ctx.session.reset()
     ctx.session.go(S.REG_NAME, **keep)
@@ -465,7 +466,7 @@ def _summary(ctx: Ctx, template: str, shared: tuple[str, list[str]] | None, note
     return _with_notes(text, address_notes(ctx, c, reg.get("notes_shown", ())) if notes and c else [])
 
 
-async def _shared_or_address(ctx: Ctx) -> tuple[str, list[str]] | None | bool:
+async def _shared_or_address(ctx: Ctx) -> tuple[str, list[str]] | bool | None:
     """Ссылка из сессии для сводки. Без своего адреса ссылка обязательна: истекла — False (шаг адреса заново)."""
     shared = await sharing.pending_invite(ctx)
     if shared is None and _reg(ctx).get("no_address"):

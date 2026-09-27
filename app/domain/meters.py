@@ -128,7 +128,7 @@ def typed_text(text: str) -> str:
     return reading_text(whole.strip(), frac.strip())
 
 
-def text_matches(text: str | None, value: int | None, meter_type: str) -> bool:
+def text_matches(text: str | None, value: int | None) -> bool:
     """Текст показания соответствует значению (тогда показываем текст, а не format_value)."""
     if not text or value is None:
         return False
@@ -146,20 +146,12 @@ Plausibility = Literal["ok", "less", "too_big"]
 def check_plausibility(
     meter_type: str, values: dict[str, int | None], prev: dict[str, int | None] | None, months: int = 1
 ) -> Plausibility:
-    """'less' — меньше прошлого; 'too_big' — прирост выше порога × месяцев; иначе 'ok'."""
-    if not prev:
-        return "ok"
-    pairs = [(values.get(f), prev.get(f)) for f in FIELDS]
-    pairs = [(n, p) for n, p in pairs if n is not None and p is not None]
-    if not pairs:
-        return "ok"
-    if any(n < p for n, p in pairs):
+    """'less' — меньше прошлого; 'too_big' — прирост выше порога × месяцев; иначе 'ok'.
+    Сравниваются поля, где есть оба значения; прирост и порог — total_delta и growth_limit."""
+    delta = value_delta(values, prev)
+    if any(d < 0 for d in delta.values()):
         return "less"
-    if meter_type == MeterType.ELECTRICITY:
-        delta = sum(n - p for n, p in pairs)
-    else:
-        delta = pairs[0][0] - pairs[0][1]
-    if delta > spec(meter_type).monthly_limit * 1000 * max(1, months):
+    if delta and total_delta(meter_type, delta) > growth_limit(meter_type, months):
         return "too_big"
     return "ok"
 
@@ -228,7 +220,7 @@ def demo_bill(address_id: int, today: date) -> tuple[str, int, date]:
     return period, amount_rub * 100, due
 
 
-# --- Подача показаний (S2): подписи счётчиков, прирост, ввод ---
+# --- Подача показаний: подписи счётчиков, прирост, ввод ---
 
 def tariffs_of(meter_type: str, tariffs: int | None) -> int:
     """Тарифность, которая реально действует: несколько тарифов бывает только у электричества."""
@@ -266,12 +258,6 @@ def meter_labels(meters: Sequence[Mapping[str, Any]], max_len: int = 40, full: b
                 base = f"{base} №{[x['id'] for x in group].index(m['id']) + 1}"
         labels.append(base)
     return labels
-
-
-def meter_label(meter: Mapping[str, Any], meters: Sequence[Mapping[str, Any]] = ()) -> str:
-    """Подпись одного счётчика с учётом остальных счётчиков пользователя (см. meter_labels)."""
-    group = list(meters) if any(m["id"] == meter["id"] for m in meters) else [*meters, meter]
-    return meter_labels(group)[[m["id"] for m in group].index(meter["id"])]
 
 
 def growth_limit(meter_type: str, months: int = 1) -> int:

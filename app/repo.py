@@ -31,6 +31,7 @@ DEMO_PERSON_MAX_ID = 0
 def is_demo_person(user: dict | None) -> bool:
     return bool(user) and user["max_user_id"] < DEMO_PERSON_MAX_ID
 
+
 Row = dict[str, Any]
 # Подписи адресов: список адресов пользователя (dict строк addresses) → список label той же длины.
 Labeler = Callable[[list[Row]], list[str]]
@@ -71,7 +72,7 @@ def values_of(row: Row | None) -> dict[str, int | None]:
 
 
 def default_labeler(rows: list[Row]) -> list[str]:
-    """Подписи через domain.addresses.short_labels (поток S3)."""
+    """Подписи адресов пользователя: domain.addresses.short_labels."""
     from app.domain.addresses import AddressCandidate, short_labels
 
     names = {f.name for f in fields(AddressCandidate)}
@@ -216,9 +217,6 @@ class Repo:
         return {"photos": len(photos), "received": received, "promoted": promoted}
 
     # === Адреса ===
-
-    async def get_address(self, address_id: int) -> Row | None:
-        return await self._one("SELECT * FROM addresses WHERE id=?", (address_id,))
 
     async def find_address(self, norm_key: str) -> Row | None:
         return await self._one("SELECT * FROM addresses WHERE norm_key=?", (norm_key,))
@@ -447,6 +445,9 @@ class Repo:
             (meter_id, limit),
         )
 
+    async def get_reading(self, reading_id: int) -> Row | None:
+        return await self._one("SELECT * FROM readings WHERE id=?", (reading_id,))
+
     async def add_reading(
         self,
         meter_id: int,
@@ -566,9 +567,6 @@ class Repo:
             (user_id,),
         )
 
-    async def set_bill_status(self, bill_id: int, status: str) -> None:
-        await self._exec("UPDATE bills SET status=? WHERE id=?", (status, bill_id))
-
     # === Уведомления ===
 
     async def try_mark_sent(self, user_id: int, kind: str, dedup_key: str, now: datetime) -> bool:
@@ -598,7 +596,7 @@ class Repo:
             (key, value),
         )
 
-    # === S1 (registration/profile) ===
+    # === Права на адрес и «Поделиться доступом» ===
 
     async def claim_address(self, user_id: int, address_id: int) -> bool:
         """Модель прав: у адреса не осталось собственника → пользователь становится им (granted)."""
@@ -718,25 +716,6 @@ class Repo:
             await self.drop_orphan_demo_people()
             return ua
 
-    # === S2 (submission) ===
-
-    async def meter_access(self, user_id: int, meter_id: int) -> Row | None:
-        """Счётчик (поля meters) + access/role пользователя по его адресу (None, если адрес не привязан).
-        Нет такого счётчика → None."""
-        return await self._one(
-            "SELECT m.*, ua.access, ua.role, ua.label AS address_label, a.full_text AS address_full FROM meters m "
-            "JOIN addresses a ON a.id=m.address_id "
-            "LEFT JOIN user_addresses ua ON ua.address_id=m.address_id AND ua.user_id=? WHERE m.id=?",
-            (user_id, meter_id),
-        )
-
-    # === S4 (dashboard/notify) ===
-
-    # === S5b (api) ===
-
-    async def get_reading(self, reading_id: int) -> Row | None:
-        return await self._one("SELECT * FROM readings WHERE id=?", (reading_id,))
-
     # === ФГИС «Аршин» ===
 
     async def arshin_cache_get(self, key: str) -> Row | None:
@@ -783,7 +762,17 @@ class Repo:
                 return rec.get("brand"), rec.get("model")
         return None, None
 
-    # === Управление счётчиками ===
+    # === Права на счётчик и удаление ===
+
+    async def meter_access(self, user_id: int, meter_id: int) -> Row | None:
+        """Счётчик (поля meters) + access/role пользователя по его адресу (None, если адрес не привязан).
+        Нет такого счётчика → None."""
+        return await self._one(
+            "SELECT m.*, ua.access, ua.role, ua.label AS address_label, a.full_text AS address_full FROM meters m "
+            "JOIN addresses a ON a.id=m.address_id "
+            "LEFT JOIN user_addresses ua ON ua.address_id=m.address_id AND ua.user_id=? WHERE m.id=?",
+            (user_id, meter_id),
+        )
 
     async def address_granted_others(self, address_id: int, user_id: int) -> int:
         """Сколько других пользователей с доступом granted привязано к адресу."""

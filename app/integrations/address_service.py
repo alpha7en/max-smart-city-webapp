@@ -2,15 +2,12 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 from typing import Any
 
 import httpx
 
-from app.domain.addresses import (
-    STREET_TYPES, AddressCandidate, canon_block, clean_flat, format_full, norm_key,
-)
+from app.domain.addresses import STREET_TYPES, AddressCandidate, canon_block, clean_flat, format_full, norm_key
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +29,8 @@ _FLAT = re.compile(r'(?:^|[\s,])(?:кв|квартира)\.?\s*№?\s*(\d{1,5}[�
 _L = r'[а-яёa-z]'
 _TAIL = re.compile(
     r'[\s,]+(?:(?:д|дом)\.?\s*)?'
-    rf'(?P<house>\d{{1,4}}(?:\s*/\s*\d{{1,4}})?(?:{_L}(?!{_L}|\d)|\s(?![кс]\s*\d){_L}(?!{_L}|\d))?(?!\d))'  # литера: 5А, 5 А (но не «5 к 1»)
+    # литера: 5А, 5 А (но не «5 к 1»)
+    rf'(?P<house>\d{{1,4}}(?:\s*/\s*\d{{1,4}})?(?:{_L}(?!{_L}|\d)|\s(?![кс]\s*\d){_L}(?!{_L}|\d))?(?!\d))'
     rf'(?:\s*,?\s*(?P<btype>корпус|корп|к|строение|стр|с|литера|литер|лит)\.?\s*(?P<block>\d{{1,3}}{_L}?|{_L})(?!{_L}|\d))?'
     r'(?:[\s,]+(?P<flat>\d{1,5}' + _L + r'?))?\s*$', re.I)
 _REGION_WORDS = {'обл', 'область', 'край', 'респ', 'республика', 'ао'}
@@ -202,6 +200,7 @@ def _typed_flat(text: str, cands: list[AddressCandidate]) -> str | None:
     flats = {c.flat.lower() for c in cands if c.flat}
     return flats.pop().upper() if len(flats) == 1 and flats <= nums else None
 
+
 class AddressService:
     def __init__(self, api_key: str | None = None, *, timeout: float = 3.0,
                  transport: httpx.AsyncBaseTransport | None = None):
@@ -226,7 +225,7 @@ class AddressService:
             return self.local.parse(text)
         try:
             cands = await self.dadata.suggest(text)
-        except Exception as e:  # сеть, таймаут, 4xx/5xx, битый JSON
+        except Exception as e:  # noqa: BLE001 — сеть, таймаут, 4xx/5xx, битый JSON
             status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else '-'
             log.warning('dadata suggest failed: %s status=%s; fallback to local parser', type(e).__name__, status)
             return self.local.parse(text)
@@ -246,6 +245,6 @@ class AddressService:
             await self.dadata.aclose()
 
 
-def get_address_service(settings: Any = None) -> AddressService:
-    key = getattr(settings, 'dadata_api_key', None) or getattr(settings, 'DADATA_API_KEY', None) or os.getenv('DADATA_API_KEY') or None
-    return AddressService(key.strip() if key else None)
+def get_address_service(settings: Any) -> AddressService:
+    """DADATA_API_KEY задан → DaData с откатом на локальный разбор, иначе только локальный разбор."""
+    return AddressService(settings.dadata_api_key or None)

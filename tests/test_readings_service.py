@@ -1,7 +1,6 @@
 """Сервис подачи app/readings.py: принято, неверный формат, меньше прошлого, большой рост, замена, откат."""
 from __future__ import annotations
 
-
 import pytest
 
 from app.readings import SubmitResult, submit_reading

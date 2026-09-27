@@ -1,4 +1,4 @@
-"""Роутер: глобальные правила (SPEC §5.4) → обработчик состояния.
+"""Роутер: общие правила для неожиданного ввода → обработчик состояния.
 
 Потоки регистрируют обработчики декораторами в своих модулях app/bot/flows/*, router.py не правят:
 
@@ -40,7 +40,7 @@ STATE_HANDLERS: dict[S, Handler] = {}
 REPEAT_STEP: dict[S, Handler] = {}
 GLOBAL_ACTIONS: dict[str, Handler] = {}
 # Диплинк max.ru/<бот>?start=<payload> из мини-приложения → глобальное действие (кнопка g|action).
-# Незарегистрированному — обычная регистрация (правило 2), в регистрации — «продолжим» (правило 3).
+# Незарегистрированному — обычная регистрация, посреди регистрации — «продолжим».
 START_PAYLOADS = {
     "profile": "profile", "phone": "prof_phone", "add_address": "prof_addr", "delete_data": "prof_del",
     "add_meter": "add_meter", "submit": "submit", "meters": "meters", "help": "help", "shares": "sh_list",
@@ -57,18 +57,17 @@ ACCEPTS: dict[S, frozenset[str]] = {}
 #   "menu"               — показать меню-дашборд; перевести сессию в IDLE.
 #   "registration.begin" — приветствие + первый вопрос (REG_NAME); сохранить data["pending_photo_id"].
 #   "submission.photo"   — фото в IDLE / SUB_*: начать подачу или заменить фото в текущей.
-# Точки входа между потоками (вызывать через call_hook, регистрировать через @on_hook):
-#   "submission.start"     — инструкция «пришлите фото» (S2), вызывает меню/уведомления (S4).
-#   "submission.manual"    — ручной ввод: выбор счётчика без фото (S2).
-#   "submission.add_meter" — «Добавить счётчик» из «Мои счётчики» (S2).
-#   "submission.with_photo"— начать подачу с уже сохранённым фото, kw photo_id (S2; вызывает S1 после регистрации).
-#   "submission.for_meter" — подача по выбранному счётчику, kw meter_id, label (S2; вызывает карточка счётчика).
-#   "access.no_access"     — сообщение «нет прав» по адресу, kw address_id (S1; вызывает S2).
-#   "invite.start"         — диплинк с префиксом из START_PREFIXES, kw arg (S1; вызывает роутер).
+# Точки входа между сценариями (вызывать через call_hook, регистрировать через @on_hook):
+#   "submission.start"      — инструкция «пришлите фото»; вызывают меню и уведомления.
+#   "submission.manual"     — ручной ввод: выбор счётчика без фото.
+#   "submission.add_meter"  — «Добавить счётчик» из «Мои счётчики».
+#   "submission.with_photo" — подача с уже сохранённым фото, kw photo_id; вызывает регистрация.
+#   "submission.for_meter"  — подача по выбранному счётчику, kw meter_id, label; вызывает карточка счётчика.
+#   "access.no_access"      — «нет прав» по адресу, kw address_id (flows/profile.py); вызывают подача и регистрация.
+#   "invite.start"          — диплинк с префиксом из START_PREFIXES, kw arg (flows/sharing.py); вызывает роутер.
 HOOK_NAMES = (
     "menu", "registration.begin", "submission.photo",
-    "submission.start", "submission.manual", "submission.add_meter", "submission.with_photo",
-    "submission.for_meter",
+    "submission.start", "submission.manual", "submission.add_meter", "submission.with_photo", "submission.for_meter",
     "access.no_access", "invite.start",
 )
 DEDUP_SIZE = 2000
@@ -123,10 +122,10 @@ def on_hook(name: str):
     return deco
 
 
-# --- Общие действия, доступные потокам ---
+# --- Общие действия для сценариев ---
 
 async def call_hook(name: str, ctx: Ctx, **kw) -> None:
-    """Вызвать точку входа другого потока. Нет регистрации — показать меню (и залогировать)."""
+    """Вызвать точку входа другого сценария. Нет регистрации — показать меню (и залогировать)."""
     handler = HOOKS.get(name)
     if handler is None:
         log.error("hook %s is not registered", name)
@@ -167,7 +166,7 @@ SUB_PROGRESS_KEYS = ("photo_id", "meter_id", "draft", "values", "addr", "manual"
 
 async def cancel_scenario(ctx: Ctx, *, by_user: bool = False) -> None:
     """Отмена подачи/профиля + строка об этом в следующем сообщении.
-    Подачу без прогресса (только инструкция к фото) прерываем молча: терять было нечего (QA-6)."""
+    Подачу без прогресса (только инструкция к фото) прерываем молча: терять было нечего."""
     st = ctx.session.state
     if not st.is_scenario:
         return
@@ -191,7 +190,7 @@ def start_prefix(payload: str | None) -> tuple[str, str] | None:
 
 
 async def continue_registration(ctx: Ctx) -> None:
-    """/start посреди регистрации: «продолжим» и тот же шаг (правило 3)."""
+    """/start посреди регистрации: «продолжим» и тот же шаг."""
     await ctx.reply(T.CONTINUE_REG, K.kb([ctx.btn(T.BTN_RESTART, "restart")]))
     await repeat_step(ctx)
 
@@ -284,7 +283,7 @@ class Router:
         try:
             await self._dispatch(ctx, payload)
             await ctx.flush_notes()
-        except Exception:
+        except Exception:  # noqa: BLE001 — любой сбой сценария: лог с trace и «что-то пошло не так»
             await self._on_error(ctx)
             return
         finally:
@@ -294,7 +293,7 @@ class Router:
             await save_session(repo, ctx.session, now)
 
     async def _on_error(self, ctx: Ctx) -> None:
-        """Правило 9: лог с trace_id, человеческое сообщение, состояние не трогаем."""
+        """Сбой обработчика: лог с trace_id, человеческое сообщение, состояние не трогаем."""
         trace = uuid.uuid4().hex[:8]
         log.exception("handler failed trace=%s user=%s state=%s kind=%s",
                       trace, ctx.event.user_id, ctx.session.state, ctx.event.kind)
@@ -305,7 +304,7 @@ class Router:
             if ctx.registered and not stored.state.is_reg:
                 rows.append(K.gbtn(T.BTN_MENU, "menu"))
             await ctx.reply(T.ERROR, K.kb(rows))
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("error reply failed trace=%s", trace)
 
     async def _dispatch(self, ctx: Ctx, p: Payload | None) -> None:
@@ -315,7 +314,7 @@ class Router:
         is_menu_text = ev.kind == "text" and low in T.MENU_WORDS
         is_global_cb = ev.kind == "callback" and p is not None and p.is_global
 
-        # 10. Истёкшая подача/профиль → IDLE (фото удаляем).
+        # Истёкшая подача/профиль → IDLE (фото удаляем).
         if s.is_expired(ctx.now):
             was = s.state
             await drop_scenario(ctx)
@@ -338,7 +337,7 @@ class Router:
             await COMMANDS[cmd[0]](ctx)
             return
 
-        # 2. Незарегистрированный вне регистрации → приветствие и регистрация.
+        # Незарегистрированный вне регистрации → приветствие и регистрация.
         if not ctx.registered and not s.state.is_reg:
             await ctx.ack()
             await drop_scenario(ctx)
@@ -347,22 +346,22 @@ class Router:
                 await keep_pending_photo(ctx)
             return
 
-        # 5. Кнопки.
+        # Кнопки.
         if ev.kind == "callback":
             await self._callback(ctx, p)
             return
 
-        # 3. /start и «меню».
+        # /start и «меню».
         if ev.kind == "start" or is_menu_text:
             if s.state.is_reg:
                 await continue_registration(ctx)
             else:
                 await cancel_scenario(ctx)
                 action = START_PAYLOADS.get((ev.start_payload or "").strip().lower())
-                await (GLOBAL_ACTIONS[action] if action in GLOBAL_ACTIONS else show_menu)(ctx)
+                await GLOBAL_ACTIONS.get(action, show_menu)(ctx)
             return
 
-        # 4. Отмена.
+        # Отмена.
         if ev.kind == "text" and low in T.CANCEL_WORDS:
             if s.state.is_reg:
                 await ctx.reply(T.REG_CANCEL_HINT, K.kb(
@@ -386,7 +385,7 @@ class Router:
                 await handler(ctx)
             return
 
-        # 6. Фото.
+        # Фото.
         if ev.kind == "photo":
             if s.state.is_reg:
                 await keep_pending_photo(ctx)
@@ -399,7 +398,7 @@ class Router:
             await HOOKS["submission.photo"](ctx)
             return
 
-        # 7. Контакт/геолокация не к месту, прочие вложения.
+        # Контакт/геолокация не к месту, прочие вложения.
         if ev.kind == "other" or (
             ev.kind in ("contact", "location") and ev.kind not in ACCEPTS.get(s.state, ())
         ):
@@ -407,7 +406,7 @@ class Router:
             await repeat_step(ctx)
             return
 
-        # 8. Текст там, где ждём кнопку.
+        # Текст там, где ждём кнопку.
         if ev.kind == "text" and s.state in BUTTON_STATES:
             alias = K.text_alias(text)
             if alias is None:

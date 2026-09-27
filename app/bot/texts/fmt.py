@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import date
 
-from app.domain.meters import format_value, format_stored, spec
+from app.domain.meters import format_stored, format_value, spec
 from app.domain.people import format_phone  # noqa: F401 — реэкспорт для текстов
 
 MONTHS_NOM = ("январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август",
@@ -137,7 +137,8 @@ TYPE_NOM = {"cold_water": "Холодная вода", "hot_water": "Горяч�
 
 
 def meter_title(meter_type: str, label: str | None) -> str:
-    """Подпись из списка → заголовок с полным типом: 'Гор. вода · Арбат 47к1, кв 32' → 'Горячая вода · Арбат 47к1, кв 32'."""
+    """Подпись из списка → заголовок с полным типом:
+    'Гор. вода · Арбат 47к1, кв 32' → 'Горячая вода · Арбат 47к1, кв 32'."""
     rest = (label or "").partition(" · ")[2].strip()
     name = TYPE_NOM.get(meter_type, "")
     return f"{name} · {rest}" if rest and name else name or rest or (label or "")

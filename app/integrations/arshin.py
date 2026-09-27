@@ -125,7 +125,7 @@ class ArshinClient:
             if self._clock() < self._open_until:
                 return Lookup("error")
             res = await self._search(serial or "", meter_type, today)
-        except Exception:  # noqa: BLE001 — интеграция не должна ронять бота
+        except Exception:  # интеграция не должна ронять бота
             log.exception("arshin lookup failed")
             res = Lookup("error")
         self._track(res.status != "error")
@@ -173,7 +173,8 @@ class ArshinClient:
         Запрашиваем только приборы подходящего типа (не тратим бюджет на термометры/манометры)."""
         out = []
         for r in records:
-            if type_fit(r.mit_title, meter_type) >= 0 and r.valid_date is None and r.applicable is True and budget[0] > 0:
+            unknown = r.valid_date is None and r.applicable is True
+            if unknown and type_fit(r.mit_title, meter_type) >= 0 and budget[0] > 0:
                 res = await self.details(r.vri_id, budget) or {}
                 info = res.get("vriInfo") or {}
                 if "inapplicable" in info:
@@ -270,7 +271,7 @@ def _retry_after(resp: httpx.Response) -> float:
 # anyio AsyncIOBackend.getaddrinfo (httpx под uvloop в uvicorn резолвит мимо socket).
 
 _dns_fallback: dict[str, tuple[str, ...]] = {}
-_dns_saved: dict[str, Any] = {}
+_dns_installed = False
 
 
 def _fallback_ips(host: str | bytes) -> list:
@@ -281,11 +282,13 @@ def _fallback_ips(host: str | bytes) -> list:
 
 def install_dns_fallback(host: str, ips: Sequence[str]) -> None:
     """Резервные IP для одного host. Идемпотентно: перехват ставится один раз на процесс."""
+    global _dns_installed
     if not host or not ips:
         return
     _dns_fallback[host] = tuple(ips)
-    if _dns_saved:
+    if _dns_installed:
         return
+    _dns_installed = True
     orig_sock = socket.getaddrinfo
 
     def sock_gai(host, port, *args, **kwargs):
@@ -299,7 +302,6 @@ def install_dns_fallback(host: str, ips: Sequence[str]) -> None:
                     continue
             raise
 
-    _dns_saved["socket"] = orig_sock
     socket.getaddrinfo = sock_gai
     try:
         from anyio._backends._asyncio import AsyncIOBackend
@@ -318,17 +320,7 @@ def install_dns_fallback(host: str, ips: Sequence[str]) -> None:
                     continue
             raise
 
-    _dns_saved["anyio"] = (AsyncIOBackend, AsyncIOBackend.__dict__["getaddrinfo"])
     AsyncIOBackend.getaddrinfo = classmethod(anyio_gai)
-
-
-def uninstall_dns_fallback() -> None:
-    """Снять перехват (для тестов)."""
-    _dns_fallback.clear()
-    if orig := _dns_saved.pop("socket", None):
-        socket.getaddrinfo = orig
-    if saved := _dns_saved.pop("anyio", None):
-        saved[0].getaddrinfo = saved[1]
 
 
 # --- Демо-режим (fixtures) ---

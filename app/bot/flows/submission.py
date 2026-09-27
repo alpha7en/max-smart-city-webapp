@@ -1,4 +1,4 @@
-"""Подача показаний (SPEC §5.6, SPEC_REVIEW B8–B11, C1–C9): фото → счётчик → распознавание → проверка → отправка.
+"""Подача показаний: фото → счётчик → распознавание → проверка → отправка.
 
 Данные сессии (ctx.data):
   from: 'photo' | 'manual' | 'add'      — откуда начали (кнопки «Назад», подсказки)
@@ -27,6 +27,7 @@ from app import verification as AS
 from app.bot import keyboards as K
 from app.bot import photos
 from app.bot.ctx import Ctx
+from app.bot.flows.registration import address_service
 from app.bot.router import (
     call_hook,
     cancel_scenario,
@@ -39,11 +40,11 @@ from app.bot.router import (
 )
 from app.bot.session import save_session
 from app.bot.states import S
-from app.bot.texts import verification as TA
 from app.bot.texts import common as C
 from app.bot.texts import fmt
 from app.bot.texts import meters as TM
 from app.bot.texts import submission as T
+from app.bot.texts import verification as TA
 from app.bot.texts.fmt import esc, with_notes
 from app.domain.access import can_submit
 from app.domain.addresses import AddressCandidate, button_text, clean_flat, norm_key
@@ -57,8 +58,6 @@ from app.domain.meters import (
     fields_for,
     format_value,
     growth_limit,
-    text_matches,
-    typed_text,
     looks_like_value,
     meter_labels,
     normalize_serial,
@@ -66,6 +65,8 @@ from app.domain.meters import (
     parse_value,
     spec,
     tariffs_of,
+    text_matches,
+    typed_text,
 )
 from app.domain.serials import clean_serial, format_serial, usable_serial, validate_serial
 from app.domain.verification import Record, card_url, short_title
@@ -121,7 +122,7 @@ async def _begin(ctx: Ctx, origin: str) -> None:
 
 
 async def _blocked_address(ctx: Ctx) -> int | None:
-    """C2: адреса есть, но ни по одному нет доступа → id первого (для «нет прав»)."""
+    """Адреса есть, но ни по одному нет доступа → id первого (для «нет прав»)."""
     rows = await ctx.repo.user_addresses(_uid(ctx))
     if rows and not any(can_submit(r["access"]) for r in rows):
         return rows[0]["id"]
@@ -129,7 +130,7 @@ async def _blocked_address(ctx: Ctx) -> int | None:
 
 
 async def _no_access(ctx: Ctx, address_id: int | None) -> None:
-    """Фото удаляем, сценарий в IDLE, сообщение «нет прав» (поток S1)."""
+    """Фото удаляем, сценарий в IDLE, сообщение «нет прав» (flows/profile.py)."""
     await drop_scenario(ctx)
     if address_id is None:
         ctx.note(T.NO_METER)
@@ -152,7 +153,7 @@ async def _handled_exit(ctx: Ctx) -> bool:
 
 
 def _page(ctx: Ctx, rows: list[list[K.Button]], key: str) -> tuple[list[list[K.Button]], str]:
-    """Длинный список кнопок — страницами по PAGE_SIZE (лимит MAX — 30 рядов) + [Показать ещё] (QA-3).
+    """Длинный список кнопок — страницами по PAGE_SIZE (лимит MAX — 30 рядов) + [Показать ещё].
     → (ряды страницы с кнопкой листания, строка «Показали 1–20 из 30» или "")."""
     if len(rows) <= PAGE_SIZE:
         return rows, ""
@@ -203,7 +204,7 @@ def _shown(ctx: Ctx, m: Meter, values: dict | None, f: str, unit: bool = True) -
     """Значение поля для текста: как прочитали/ввели ('2168 кВт·ч'), иначе по формату табло."""
     v = (values or {}).get(f)
     text = (ctx.data.get("texts") or {}).get(f)
-    if not text_matches(text, v, m.type):
+    if not text_matches(text, v):
         return fmt.value(v, m.type, unit=unit)
     return f"{text} {spec(m.type).unit}" if unit else text
 
@@ -219,6 +220,12 @@ def _needs_serial(ctx: Ctx, m: Meter) -> bool:
     if m.serial or d.get("serial_entered"):
         return False
     return not ((d.get("recognized") or {}).get("serial") and d.get("serial_status") == "new")
+
+
+async def _full_label(ctx: Ctx, meter_id: int) -> str:
+    """Подпись счётчика пользователя с полным адресом (как в тексте подачи); нет такого — ""."""
+    meters = await ctx.repo.user_meters(_uid(ctx))
+    return dict(zip([x["id"] for x in meters], meter_labels(meters, full=True), strict=True)).get(meter_id, "")
 
 
 async def _prev_values(ctx: Ctx, m: Meter) -> dict | None:
@@ -254,7 +261,7 @@ async def start_manual(ctx: Ctx, **_) -> None:
 
 @on_hook("submission.add_meter")
 async def start_add_meter(ctx: Ctx, **_) -> None:
-    """C8: «Добавить счётчик» — тип → тариф → адрес → фото или ручной ввод; счётчик создаётся с показанием."""
+    """«Добавить счётчик»: тип → тариф → адрес → фото или ручной ввод; счётчик создаётся с показанием."""
     if (aid := await _blocked_address(ctx)) is not None:
         await _no_access(ctx, aid)
         return
@@ -295,7 +302,7 @@ async def start_with_photo(ctx: Ctx, photo_id: str | None = None, **_) -> None:
 
 @on_hook("submission.photo")
 async def on_photo(ctx: Ctx) -> None:
-    """Фото в IDLE — новая подача; в SUB_* — замена фото (роутер, правило 6)."""
+    """Фото в IDLE — новая подача; в SUB_* — замена фото."""
     s = ctx.session
     fresh = s.state == S.IDLE
     if fresh and (aid := await _blocked_address(ctx)) is not None:
@@ -318,7 +325,7 @@ async def on_photo(ctx: Ctx) -> None:
         await _begin(ctx, "photo")
         ctx.note(T.PHOTO_RECEIVED)
     else:
-        s.new_flow()  # кнопки экрана со старым фото («Отправить» под старым значением) — устаревшие (QA-5)
+        s.new_flow()  # кнопки экрана со старым фото («Отправить» под старым значением) — устаревшие
         old = ctx.data.get("photo_id")
         await photos.delete_photo(ctx.repo, old)
         for key in RESET_ON_NEW_PHOTO:
@@ -367,7 +374,7 @@ async def await_photo(ctx: Ctx) -> None:
         await photos.delete_photo(ctx.repo, ctx.data.pop("photo_id", None))
         ctx.data["await_mode"] = "retake"
         await ask_photo(ctx)
-    elif not ctx.is_callback and looks_like_value(ctx.text):  # B9: число вместо фото — ручной ввод
+    elif not ctx.is_callback and looks_like_value(ctx.text):  # число вместо фото — ручной ввод
         await _manual_from_await(ctx, typed=ctx.text)
     elif alias in ("no", "back"):
         await cancel_scenario(ctx, by_user=True)
@@ -500,7 +507,7 @@ async def got_tariff(ctx: Ctx) -> None:
 
 @on_repeat(S.SUB_NEW_ADDRESS)
 async def ask_address(ctx: Ctx) -> None:
-    """C1: всегда список адресов с доступом + [Другой адрес]."""
+    """Список адресов с доступом + [Другой адрес]."""
     rows, note = _page(ctx, [[ctx.btn(a["label"], "a", a["id"])]
                              for a in await ctx.repo.user_addresses(_uid(ctx)) if can_submit(a["access"])],
                        "addr_page")
@@ -531,14 +538,6 @@ async def got_address(ctx: Ctx) -> None:
 
 # === Новый адрес (как в регистрации; права — по модели domain/access) ===
 
-def _address_service(ctx: Ctx):
-    if ctx.deps.addresses is None:  # сервис не подключён (тесты, веб без бота) — локальный разбор
-        from app.integrations.address_service import AddressService
-
-        ctx.deps.addresses = AddressService(None)
-    return ctx.deps.addresses
-
-
 @on_repeat(S.SUB_ADDR_INPUT)
 async def ask_new_address(ctx: Ctx) -> None:
     await ctx.reply(T.ASK_NEW_ADDRESS, K.kb(_row(ctx, (C.BTN_BACK, "back"), (C.BTN_CANCEL, "cancel"))))
@@ -559,8 +558,8 @@ async def got_new_address(ctx: Ctx) -> None:
 
 async def _search_address(ctx: Ctx, text: str) -> None:
     if ctx.data.get("addr"):
-        ctx.session.new_flow()  # новый поиск: «Да» под прошлыми вариантами устарело (QA-5)
-    svc = _address_service(ctx)
+        ctx.session.new_flow()  # новый поиск: «Да» под прошлыми вариантами устарело
+    svc = address_service(ctx)
     cands = await svc.suggest(text)
     not_found = False
     if not cands:
@@ -599,7 +598,7 @@ async def ask_address_pick(ctx: Ctx) -> None:
 
 @on_state(S.SUB_ADDR_PICK)
 async def got_address_pick(ctx: Ctx) -> None:
-    """Кнопки вариантов; текст (кроме «да/нет/назад») — новый поиск (B9)."""
+    """Кнопки вариантов; текст (кроме «да/нет/назад») — новый поиск."""
     if await _handled_exit(ctx):
         return
     addr = ctx.data.get("addr") or {}
@@ -629,8 +628,8 @@ async def got_address_pick(ctx: Ctx) -> None:
 @on_repeat(S.SUB_ADDR_FLAT)
 async def ask_flat(ctx: Ctx) -> None:
     chosen = (ctx.data.get("addr") or {}).get("chosen") or {}
-    await ctx.reply(T.ASK_FLAT.format(address=esc(chosen.get("full_text"))), K.kb(_row(ctx, (T.BTN_PRIVATE_HOUSE, "house")),
-                                     _row(ctx, (C.BTN_BACK, "back"), (C.BTN_CANCEL, "cancel"))))
+    await ctx.reply(T.ASK_FLAT.format(address=esc(chosen.get("full_text"))), K.kb(
+        _row(ctx, (T.BTN_PRIVATE_HOUSE, "house")), _row(ctx, (C.BTN_BACK, "back"), (C.BTN_CANCEL, "cancel"))))
 
 
 @on_state(S.SUB_ADDR_FLAT)
@@ -658,7 +657,7 @@ async def got_flat(ctx: Ctx) -> None:
 
 
 async def _save_address(ctx: Ctx, cand: AddressCandidate) -> None:
-    """Привязать адрес по модели прав. Чужой адрес (pending) — C3: адрес остаётся, счётчик не создаём."""
+    """Привязать адрес по модели прав. Чужой адрес (pending): адрес остаётся, счётчик не создаём."""
     repo, uid = ctx.repo, _uid(ctx)
     key = norm_key(cand)
     existing = await repo.find_address(key)
@@ -736,7 +735,7 @@ async def _recognize(ctx: Ctx) -> None:
         return
     # Год, ГОСТ, Qn и прочее «не номер» с шильдика отбрасываем: не показываем и не сохраняем.
     rec.serial = usable_serial(rec.serial, m.type)
-    if m.id is None and rec.serial:  # F12: новый счётчик, а по адресу уже есть счётчик с этим номером
+    if m.id is None and rec.serial:  # новый счётчик, а по адресу уже есть счётчик с этим номером
         same = await ctx.repo.find_meter_by_serial(m.address_id, rec.serial)
         if same:
             d.pop("draft", None)
@@ -816,8 +815,7 @@ async def ask_serial(ctx: Ctx) -> None:
     photo_serial = format_serial((ctx.data.get("recognized") or {}).get("serial"), m.type) or "—"
     other_id = ctx.data.get("serial_other") if ctx.data.get("serial_status") == "other" else None
     if other_id:
-        meters = await ctx.repo.user_meters(_uid(ctx))
-        other = next((lb for x, lb in zip(meters, meter_labels(meters, full=True), strict=True) if x["id"] == other_id), "")
+        other = await _full_label(ctx, other_id)
         text = T.SERIAL_OF_OTHER.format(photo=esc(photo_serial), other=esc(other), label=esc(m.label))
     else:
         text = T.SERIAL_MISMATCH.format(photo=esc(photo_serial), label=esc(m.label),
@@ -940,8 +938,7 @@ async def _serial_value(ctx: Ctx, text: str) -> None:
     serial = clean_serial(text) or ""
     other = await ctx.repo.find_meter_by_serial(m.address_id, serial)
     if other and other["id"] != m.id:
-        meters = await ctx.repo.user_meters(_uid(ctx))
-        label = next((lb for x, lb in zip(meters, meter_labels(meters, full=True), strict=True) if x["id"] == other["id"]), "")
+        label = await _full_label(ctx, other["id"])
         await ctx.reply(T.SERIAL_TAKEN.format(serial=esc(format_serial(serial, m.type)), other=esc(label)),
                         _manual_kb(ctx))
         return
@@ -949,7 +946,7 @@ async def _serial_value(ctx: Ctx, text: str) -> None:
     await _review_recognized(ctx)
 
 
-# === Проверка (эталон §8 п.6) ===
+# === Проверка ===
 
 def _is_photo_path(ctx: Ctx) -> bool:
     return bool(ctx.data.get("photo_id"))
@@ -1024,7 +1021,7 @@ async def got_review(ctx: Ctx) -> None:
         for key in RESET_ON_NEW_PHOTO:
             ctx.data.pop(key, None)
         await _go_pick(ctx)
-    elif not ctx.is_callback and looks_like_value(ctx.text):  # B9: число — исправление
+    elif not ctx.is_callback and looks_like_value(ctx.text):  # число — исправление
         await _start_manual_input(ctx, back="review", typed=ctx.text)
     else:
         await ask_review(ctx)
@@ -1075,7 +1072,7 @@ async def ask_manual(ctx: Ctx) -> None:
     rec = ctx.data.get("recognized") or {}
     if rec.get(f) is not None:
         text = (rec.get("texts") or {}).get(f)
-        shown = f"{text} {spec(m.type).unit}" if text_matches(text, rec[f], m.type) else fmt.value(rec[f], m.type)
+        shown = f"{text} {spec(m.type).unit}" if text_matches(text, rec[f]) else fmt.value(rec[f], m.type)
         lines.append(T.RECOGNIZED_HINT.format(value=shown))
     prev = await _prev_values(ctx, m)
     if prev and prev.get(f) is not None:
@@ -1101,7 +1098,7 @@ def _asked(m: Meter, man: dict) -> list[str]:
 
 
 async def _manual_back(ctx: Ctx) -> None:
-    """C4: на первом поле — туда, откуда пришли; иначе — предыдущее поле.
+    """«Назад»: на первом поле — туда, откуда пришли; иначе — предыдущее поле.
     На проверку возвращаемся, только если все поля заполнены; распознано не всё — к новому фото."""
     man = ctx.data.get("manual") or {"idx": 0, "back": "pick"}
     if man["idx"] > 0:
@@ -1257,15 +1254,10 @@ async def got_replace(ctx: Ctx) -> None:
 
 # === Готово и дата поверки ===
 
-
-
 async def _done(ctx: Ctx, m: Meter, res: SubmitResult) -> None:
     created = m.id is None and res.meter_id is not None
-    if created:  # подпись нового счётчика — с учётом остальных
-        meters = await ctx.repo.user_meters(_uid(ctx))
-        label = dict(zip([x["id"] for x in meters], meter_labels(meters, full=True), strict=True)).get(res.meter_id, m.label)
-    else:
-        label = m.label
+    # подпись нового счётчика — с учётом остальных
+    label = (await _full_label(ctx, res.meter_id) or m.label) if created else m.label
     lines = [T.DONE.format(meter=esc(fmt.meter_title(m.type, label)), month=fmt.month_name(res.period),
                            value=_shown_all(ctx, m, res.values))]
     if res.status == "flagged":
@@ -1295,7 +1287,7 @@ async def _done(ctx: Ctx, m: Meter, res: SubmitResult) -> None:
     elif ask_verif_date:
         ctx.session.go(S.SUB_VERIF_DATE, meter_id=res.meter_id)
     # Показание уже в БД: сохраняем сессию до ответа. Упадёт отправка — роутер не сохранит сессию,
-    # и старое «Отправить» не должно записать показание второй раз (QA-1).
+    # и старое «Отправить» не должно записать показание второй раз.
     await save_session(ctx.repo, ctx.session, ctx.now)
     if options:
         blocks.append(_pick_text(ctx, m.type))

@@ -118,9 +118,10 @@ class MaxApi:
                                   json=message_body(text, keyboard, fmt=fmt, notify=notify))
         return res.get("message") or {}
 
-    async def edit(self, mid: str, text: str | None = None, keyboard: dict | None | object = KEEP,
+    async def edit(self, mid: str, text: str | None = None, keyboard: dict | object | None = KEEP,
                    fmt: str | None = "markdown") -> None:
-        """PUT /messages. text=None — текст не передаём; keyboard=KEEP — не менять вложения, None — убрать клавиатуру."""
+        """PUT /messages. text=None — текст не передаём; keyboard=KEEP — не менять вложения,
+        None — убрать клавиатуру."""
         body: dict[str, Any] = {}
         if text is not None:
             body["text"] = text

@@ -1,4 +1,4 @@
-"""Тексты профиля, «нет прав» (SPEC §5.8) и запроса доступа у собственника.
+"""Тексты профиля, «нет прав» и запроса доступа у собственника.
 
 Текстовые значения вынесены в yaml/profile.yaml.
 """
@@ -22,7 +22,6 @@ BTN_PROFILE: str = _D["BTN_PROFILE"]
 
 ASK_PHONE: str = _D["ASK_PHONE"]
 PHONE_SAVED: str = _D["PHONE_SAVED"]
-ADDRESS_EXAMPLE: str = _D["ADDRESS_EXAMPLE"]
 
 ASK_ADDRESS: str = _D["ASK_ADDRESS"]
 ADDRESS_SAVED: str = _D["ADDRESS_SAVED"]

@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from app import verification as AS
 from app import sharing as SH
+from app import verification as AS
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx
 from app.bot.flows.menu import MENU, METER_CARD, METERS, last_values, my_meters

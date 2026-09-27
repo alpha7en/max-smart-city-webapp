@@ -21,8 +21,8 @@ from datetime import UTC, date, datetime, timedelta
 from app import clock
 from app.bot import keyboards as K
 from app.bot.texts import common as C
-from app.bot.texts import sharing as T
 from app.bot.texts import profile as PT
+from app.bot.texts import sharing as T
 from app.bot.texts.fmt import day_month, esc, month_name, short_date, with_notes
 from app.domain.meters import current_period
 from app.domain.people import past, short_name, short_name_gen
@@ -34,6 +34,7 @@ INVITE_LIMIT = 5            # действующих ссылок на собс�
 TOKEN_LEN = 20              # [a-z0-9]: без «_», чтобы inv_new_<aid> и inv_<token> не путались
 _ALPHABET = string.ascii_lowercase + string.digits
 SHARED = "sh_list"          # g|sh_list — «Общий доступ» (flows/sharing.py)
+DECISION_KIND = "access_decision"  # notifications.kind: решение по запросу доступа доставлено, ключ «uid:aid»
 
 
 def new_token() -> str:

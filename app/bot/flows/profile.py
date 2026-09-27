@@ -1,4 +1,4 @@
-"""Профиль (SPEC §5.7), «нет прав» (§5.8) и одобрение доступа собственником (C10).
+"""Профиль, «нет прав» и запрос доступа у собственника (модель прав — domain/access.py).
 
 Кнопки профиля и доступа — глобальные (g|…): работают из любого сообщения.
 """
@@ -14,9 +14,9 @@ from app.bot.flows.registration import AddressFlow, address_notes, parse_phone, 
 from app.bot.router import drop_scenario, on_global, on_hook, on_repeat, on_state, show_menu
 from app.bot.states import S
 from app.bot.texts import common as C
-from app.bot.texts import sharing as IT
 from app.bot.texts import profile as T
 from app.bot.texts import registration as RT
+from app.bot.texts import sharing as IT
 from app.bot.texts.fmt import esc, with_notes
 from app.domain.addresses import AddressCandidate, norm_key
 from app.integrations.max_api import MaxApiError
@@ -24,7 +24,6 @@ from app.repo import Row, is_demo_person
 
 log = logging.getLogger(__name__)
 ACCESS_KIND = "access"  # notifications.kind для запросов доступа; dedup_key = "{uid}:{aid}"
-DECISION_KIND = "access_decision"  # решение собственника доставлено арендатору; тот же dedup_key
 
 
 def _menu_kb(*rows) -> dict:
@@ -137,7 +136,7 @@ PROFILE_ADDRESS = AddressFlow(
 )
 
 
-# --- Удаление данных (A1) ---
+# --- Удаление данных ---
 
 @on_global("prof_del")
 async def delete_data(ctx: Ctx) -> None:
@@ -165,7 +164,7 @@ async def got_delete(ctx: Ctx) -> None:
         await ask_delete(ctx)
 
 
-# === Нет прав (§5.8) ===
+# === Нет прав ===
 
 @on_hook("access.no_access")
 async def send_no_access(ctx: Ctx, address_id: int | None = None, footnotes: list[str] | tuple = (), **_) -> None:
@@ -177,7 +176,8 @@ async def send_no_access(ctx: Ctx, address_id: int | None = None, footnotes: lis
         await show_menu(ctx)
         return
     if ua["access"] == "denied":
-        await ctx.reply(T.NO_ACCESS_DENIED.format(label=esc(ua["full_text"])), _menu_kb([K.gbtn(T.BTN_PROFILE, "profile")]))
+        await ctx.reply(T.NO_ACCESS_DENIED.format(label=esc(ua["full_text"])),
+                        _menu_kb([K.gbtn(T.BTN_PROFILE, "profile")]))
         return
     demo = K.gbtn(T.BTN_DEMO_GRANT, "acc_demo", ua["id"]) if ctx.settings.demo_mode else None
     await ctx.reply(with_notes(T.NO_ACCESS.format(label=esc(ua["full_text"])), *footnotes, T.RIGHTS_MODEL), K.kb(
@@ -202,11 +202,12 @@ async def demo_grant(ctx: Ctx) -> None:
     owner = await ctx.repo.address_owner(aid)
     await ctx.repo.set_access(ctx.user["id"], aid, "granted", by=owner["id"] if owner else None)
     # Собственник позже нажмёт «Разрешить» — «уже решено», без второго сообщения арендатору.
-    await ctx.repo.try_mark_sent(ctx.user["id"], DECISION_KIND, f"{ctx.user['id']}:{aid}", ctx.now)
-    await ctx.reply(with_notes(T.DEMO_GRANTED, T.DEMO_GRANTED_NOTE), K.kb([K.gbtn(T.BTN_SUBMIT, "submit"), K.gbtn(C.BTN_MENU, "menu")]))
+    await ctx.repo.try_mark_sent(ctx.user["id"], SH.DECISION_KIND, f"{ctx.user['id']}:{aid}", ctx.now)
+    await ctx.reply(with_notes(T.DEMO_GRANTED, T.DEMO_GRANTED_NOTE),
+                    K.kb([K.gbtn(T.BTN_SUBMIT, "submit"), K.gbtn(C.BTN_MENU, "menu")]))
 
 
-# === Запрос доступа у собственника (C10) ===
+# === Запрос доступа у собственника ===
 
 @on_global("acc_req")
 async def request_access(ctx: Ctx) -> None:
@@ -224,7 +225,8 @@ async def request_access(ctx: Ctx) -> None:
     owner = await ctx.repo.address_owner(aid)
     if owner is None:  # собственник удалил свои данные — модель прав отдаёт адрес первому
         await ctx.repo.claim_address(u["id"], aid)
-        await ctx.reply(with_notes(T.ACCESS_CLAIMED.format(label=esc(ua["full_text"])), T.RIGHTS_MODEL), _menu_kb([K.gbtn(T.BTN_SUBMIT, "submit")]))
+        await ctx.reply(with_notes(T.ACCESS_CLAIMED.format(label=esc(ua["full_text"])), T.RIGHTS_MODEL),
+                        _menu_kb([K.gbtn(T.BTN_SUBMIT, "submit")]))
         return
     key = f"{u['id']}:{aid}"
     if is_demo_person(owner):  # ТОЛЬКО ДЛЯ ХАКАТОНА: у демо-собственника нет чата в MAX
@@ -294,7 +296,7 @@ async def _notify_tenant(ctx: Ctx, tenant: Row, ua: Row) -> None:
     if ua["access"] not in ("granted", "denied") or is_demo_person(tenant):
         return
     key = f"{tenant['id']}:{ua['id']}"
-    if not await ctx.repo.try_mark_sent(tenant["id"], DECISION_KIND, key, ctx.now):
+    if not await ctx.repo.try_mark_sent(tenant["id"], SH.DECISION_KIND, key, ctx.now):
         return
     if ua["access"] == "granted":
         text, kb = T.TENANT_GRANTED, _menu_kb([K.gbtn(T.BTN_SUBMIT, "submit")])
@@ -304,4 +306,4 @@ async def _notify_tenant(ctx: Ctx, tenant: Row, ua: Row) -> None:
         await ctx.api.send(text.format(label=esc(ua["full_text"])), user_id=tenant["max_user_id"], keyboard=kb)
     except MaxApiError as e:
         log.warning("access decision to tenant failed: %s", e)
-        await ctx.repo.unmark_sent(tenant["id"], DECISION_KIND, key)
+        await ctx.repo.unmark_sent(tenant["id"], SH.DECISION_KIND, key)

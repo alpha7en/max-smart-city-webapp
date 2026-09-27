@@ -1,5 +1,5 @@
-"""Главное меню = короткий дашборд + кнопки (SPEC §5.7): первой «Оплатить счёт · сумма»,
-«Мои счётчики», заглушки поверки и оплаты.
+"""Главное меню = короткий дашборд + кнопки: первой «Оплатить счёт · сумма», срочное действие,
+«Подать показания», «Мои счётчики», «Профиль»; заглушки поверки и оплаты.
 
 Кнопки меню глобальные (g|…): работают из любого состояния и отвечают новым сообщением.
 """
@@ -8,27 +8,20 @@ from __future__ import annotations
 import logging
 from datetime import date
 
+from app import sharing as SH
+from app import verification as AS
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx
 from app.bot.router import call_hook, on_command, on_global, on_hook, on_state
 from app.bot.states import S
-from app import verification as AS
-from app import sharing as SH
-from app.bot.texts import verification as TA
 from app.bot.texts import common as C
 from app.bot.texts import menu as T
-from app.bot.texts import sharing as TI
 from app.bot.texts import meters as TM
 from app.bot.texts import notify as N
+from app.bot.texts import sharing as TI
+from app.bot.texts import verification as TA
 from app.bot.texts.fmt import esc, full_date, money, short_date, with_notes
-from app.domain.dashboard import (
-    VERIFICATION_SHOW_DAYS,
-    Dashboard,
-    Urgent,
-    load_dashboard,
-    local_time,
-    meter_names,
-)
+from app.domain.dashboard import VERIFICATION_SHOW_DAYS, Dashboard, Urgent, load_dashboard, local_time, meter_names
 from app.domain.meters import days_left, field_labels, format_value, spec
 from app.domain.people import short_name_gen
 
@@ -72,11 +65,6 @@ def pay_button(d: Dashboard) -> K.Button | None:
     return K.gbtn(T.BTN_PAY_MANY.format(amount=money(sum(b["amount_kop"] for b in d.bills))), PAY)
 
 
-def render(d: Dashboard) -> str:
-    """Дашборд в разметке MAX (собирает domain/dashboard: срочное и сроки жирным, демо — цитатой в конце)."""
-    return d.markdown
-
-
 @on_hook("menu")
 async def send_menu(ctx: Ctx, header: str | None = None, **_) -> None:
     """Меню-дашборд; сессия → IDLE. header (или ctx.note) — строка над дашбордом."""
@@ -84,7 +72,7 @@ async def send_menu(ctx: Ctx, header: str | None = None, **_) -> None:
     if header:
         ctx.note(header)
     d = await dashboard(ctx)
-    await ctx.reply(render(d), K.kb(
+    await ctx.reply(d.markdown, K.kb(
         pay_button(d),
         urgent_button(d.urgent) if d.urgent and d.urgent.kind != "bill" else None,  # счёт уже в кнопке оплаты
         None if d.urgent and d.urgent.kind == "submit" else K.gbtn(T.BTN_SUBMIT, SUBMIT),

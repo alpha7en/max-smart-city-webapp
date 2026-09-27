@@ -1,10 +1,10 @@
-"""API мини-приложения (/api/*). Контракт — SPEC §6 + SPEC_REVIEW D1–D3; сверен с web/static/app.js.
+"""API мини-приложения (/api/*); клиент — web/static/app.js, справочник — docs/api.md.
 
 - Авторизация: заголовок X-Max-Init-Data (web/auth.current_user). /api/health объявлен в app/main.py.
 - Значения показаний в ответах — числа в единицах счётчика (123.456); на вход — строки, как ввёл пользователь.
 - Ошибки — всегда JSON {code, message} с message на русском: HTTPException с detail-словарём → обработчик
   в main.py; невалидный запрос и сбой обработчика ловит _JsonErrors.
-- Подача и дашборд — сервисы потоков S2 (адаптер в конце файла) и domain/dashboard; своей бизнес-логики тут нет.
+- Подача, дашборд и общий доступ — общие с ботом app/readings.py, domain/dashboard.py и app/sharing.py.
 - dashboard в /api/me — Dashboard.to_api(): lines/urgent для текста и структура window/bill/verification/pending
   для экранов (мини-приложение строки не разбирает).
 """
@@ -28,9 +28,9 @@ from pydantic import BaseModel
 from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app import verification as AS
-from app import sharing as SH
 from app import clock
+from app import sharing as SH
+from app import verification as AS
 from app.bot import keyboards as K
 from app.bot import photos
 from app.bot.ctx import Deps
@@ -337,7 +337,7 @@ async def recognize(request: Request, init: InitData = Depends(current_user)) ->
         raise api_error(413, "too_large")
     try:
         form = await request.form()
-    except Exception as e:  # noqa: BLE001 — битый multipart
+    except Exception as e:  # битый multipart
         raise api_error(400, "bad_request") from e
     try:
         user, meter = await _meter(deps.repo, init, form.get("meter_id"))
@@ -425,7 +425,7 @@ async def _save(upload: UploadFile, path: Path) -> int:
     return size
 
 
-# === Подтверждение в чат (D3) ===
+# === Подтверждение в чат ===
 
 def chat_text(meter: Row, reading: Row, typed: dict[str, str] | None = None) -> str:
     """typed — значения, как их ввели ('2168'): показываем их, если они и записаны (без выдуманных ',00')."""
@@ -434,7 +434,7 @@ def chat_text(meter: Row, reading: Row, typed: dict[str, str] | None = None) -> 
 
     def shown(f: str) -> str:
         text = M.typed_text((typed or {}).get(f) or "")
-        ok = (typed or {}).get(f) and M.text_matches(text, vals[f], meter["type"])
+        ok = (typed or {}).get(f) and M.text_matches(text, vals[f])
         return f"{text} {M.UNITS[meter['type']]}" if ok else fmt.value(vals[f], meter["type"])
 
     lines = [f"{label + ': ' if label else 'Показание: '}**{shown(f)}**" for f, label in labels.items()]

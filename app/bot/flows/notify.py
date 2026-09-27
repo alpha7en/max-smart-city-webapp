@@ -1,4 +1,4 @@
-"""Уведомления (SPEC §5.9) и /demo.
+"""Уведомления (срок подачи, поверка, демо-счёт) и /demo.
 
 candidates() — какие уведомления положены пользователю сейчас (чистая функция, по приоритету);
 send_due_notice() — отправить первое ещё не отправленное (дедуп через таблицу notifications).
@@ -15,9 +15,9 @@ from app.bot import keyboards as K
 from app.bot.ctx import Ctx, Deps
 from app.bot.flows.menu import MENU, PAY, SUBMIT, VERIFY, dashboard, send_menu
 from app.bot.router import call_hook, on_command, on_global
-from app.bot.texts import verification as TA
 from app.bot.texts import common as C
 from app.bot.texts import notify as T
+from app.bot.texts import verification as TA
 from app.bot.texts.fmt import day_month, esc, left_days, meter_of, money, month_name, with_notes
 from app.domain.dashboard import DashboardData, load_data, meter_names, submitted
 from app.domain.meters import current_period, days_left, submission_window
@@ -94,10 +94,12 @@ def verification_notice(meter: Row, name: str, today: date, stage: str = "") -> 
 def bill_notice(bill: Row, today: date, stage: str = "") -> Notice:
     due = date.fromisoformat(bill["due_date"])
     n = days_left(today, due)
-    fields = {"month": month_name(bill["period"]), "address": esc(bill.get("address_full") or bill.get("address_label") or ""),
-              "amount": money(bill["amount_kop"]), "date": day_month(due), "left": left_days(n, bold=True)}
+    address = esc(bill.get("address_full") or bill.get("address_label") or "")
+    fields = {"month": month_name(bill["period"]), "address": address, "amount": money(bill["amount_kop"]),
+              "date": day_month(due), "left": left_days(n, bold=True)}
     head = (T.BILL_OVERDUE if n < 0 else T.BILL_DUE).format(**fields)
-    return Notice("bill", f"{bill['id']}:{stage}", with_notes(head, T.BILL_DEMO), _kb(K.gbtn(T.BTN_PAY, PAY, bill["id"])))
+    return Notice("bill", f"{bill['id']}:{stage}", with_notes(head, T.BILL_DEMO),
+                  _kb(K.gbtn(T.BTN_PAY, PAY, bill["id"])))
 
 
 # --- Что положено отправить ---
@@ -260,4 +262,5 @@ async def _demo_arshin(ctx: Ctx) -> None:
         body = TA.NOT_FOUND.format(serial=serial)
     else:
         body, demo = TA.DEMO_UNAVAILABLE, False
-    await ctx.reply(with_notes(f"{head}\n\n{body}", TA.DEMO_NOTE if demo else None), K.kb(K.link(TA.BTN_CARD, url) if url else None, K.gbtn(C.BTN_MENU, MENU)))
+    await ctx.reply(with_notes(f"{head}\n\n{body}", TA.DEMO_NOTE if demo else None),
+                    K.kb(K.link(TA.BTN_CARD, url) if url else None, K.gbtn(C.BTN_MENU, MENU)))

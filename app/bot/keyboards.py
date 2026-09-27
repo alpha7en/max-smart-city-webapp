@@ -126,13 +126,11 @@ def kb(*rows: list[Button | None] | Button | None) -> dict:
     return {"type": "inline_keyboard", "payload": {"buttons": buttons}}
 
 
-# Вручную набранные ответы там, где ждём кнопку (правило 8 роутера).
+# Вручную набранные ответы там, где ждём кнопку (router: «текст там, где ждём кнопку»).
 TEXT_ALIASES = {
     "да": "yes", "верно": "yes", "всё верно": "yes", "все верно": "yes",
     "нет": "no", "назад": "back",
 }
-
-
 ID_MAX_DIGITS = 18  # SQLite INTEGER — до 2^63-1; длиннее → OverflowError при запросе
 
 

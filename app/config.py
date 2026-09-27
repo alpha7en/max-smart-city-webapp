@@ -40,7 +40,6 @@ class Settings:
     dev_auth: bool = False              # только для локальной разработки мини-приложения
     init_data_ttl: int = 24 * 3600      # секунды
     data_dir: Path = Path("data")
-    tz: str = "Europe/Moscow"
     submit_day_from: int = 15
     submit_day_to: int = 25
     miniapp_origins: tuple[str, ...] = ()  # CORS: только если мини-приложение открыто не с домена API
@@ -72,7 +71,6 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         dev_auth=_bool(e.get("DEV_AUTH"), False),
         init_data_ttl=_int(e.get("INIT_DATA_TTL"), Settings.init_data_ttl),
         data_dir=Path(e.get("DATA_DIR", "").strip() or "data"),
-        tz=e.get("TZ", "").strip() or Settings.tz,
         submit_day_from=_int(e.get("SUBMIT_DAY_FROM"), 15),
         submit_day_to=_int(e.get("SUBMIT_DAY_TO"), 25),
         arshin_mode=_choice(e.get("ARSHIN_MODE"), ("live", "fixtures", "off"), "live"),

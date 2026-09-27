@@ -5,14 +5,7 @@ import httpx
 import pytest
 
 from app.config import load_settings
-from app.integrations.recognizer import (
-    CONF_OK,
-    FEW_DIGITS,
-    LOW_CONF,
-    HttpRecognizer,
-    StubRecognizer,
-    get_recognizer,
-)
+from app.integrations.recognizer import CONF_OK, FEW_DIGITS, LOW_CONF, HttpRecognizer, StubRecognizer, get_recognizer
 
 URL = "http://recognizer:8000/recognize"
 # Ответ сервиса из services/recognizer/README.md.

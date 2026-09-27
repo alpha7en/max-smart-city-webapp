@@ -140,7 +140,7 @@ def type_fit(title: str, meter_type: str) -> int:
         if "вод" not in t or "тепл" in t:
             return -1
         hot, cold = "горяч" in t, "холодн" in t
-        if meter_type == "hot_water" and cold and not hot or meter_type == "cold_water" and hot and not cold:
+        if (meter_type == "hot_water" and cold and not hot) or (meter_type == "cold_water" and hot and not cold):
             return -1
         return 1
     if meter_type == "electricity":

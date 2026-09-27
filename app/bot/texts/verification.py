@@ -16,7 +16,6 @@ DEMO_NOTE: str = _D["DEMO_NOTE"]
 # --- «Это ваш счётчик?» ---
 PICK_ONE: str = _D["PICK_ONE"]
 PICK_MANY: str = _D["PICK_MANY"]
-PICK_DEMO: str = _D["PICK_DEMO"]
 PICK_OR_DATE: str = _D["PICK_OR_DATE"]
 OPTION: str = _D["OPTION"]
 OPTION_UNFIT: str = _D["OPTION_UNFIT"]

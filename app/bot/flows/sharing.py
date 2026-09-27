@@ -18,12 +18,18 @@ from app import sharing as SH
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx
 from app.bot.router import (
-    call_hook, cancel_scenario, continue_registration, drop_scenario, on_global, on_hook, show_menu,
+    call_hook,
+    cancel_scenario,
+    continue_registration,
+    drop_scenario,
+    on_global,
+    on_hook,
+    show_menu,
 )
 from app.bot.texts import common as C
 from app.bot.texts import hackathon_demo as HT
-from app.bot.texts import sharing as T
 from app.bot.texts import profile as PT
+from app.bot.texts import sharing as T
 from app.bot.texts.fmt import b, day_month, esc, with_notes
 from app.domain.people import short_name, short_name_gen
 from app.integrations.max_api import MaxApiError
@@ -32,7 +38,6 @@ from app.repo import Row
 log = logging.getLogger(__name__)
 SHARE, PICK, GO, SHARED, ADDRESS = "share", "sh_sel", "sh_go", SH.SHARED, "acc_list"
 REVOKE, REVOKE_OK, REMOVE, REMOVE_OK, CANCEL = "acc_rev", "acc_rev_ok", "sh_rm", "sh_rm_ok", "inv_cancel"
-DECISION_KIND = "access_decision"  # как в profile: запрос доступа уже решён — не дублировать ответ
 menu_kb = SH.menu_kb
 
 
@@ -480,7 +485,7 @@ async def use_invite(ctx: Ctx, inv: Row) -> Row | None:
     if res is None or not res["granted"]:
         return res
     for aid in res["granted"]:  # запрос доступа по этим адресам уже решён — «Разрешить» не пришлёт второй ответ
-        await ctx.repo.try_mark_sent(u["id"], DECISION_KIND, f"{u['id']}:{aid}", ctx.now)
+        await ctx.repo.try_mark_sent(u["id"], SH.DECISION_KIND, f"{u['id']}:{aid}", ctx.now)
     owner = await ctx.repo.get_user_by_id(inv["owner_user_id"])
     owner_labels = [(await ctx.repo.user_address(owner["id"], aid))["label"] for aid in res["granted"]]
     await SH.notify(ctx.api, owner, T.OWNER_ACCEPTED.format(

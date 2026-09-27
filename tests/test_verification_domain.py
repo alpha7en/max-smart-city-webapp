@@ -3,10 +3,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.domain.verification import (
-    Record,
-    choose,
-)
+from app.domain.verification import Record, choose
 
 # Пример ответа из руководства «Внешние публичные интерфейсы» v2.2 (§ vri) — термометр, не счётчик.
 

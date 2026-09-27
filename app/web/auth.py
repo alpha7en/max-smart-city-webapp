@@ -15,6 +15,8 @@ from urllib.parse import parse_qsl, unquote, urlencode
 
 from fastapi import HTTPException, Request
 
+from app.bot.texts.api import MSG
+
 HEADER = "X-Max-Init-Data"
 DEV_HEADER = "X-Dev-User"
 
@@ -77,6 +79,10 @@ def sign_init_data(fields: dict[str, str], token: str) -> str:
     return urlencode({**fields, "hash": digest})
 
 
+def _unauthorized() -> HTTPException:
+    return HTTPException(401, {"code": "unauthorized", "message": MSG["unauthorized"]})
+
+
 async def current_user(request: Request) -> InitData:
     """FastAPI Depends: пользователь мини-приложения. Нет/невалидный initData → 401."""
     settings = request.app.state.settings
@@ -85,8 +91,8 @@ async def current_user(request: Request) -> InitData:
         try:
             return validate_init_data(raw, settings.bot_token, settings.init_data_ttl)
         except InitDataError as e:
-            raise HTTPException(401, {"code": "unauthorized", "message": "Откройте мини-приложение из чата с ботом."}) from e
+            raise _unauthorized() from e
     dev = request.headers.get(DEV_HEADER, "")
     if settings.dev_auth and dev.isdigit():  # только локальная разработка, по умолчанию выключено
         return InitData(int(dev), {"id": int(dev)}, int(time.time()))
-    raise HTTPException(401, {"code": "unauthorized", "message": "Откройте мини-приложение из чата с ботом."})
+    raise _unauthorized()

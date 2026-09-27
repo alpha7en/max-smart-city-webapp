@@ -101,7 +101,7 @@ async def check_meter(deps: Any, meter_id: int, today: date, now: datetime,
         if out.status in ("found", "none"):
             await _apply(repo, meter_id, out, now)
         return out
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception("arshin check failed meter=%s", meter_id)
         return Outcome("error")
 

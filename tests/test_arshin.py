@@ -11,9 +11,9 @@ import httpx
 import pytest
 
 from app.bot.router import Router
-from app.bot.texts import verification as TA
 from app.bot.texts import common as C
 from app.bot.texts import submission as T
+from app.bot.texts import verification as TA
 from app.domain.verification import card_url, choose
 from app.integrations.arshin import ArshinClient
 from tests.conftest import NOW, Chat
@@ -104,7 +104,7 @@ def _fixture(name: str) -> dict:
 
 async def test_real_water_fixture_lookup():
     water_data = _fixture("search_water_18452178.json")
-    client, seen, _ = make(lambda r: httpx.Response(200, json=water_data))
+    client, _, _ = make(lambda r: httpx.Response(200, json=water_data))
     res = await client.lookup("18-452178", "cold_water", TODAY)
     assert res.status == "found"
     assert len(res.records) == 1
