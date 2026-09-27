@@ -26,7 +26,7 @@ app/
   scheduler.py       уведомления, чистка фото, раз в сутки обновление поверки по ФГИС
   domain/            чистые функции без I/O: meters, people, addresses, access, serials, verification (+dashboard)
   integrations/      ВЕСЬ внешний HTTP: max_api.py (клиент MAX; CA Минцифры в certs/ корня),
-                     recognizer.py (клиент meter-reader или демо-заглушка), address_service.py (DaData/локально),
+                     recognizer.py (клиент сервиса распознавания или демо-заглушка), address_service.py (DaData/локально),
                      arshin.py (ФГИС «Аршин», поверка по заводскому номеру; ARSHIN_MODE=live|fixtures|off,
                      ARSHIN_FALLBACK_IPS — IP хоста, если DNS в контейнере его не резолвит)
   verification.py    проверка поверки после подачи и раз в сутки; выбор записи — domain/verification.py
@@ -41,8 +41,8 @@ app/
     texts/           ВСЕ тексты бота (значения в texts/yaml/*.yaml, для редактора); fmt.py
   web/               auth.py (initData), api.py (/api/*), static/ (мини-приложение, vanilla JS)
 tests/               pytest; conftest.py (фикстура chat), fakes.py (FakeMaxApi + апдейты в формате MAX)
-services/meter_reader/  сервис распознавания (автор — коллега, свой README): POST /recognize, фото → Qwen
-                     в Yandex Cloud → показание, тип, серийник. Свои Dockerfile и тесты, контейнер meter-reader в корневом compose
+services/recognizer/ сервис распознавания (автор — коллега, свой README): POST /recognize, фото → Qwen
+                     в Yandex Cloud → показание, тип, серийник. Свои Dockerfile и тесты, контейнер recognizer в корневом compose
 tools/live_smoke.py  живая проверка MAX API (нужен доступ к MAX, то есть запуск из РФ)
 certs/               публичный CA Минцифры (russian_trusted_ca.pem) для TLS к MAX; приватных ключей в репо нет
 ```
@@ -53,10 +53,10 @@ python3.12 -m venv .venv && . .venv/bin/activate && pip install -r requirements.
 python -m pytest -q                                   # все тесты (~2 с), должны быть зелёными
 cp .env.example .env                                  # затем вписать BOT_TOKEN
 docker compose up -d --build && docker compose logs -f app    # бот + API на :8080
-# + распознавание: в .env YC_API_KEY и YC_FOLDER_ID (контейнер meter-reader поднимается всегда, адрес боту даёт compose);
+# + распознавание: в .env YC_API_KEY и YC_FOLDER_ID (контейнер recognizer поднимается всегда, адрес боту даёт compose);
 #   проверка: curl localhost:8000/health
-services/meter_reader/recognize.sh фото.jpg             # что сервис видит на фото
-(cd services/meter_reader && python -m pytest -q)       # тесты сервиса (своё окружение: его requirements + pytest)
+services/recognizer/recognize.sh фото.jpg               # что сервис видит на фото
+(cd services/recognizer && python -m pytest -q)         # тесты сервиса (своё окружение: его requirements + pytest)
 curl -s localhost:8080/api/health                     # {"ok":true}
 uvicorn app.main:app --env-file .env --port 8080      # без docker (docker compose stop app перед этим)
 python -m tools.live_smoke --dry-run                  # запросы к MAX без сети и токена
@@ -79,7 +79,7 @@ sqlite3 data/bot.db 'select user_id,state,data from sessions'  # состоян�
   Проверять тексты, кнопки, state и строки БД.
 - Регистрация хендлеров декораторами, `router.py` без нужды не править. Межпотоковые вызовы через `call_hook`.
 
-## Распознавание (services/meter_reader)
+## Распознавание (services/recognizer)
 - Сервис пишет и отлаживает коллега: без нужды его код не править, а если правишь, то вместе с его README
   и тестами. Граница с ботом одна: `HttpRecognizer._parse` + `tests/test_recognizer.py`.
 - Проверено только на водомерах (Yandex.Toloka): 74% показаний точно, 91% верных целых м³, ~2.5 с на фото.

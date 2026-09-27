@@ -7,18 +7,18 @@
                    ├─ /api/*  ──▶ 127.0.0.1:8080  контейнер app (бот MAX + API мини-приложения)
                    └─ /       ──▶ /var/www/maxsmartcity.ru   статика мини-приложения (index.html, app.js, styles.css)
 
-контейнер app ──▶ http://meter-reader:8000/recognize   контейнер meter-reader (распознавание, Qwen в Yandex Cloud)
+контейнер app ──▶ http://recognizer:8000/recognize   контейнер recognizer (распознавание, Qwen в Yandex Cloud)
                ──▶ platform-api2.max.ru (long polling), fgis.gost.ru (Аршин), DaData
 ```
 
 - Сервер: Ubuntu 26.04, пользователь `user` (в группе `docker`, sudo по паролю). Docker и compose из пакетов
   Ubuntu (`docker.io`, `docker-compose-v2`), служба `docker` включена и стартует при загрузке.
 - Репозиторий: `/home/user/max-smart-city-webapp`, ветка `compose-two-services`.
-- Контейнеры описаны в `compose.yaml`: `app` и `meter-reader`, `restart: unless-stopped` и healthcheck.
+- Контейнеры описаны в `compose.yaml`: `app` и `recognizer`, `restart: unless-stopped` и healthcheck.
   Оба порта слушают только `127.0.0.1` (8080 и 8000). Наружу смотрит только nginx.
 - `compose.override.yaml` лежит только на сервере (в `.git/info/exclude`): он переводит порт `app` на `127.0.0.1:8080`.
 - `.env` (права 600) лежит только на сервере. В нём `BOT_TOKEN`, `BOT_USERNAME`, `YC_API_KEY`, `YC_FOLDER_ID`,
-  `MINIAPP_ORIGINS`, `ARSHIN_MODE=live` и прочее. `RECOGNIZER_URL` там НЕ задаётся: адрес meter-reader боту даёт compose.
+  `MINIAPP_ORIGINS`, `ARSHIN_MODE=live` и прочее. `RECOGNIZER_URL` там НЕ задаётся: адрес recognizer боту даёт compose.
 - Данные: `./data` (том контейнера app, владелец uid 10001) — `bot.db` (SQLite), `photos/`, `backups/`.
 - Мини-приложение отдаёт nginx с этого же домена, API тот же origin (`<meta name="api-base" content="">`).
   GitHub Pages для этого сервера не нужен.
@@ -37,7 +37,7 @@ bash deploy/update.sh --static        # поменялся только app/web/
 ```
 
 Скрипт спросит пароль sudo один раз: он нужен, чтобы скопировать статику в `/var/www/maxsmartcity.ru`.
-В конце должны быть `{"ok":true}` (бот и снаружи), `{"status":"ok",…}` (meter-reader) и в логах
+В конце должны быть `{"ok":true}` (бот и снаружи), `{"status":"ok",…}` (recognizer) и в логах
 `MAX bot: id=423938205` и `polling started`.
 
 Вручную то же самое:
@@ -53,7 +53,7 @@ sudo cp app/web/static/{index.html,app.js,styles.css} /var/www/maxsmartcity.ru/
 
 ```bash
 docker compose ps                                  # состояние, должно быть (healthy)
-docker compose logs -f app                         # логи бота; meter-reader — docker compose logs -f meter-reader
+docker compose logs -f app                         # логи бота; recognizer — docker compose logs -f recognizer
 docker compose restart app                         # перезапуск без пересборки (например, после правки .env)
 docker compose up -d                               # после правки .env: пересоздать контейнеры с новым окружением
 docker compose exec app python -c "import sqlite3;print(sqlite3.connect('/app/data/bot.db').execute('select count(*) from users').fetchone())"

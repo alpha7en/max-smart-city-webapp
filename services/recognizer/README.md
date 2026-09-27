@@ -10,9 +10,9 @@ HTTP-сервис на Python (FastAPI). Принимает фото счётч�
 
 ## Запуск вместе с ботом (из корня репозитория)
 
-Сервис — контейнер `meter-reader` в корневом `compose.yaml`, поднимается вместе с ботом. В корневом `.env`
+Сервис — контейнер `recognizer` в корневом `compose.yaml`, поднимается вместе с ботом. В корневом `.env`
 достаточно `YC_API_KEY` и `YC_FOLDER_ID`, затем `docker compose up -d --build`; адрес
-`http://meter-reader:8000/recognize` боту выставляет compose. Логи — `docker compose logs -f meter-reader`
+`http://recognizer:8000/recognize` боту выставляет compose. Логи — `docker compose logs -f recognizer`
 (на каждый запрос строка INFO `recognized (…)`: тип, показание, уверенность, readable, issues, пояснение и есть ли
 серийник — без изображения и без самого номера). Порт 8000 открыт только на 127.0.0.1 хоста.
 

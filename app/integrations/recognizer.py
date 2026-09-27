@@ -1,6 +1,6 @@
-"""Распознавание показаний по фото: HTTP-клиент микросервиса services/meter_reader или демо-заглушка.
+"""Распознавание показаний по фото: HTTP-клиент микросервиса services/recognizer или демо-заглушка.
 
-Контракт микросервиса (services/meter_reader/README.md; маппинг только в HttpRecognizer._parse):
+Контракт микросервиса (services/recognizer/README.md; маппинг только в HttpRecognizer._parse):
 POST {RECOGNIZER_URL} multipart: image=<фото> (+ meter_type, tariffs: по ним сервис берёт промпт типа и отмечает wrong_type)
 → 200 JSON {"meter_type": "hot_water", "reading_text": "00595.825", "integer_digits": "00595",
             "fraction_digits": "825", "tariff": null, "serial_number": "123456", "confidence": 0.95,
@@ -78,7 +78,7 @@ SERVICE_MIN, SERVICE_SURE = 0.6, 0.8      # ниже MIN — не распозн
 # Типичное наименьшее число целых цифр на табло (с ведущими нулями); у тепла табло разные — без правила.
 MIN_WHOLE = {MeterType.COLD_WATER: 5, MeterType.HOT_WATER: 5, MeterType.GAS: 5, MeterType.ELECTRICITY: 5}
 DOUBT = {"blurry", "digits_not_visible", "partially_covered"}   # вместе с недобором цифр — не распознали
-# Коды проблем с фото (контракт services/meter_reader). serial_not_visible показанию не мешает,
+# Коды проблем с фото (контракт services/recognizer). serial_not_visible показанию не мешает,
 # wrong_type — показание можно показать, но с предупреждением.
 ISSUES = ("no_meter", "wrong_type", "digits_not_visible", "blurry", "glare", "too_dark", "angle",
           "partially_covered", "multiple_meters", "serial_not_visible", "display_off", "other")

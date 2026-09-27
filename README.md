@@ -31,7 +31,7 @@
 ## Состав и архитектура
 
 Два сервиса в одном `compose.yaml`, поднимаются вместе: `app` (Python 3.12, FastAPI, порт 8080) и
-`meter-reader` — распознавание показаний (`services/meter_reader/`, порт 8000). В процессе `app` работают:
+`recognizer` — распознавание показаний (`services/recognizer/`, порт 8000). В процессе `app` работают:
 
 ```mermaid
 flowchart LR
@@ -46,7 +46,7 @@ flowchart LR
   MAX <--> P
   F -- ответы, кнопки --> MAX
   MA[мини-приложение на maxsmartcity.ru] -- HTTPS + initData --> API
-  F -. фото .-> REC["контейнер meter-reader :8000<br/>(или демо без ключей YC)"]
+  F -. фото .-> REC["контейнер recognizer :8000<br/>(или демо без ключей YC)"]
   API -.-> REC
   REC -. HTTPS .-> YC[Yandex Cloud AI Studio: Qwen]
   F -.-> DD[DaData или локальный разбор адреса]
@@ -75,10 +75,10 @@ YC_API_KEY=...
 YC_FOLDER_ID=...
 ```
 
-и перезапустите `docker compose up -d --build`: бот начнёт отправлять фото в `meter-reader`. Проверка:
+и перезапустите `docker compose up -d --build`: бот начнёт отправлять фото в `recognizer`. Проверка:
 `curl localhost:8000/health` → `{"status":"ok",…}` (порт открыт только на 127.0.0.1),
-`services/meter_reader/recognize.sh фото.jpg` печатает, что сервис увидел на фото.
-Устройство сервиса, качество и отладка: [services/meter_reader/README.md](services/meter_reader/README.md).
+`services/recognizer/recognize.sh фото.jpg` печатает, что сервис увидел на фото.
+Устройство сервиса, качество и отладка: [services/recognizer/README.md](services/recognizer/README.md).
 
 С одним токеном должен работать один процесс. Если бот уже запущен на сервере, локальная копия с тем же
 токеном будет делить с ним апдейты. Для локального запуска заведите своего бота на business.max.ru.
@@ -93,7 +93,7 @@ YC_FOLDER_ID=...
 | `BOT_USERNAME` | username бота для кнопки мини-приложения (`open_app`) | пусто: берём из `GET /me` | нет |
 | `MAX_API_BASE` | адрес Bot API | `https://platform-api2.max.ru` | нет |
 | `DADATA_API_KEY` | ключ DaData для подсказок и проверки адреса по ФИАС | пусто: локальный разбор | нет |
-| `RECOGNIZER_URL` | URL сервиса распознавания показаний | пусто: в compose `http://meter-reader:8000/recognize` при заданном `YC_API_KEY`, иначе демо-распознавание | нет |
+| `RECOGNIZER_URL` | URL сервиса распознавания показаний | пусто: в compose `http://recognizer:8000/recognize` при заданном `YC_API_KEY`, иначе демо-распознавание | нет |
 | `ARSHIN_MODE` | ФГИС «Аршин»: `live` — реальный API, `fixtures` — демо-данные ФГИС (помечены в сообщениях), `off` — выключено | `live` | нет |
 | `ARSHIN_BASE` | адрес API ФГИС «Аршин» | `https://fgis.gost.ru/fundmetrology/eapi` | нет |
 | `ARSHIN_FALLBACK_IPS` | IP хоста ФГИС через запятую, если DNS в контейнере его не резолвит (только `live`); пусто — выключено | `212.164.138.19,212.164.138.14` | нет |
@@ -106,7 +106,7 @@ YC_FOLDER_ID=...
 | `TZ` | часовой пояс сроков и уведомлений | `Europe/Moscow` | нет |
 | `SUBMIT_DAY_FROM`, `SUBMIT_DAY_TO` | модельное окно подачи показаний, числа месяца | `15`, `25` | нет |
 
-Переменные сервиса `meter-reader` (лежат в том же `.env`; при заданном `YC_API_KEY` compose сам даёт боту адрес сервиса):
+Переменные сервиса `recognizer` (лежат в том же `.env`; при заданном `YC_API_KEY` compose сам даёт боту адрес сервиса):
 
 | Переменная | Назначение | По умолчанию | Обязательна |
 |---|---|---|---|
@@ -123,7 +123,7 @@ YC_FOLDER_ID=...
 - Исходящие соединения: `platform-api2.max.ru:443` (TLS проверяется, публичный CA Минцифры лежит в `certs/`),
   CDN MAX для скачивания фото, `suggestions.dadata.ru:443` при заданном ключе, внешний `RECOGNIZER_URL`, если задан,
   `fgis.gost.ru:443` при `ARSHIN_MODE=live`.
-- `meter-reader`: `8000/tcp` внутри сети compose, на хост только `127.0.0.1:8000`;
+- `recognizer`: `8000/tcp` внутри сети compose, на хост только `127.0.0.1:8000`;
   исходящие на `llm.api.cloud.yandex.net:443`. Фото счётчика уходит в Yandex Cloud на время распознавания.
 - Docker Engine с Compose v2.24+ (`env_file.required: false`), образ `python:3.12-slim`, версии пакетов
   зафиксированы в `requirements.txt`. Мини-приложение — чистый JS без сборки плюс `https://st.max.ru/js/max-web-app.js`.
@@ -135,7 +135,7 @@ YC_FOLDER_ID=...
 | MAX Bot API | реальная | long polling `GET /updates`, сообщения, кнопки, ответы на нажатия, скачивание фото |
 | MAX мини-приложения | реальная | кнопка `open_app`, авторизация API по подписанному `initData` |
 | DaData (адреса, ФИАС) | реальная при `DADATA_API_KEY` | без ключа или при сбое адрес разбирается локально, бот пишет «Адрес не сверен с ФИАС» |
-| Распознавание показаний | реальная при ключах `YC_API_KEY`, `YC_FOLDER_ID` | сервис `services/meter_reader` (контейнер `meter-reader`): фото → мультимодальная модель Qwen в Yandex Cloud AI Studio → показание, тип, серийный номер. Водомеры: 74% показаний точно, 91% верных целых м³ на 373 фото датасета Yandex.Toloka, ~2.5 с на фото. Свет и газ описаны в промпте, но на данных не проверены: бот просит внимательно проверить цифры. Без ключей работает демо-распознавание |
+| Распознавание показаний | реальная при ключах `YC_API_KEY`, `YC_FOLDER_ID` | сервис `services/recognizer` (контейнер `recognizer`): фото → мультимодальная модель Qwen в Yandex Cloud AI Studio → показание, тип, серийный номер. Водомеры: 74% показаний точно, 91% верных целых м³ на 373 фото датасета Yandex.Toloka, ~2.5 с на фото. Свет и газ описаны в промпте, но на данных не проверены: бот просит внимательно проверить цифры. Без ключей работает демо-распознавание |
 | ФГИС «Аршин» (Росстандарт, реестр поверок) | реальная при `ARSHIN_MODE=live` | после первой подачи с заводским номером (в боте и мини-приложении) бот ищет поверку в официальном API `GET /eapi/vri` («Внешние публичные интерфейсы» v2.2): фильтр по типу СИ, марке и модели с фото, последняя запись в группе. Нашли уверенно — «Поверка по данным ФГИС «Аршин»: до …» (или «срок истёк», «признала непригодным») и кнопка «Запись в ФГИС» на карточку, вопрос о дате не задаётся; несколько приборов с тем же номером — «Это ваш счётчик?» с кнопками; не нашли — честный текст и вопрос о дате из паспорта. Ждём не дольше 6 с, остальное доделывается в фоне; раз в сутки планировщик обновляет до 10 счётчиков. Живьём проверено с сервера владельца. `fixtures` — демо-данные (`app/integrations/arshin_demo.json`) без сети, в сообщениях «демо-данные, не из реестра»; номер на 0 — записи нет, на 9 — коллизия |
 | Сервер maxsmartcity.ru | реальная | nginx (HTTPS) отдаёт мини-приложение и проксирует `/api/` в Docker compose, см. `docs/DEPLOY_SERVER.md` |
 
@@ -295,7 +295,7 @@ share_text}` (ошибки `422 empty`, `403 not_owner`, `409 limit`), `DELETE /
 ```bash
 docker compose down            # остановить; данные остаются в ./data
 docker compose up --build      # запустить снова: пользователи, показания и маркер опроса сохранятся
-docker compose logs -f app     # логи (распознавание: docker compose logs -f meter-reader)
+docker compose logs -f app     # логи (распознавание: docker compose logs -f recognizer)
 sudo rm -rf data               # полный сброс (после down; файлы принадлежат пользователю контейнера, uid 10001)
 ```
 
@@ -314,7 +314,7 @@ docker compose run --rm -v ./tests:/app/tests:ro -v ./pytest.ini:/app/pytest.ini
 
 Сценарные тесты идут через настоящий роутер и `FakeMaxApi` (апдейты в формате MAX, `tests/fakes.py`), без сети и токена.
 Контракт с распознаванием — `tests/test_recognizer.py`, с ФГИС — `tests/test_arshin.py`.
-Свои тесты у сервиса распознавания (без сети): `cd services/meter_reader && pip install -r requirements.txt pytest && python -m pytest -q`.
+Свои тесты у сервиса распознавания (без сети): `cd services/recognizer && pip install -r requirements.txt pytest && python -m pytest -q`.
 
 ## Мини-приложение
 

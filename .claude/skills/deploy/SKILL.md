@@ -1,6 +1,6 @@
 ---
 name: deploy
-description: Деплой бота на прод-сервер maxsmartcity.ru. Docker compose (app + meter-reader) за готовым nginx, статика мини-приложения в /var/www/maxsmartcity.ru, скрипт deploy/update.sh, проверка /api/health. nginx не трогать, GitHub Pages для прода не нужен. Вызывать на фразы «задеплой на сервер», «выложи бота», «обнови сервер», «выложи ветку».
+description: Деплой бота на прод-сервер maxsmartcity.ru. Docker compose (app + recognizer) за готовым nginx, статика мини-приложения в /var/www/maxsmartcity.ru, скрипт deploy/update.sh, проверка /api/health. nginx не трогать, GitHub Pages для прода не нужен. Вызывать на фразы «задеплой на сервер», «выложи бота», «обнови сервер», «выложи ветку».
 ---
 
 # deploy: задеплой на сервер
@@ -8,7 +8,7 @@ description: Деплой бота на прод-сервер maxsmartcity.ru. D
 Прод (слова владельца): бот, API и мини-приложение на одном сервере `https://maxsmartcity.ru`.
 Полное устройство — `docs/DEPLOY_SERVER.md`. Коротко:
 - nginx (настроен отдельно, НЕ ТРОГАТЬ): `/api/` → `127.0.0.1:8080`, `/` → `/var/www/maxsmartcity.ru` (статика).
-- `~/max-smart-city-webapp`: `compose.yaml` (app + meter-reader), `.env` и `compose.override.yaml`
+- `~/max-smart-city-webapp`: `compose.yaml` (app + recognizer), `.env` и `compose.override.yaml`
   (порт app на 127.0.0.1) лежат только на сервере. Данные в `./data`.
 - Доступ по SSH (`user@<IP сервера>`) и пароль sudo даёт владелец; секреты в репо и память не записывать.
 - Один токен — один процесс: перед запуском на сервере останови локальный бот (`docker compose stop app`).
@@ -28,8 +28,8 @@ curl -s -o /dev/null -w '%{http_code}\n' https://maxsmartcity.ru/api/me      # 4
 ssh user@<host> 'cd max-smart-city-webapp && docker compose ps && curl -s localhost:8000/health && \
   docker compose logs --since 5m app | grep -E "MAX bot: id=|polling started|ERROR"'
 ```
-Ожидается: оба контейнера `(healthy)`, `MAX bot: id=423938205`, `polling started`, meter-reader `{"status":"ok",…}`.
-В `.env` не должно быть `RECOGNIZER_URL=http://127.0.0.1…`: в контейнере это сам app, адрес meter-reader даёт compose.
+Ожидается: оба контейнера `(healthy)`, `MAX bot: id=423938205`, `polling started`, recognizer `{"status":"ok",…}`.
+В `.env` не должно быть `RECOGNIZER_URL=http://127.0.0.1…`: в контейнере это сам app, адрес recognizer даёт compose.
 
 ## Живая проверка после деплоя
 - `.venv/bin/python -m tools.live_smoke` локально (без `--listen`: слушание отнимет апдейты у серверного бота).

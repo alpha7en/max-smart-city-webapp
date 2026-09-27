@@ -1,4 +1,4 @@
-"""HttpRecognizer ↔ services/meter_reader: запрос, разбор ответа, своя уверенность, ошибки."""
+"""HttpRecognizer ↔ services/recognizer: запрос, разбор ответа, своя уверенность, ошибки."""
 from __future__ import annotations
 
 import httpx
@@ -14,8 +14,8 @@ from app.integrations.recognizer import (
     get_recognizer,
 )
 
-URL = "http://meter-reader:8000/recognize"
-# Ответ сервиса из services/meter_reader/README.md.
+URL = "http://recognizer:8000/recognize"
+# Ответ сервиса из services/recognizer/README.md.
 SAMPLE = {
     "meter_type": "hot_water", "reading": 595.825, "reading_text": "00595.825", "integer_digits": "00595",
     "fraction_digits": "825", "unit": "m3", "tariff": None, "brand": "Бетар", "model": "СГВ-15",

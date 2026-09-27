@@ -3,8 +3,8 @@
 Бот, планировщик и API мини-приложения работают в одном процессе FastAPI (`app/main.py`). Бот и планировщик
 запускаются фоновыми задачами в lifespan. Внешний HTTP ходит только из `app/integrations/`. В `app/domain/`
 лежат чистые функции без ввода-вывода. SQL собран в `app/repo.py`. Распознавание показаний — отдельный
-сервис `services/meter_reader/`: свой контейнер `meter-reader` (порт 8000) в том же `compose.yaml`, поднимается
-вместе с `app`. При заданном `YC_API_KEY` compose выставляет боту `RECOGNIZER_URL=http://meter-reader:8000/recognize`.
+сервис `services/recognizer/`: свой контейнер `recognizer` (порт 8000) в том же `compose.yaml`, поднимается
+вместе с `app`. При заданном `YC_API_KEY` compose выставляет боту `RECOGNIZER_URL=http://recognizer:8000/recognize`.
 
 ## Модули
 
@@ -29,7 +29,7 @@ app/
   integrations/
     max_api.py         клиент MAX Bot API (httpx, повторы при 429/5xx, TLS с сертификатом Минцифры)
     address_service.py DaData suggest или локальный разбор адреса
-    recognizer.py      HttpRecognizer (RECOGNIZER_URL → services/meter_reader) или StubRecognizer (демо)
+    recognizer.py      HttpRecognizer (RECOGNIZER_URL → services/recognizer) или StubRecognizer (демо)
     arshin.py          клиент ФГИС «Аршин» /eapi/vri: троттлинг 0,6 с, ≤4 запроса, повтор, breaker, кэш; fixtures — демо;
                        ARSHIN_FALLBACK_IPS — резервные IP, если DNS в контейнере не резолвит хост (install_dns_fallback)
   bot/
@@ -53,7 +53,7 @@ tools/live_smoke.py    живая проверка MAX API тем же клие�
 tools/transcript.py    пример диалога через настоящий роутер → docs/DIALOG_EXAMPLE.md
 tests/                 pytest: fakes.py (FakeMaxApi, апдейты в формате MAX), conftest.py (фикстура chat)
 
-services/meter_reader/ отдельный FastAPI-сервис: POST /recognize (фото → Qwen в Yandex Cloud AI Studio → JSON)
+services/recognizer/ отдельный FastAPI-сервис: POST /recognize (фото → Qwen в Yandex Cloud AI Studio → JSON)
   meter_reader/        api.py, recognizer.py (барабаны → показание, 5 + 3), prompts.py, llm.py, image_utils.py
   scripts/eval_water.py  замер точности на датасете Yandex.Toloka Water Meters
   tests/               постобработка ответа модели без сети
@@ -62,7 +62,7 @@ services/meter_reader/ отдельный FastAPI-сервис: POST /recognize 
 ## Распознавание
 
 Бот скачивает фото из MAX во временный файл и, когда счётчик выбран, вызывает `recognizer.recognize(path, type,
-tariffs)` с таймаутом 25 с. `HttpRecognizer` отправляет файл в `meter-reader` (`POST /recognize`, поле `image`)
+tariffs)` с таймаутом 25 с. `HttpRecognizer` отправляет файл в `recognizer` (`POST /recognize`, поле `image`)
 и переводит ответ в `Recognition`: значение в тысячных из `reading_text`, текст как прочитан (без дописанных нулей),
 серийный номер, свою уверенность, коды проблем `issues` с пояснением модели, производителя и модель. Серийный номер
 сверяется с сохранённым и обязателен (нет ни у счётчика, ни на фото — «Переснять» / «Ввести номер»); производитель
@@ -116,7 +116,7 @@ SQLite `DATA_DIR/bot.db`. В Docker это том `./data`, поэтому да�
 
 ## Как расширять
 
-**Распознавание.** Сервис `services/meter_reader` меняется независимо от бота: промпт, модель, постобработка.
+**Распознавание.** Сервис `services/recognizer` меняется независимо от бота: промпт, модель, постобработка.
 Если меняется формат ответа, поправить только `HttpRecognizer._parse` и `tests/test_recognizer.py`.
 Бот отправляет подсказки `meter_type` и `tariffs`: сервис берёт по ним промпт типа и отмечает `wrong_type`.
 Для нового типа счётчика добавить его в промпт сервиса и замерить точность, затем убрать из «непроверенных»

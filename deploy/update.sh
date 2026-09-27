@@ -44,7 +44,8 @@ print(dst.name)"
   fi
 
   step "Контейнеры"
-  docker compose up -d --build --wait --wait-timeout 120
+  # --remove-orphans: снимает контейнеры сервисов, которых больше нет в compose.yaml (например, старый meter-reader)
+  docker compose up -d --build --remove-orphans --wait --wait-timeout 120
   docker image prune -f >/dev/null
 fi
 
@@ -60,6 +61,6 @@ ls -l "$WWW"
 step "Проверки"
 docker compose ps
 curl -fsS localhost:8080/api/health && echo "  ← бот/API"
-curl -fsS localhost:8000/health && echo "  ← meter-reader"
+curl -fsS localhost:8000/health && echo "  ← recognizer"
 curl -fsS https://maxsmartcity.ru/api/health && echo "  ← снаружи через nginx"
 docker compose logs --since 3m app | grep -E 'MAX bot: id=|polling started|ERROR' || true
