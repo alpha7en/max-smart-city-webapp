@@ -379,7 +379,7 @@ async def test_scenario_buttons_with_foreign_ids(router, api, repo):
 
 
 async def test_old_buttons_from_every_finished_scenario(chat, api, repo):
-    """Кнопки из старых сообщений регистрации, подачи, профиля — «неактуальна» + текущий шаг, без поломок."""
+    """Кнопки из старых сообщений регистрации, подачи, профиля — «уже не работает» + текущий шаг, без поломок."""
     await to_confirm(chat)
     old_reg = [api.button(t)["payload"] for t in (RT.BTN_EDIT_NAME, RT.BTN_EDIT_ADDRESS)]
     await chat.press(RT.BTN_ALL_OK)
