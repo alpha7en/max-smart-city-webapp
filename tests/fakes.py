@@ -57,22 +57,9 @@ def image(url: str = "https://i.oneme.ru/i?r=photo1") -> dict:
     return {"type": "image", "payload": {"photo_id": next(_seq), "token": "tok", "url": url}}
 
 
-def file(url: str = "https://fd.oneme.ru/f?r=1", filename: str = "meter.jpg", size: int = 1024) -> dict:
-    return {"type": "file", "payload": {"url": url, "token": "tok"}, "filename": filename, "size": size}
-
-
 def contact(owner_uid: int, phone: str = "79123456789", name: str = "Анна Иванова") -> dict:
     vcf = f"BEGIN:VCARD\r\nVERSION:3.0\r\nTEL;TYPE=cell:{phone}\r\nFN:{name}\r\nEND:VCARD\r\n"
     return {"type": "contact", "payload": {"vcf_info": vcf, "hash": "0" * 64, "max_info": user(owner_uid)}}
-
-
-def location(lat: float = 55.75, lon: float = 37.59) -> dict:
-    return {"type": "location", "latitude": lat, "longitude": lon}
-
-
-def sticker() -> dict:
-    return {"type": "sticker", "payload": {"url": "https://st.max.ru/s.webp", "code": "c1"},
-            "width": 128, "height": 128}
 
 
 def message_callback(uid: int, payload: str, mid: str = "mid.bot.1", callback_id: str | None = None) -> dict:

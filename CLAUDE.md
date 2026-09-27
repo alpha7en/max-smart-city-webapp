@@ -50,7 +50,7 @@ certs/               публичный CA Минцифры (russian_trusted_ca.
 ## Команды
 ```bash
 python3.12 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
-python -m pytest -q                                   # все тесты (~20–25 с), должны быть зелёными
+python -m pytest -q                                   # все тесты (~2 с), должны быть зелёными
 cp .env.example .env                                  # затем вписать BOT_TOKEN
 docker compose up -d --build && docker compose logs -f app    # бот + API на :8080
 # + распознавание: в .env YC_API_KEY и YC_FOLDER_ID (контейнер meter-reader поднимается всегда, адрес боту даёт compose);

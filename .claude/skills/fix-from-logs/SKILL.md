@@ -44,6 +44,6 @@ grep -nE 'trace=|Traceback|MAX API|MaxApiError|polling error|retry in|failed|not
 
 ## 4. Починить и проверить
 1. Минимальная правка там, где причина, а не там, где симптом. Тексты только в `app/bot/texts/*`, кнопки только через keyboards.
-2. `.venv/bin/python -m pytest -q`: всё зелёное, быстрее 15 с.
+2. `.venv/bin/python -m pytest -q`: всё зелёное, за пару секунд.
 3. `docker compose up -d --build` и повторить шаг вживую (скилл `live-scenario`, нужный пункт чек-листа).
 4. Владельцу: что было (строка лога), причина, файл и правка, какой тест добавлен. Коммит — по его просьбе.

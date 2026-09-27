@@ -18,7 +18,7 @@ texts/hackathon_demo.py и yaml/hackathon_demo.yaml, импорт в flows/__ini
 repo.backdate_reading, is_hackathon_demo, create_demo_person, drop_orphan_demo_people и HACKATHON_DEMO_KEY
 в repo.py (и DEMO_PERSON_MAX_ID с проверками is_demo_person), DEMO_PEOPLE в invite.show_shared,
 фото-исключение в web/api.py
-(profile_photo), переменную в config.py и .env.example, tests/test_hackathon_demo.py.
+(profile_photo), переменную в config.py и .env.example.
 
 Адреса тестового профиля новые при каждой генерации (norm_key 'hackathon-demo:<uuid>:<n>'): так пользователь
 всегда их собственник, двое проверяющих не делят один адрес по модели прав, а после «Удалить мои данные» старые

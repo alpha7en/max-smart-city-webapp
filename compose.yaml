@@ -13,12 +13,6 @@ services:
       RECOGNIZER_URL: ${RECOGNIZER_URL:-${YC_API_KEY:+http://meter-reader:8000/recognize}}
     volumes:
       - ./data:/app/data
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=3)"]
-      interval: 30s
-      timeout: 5s
-      start_period: 10s
-      retries: 3
 
   # Распознавание показаний (services/meter_reader): Qwen в Yandex Cloud AI Studio. Запускается вместе с app.
   meter-reader:

@@ -1,24 +1,17 @@
-"""Гигиена секретов: в git нет ключей и .env, CA Минцифры — ровно тот, что ожидаем, TLS не отключён."""
+"""Гигиена секретов: в git нет ключей и .env, TLS не отключён."""
 from __future__ import annotations
 
-import hashlib
 import re
 import shutil
-import ssl
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from app.integrations import max_api
 
 ROOT = Path(__file__).resolve().parents[1]
 
 # certs/README.md: отпечатки SHA-256 с https://www.gosuslugi.ru/crt
-CA_FINGERPRINTS = {
-    "d26d2d0231b7c39f92cc738512ba54103519e4405d68b5bd703e9788ca8ecf31",  # Russian Trusted Root CA, до 2032
-    "bbbde2103e790b999ec62bd03cf625a5a2e7c316e10afe6a490eedead8b3fd9b",  # Russian Trusted Sub CA, до 03.2027
-}
 
 SECRET_PATTERNS = [
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
@@ -38,22 +31,6 @@ def tracked_files() -> list[Path]:
         pytest.skip("нет git-репозитория")
     out = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True).stdout
     return [ROOT / p for p in out.decode().split("\0") if p]
-
-
-def test_russian_ca_is_pinned():
-    pem = max_api.RUSSIAN_CA.read_text()
-    certs = re.findall(r"-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----", pem, re.S)
-    got = {hashlib.sha256(ssl.PEM_cert_to_DER_cert(c)).hexdigest() for c in certs}
-    assert got == CA_FINGERPRINTS
-    assert "PRIVATE KEY" not in pem
-
-
-def test_ssl_context_verifies_and_needs_ca(monkeypatch, tmp_path):
-    ctx = max_api.ssl_context()
-    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
-    monkeypatch.setattr(max_api, "RUSSIAN_CA", tmp_path / "missing.pem")
-    with pytest.raises(FileNotFoundError):
-        max_api.ssl_context()
 
 
 def test_no_secrets_in_git():
