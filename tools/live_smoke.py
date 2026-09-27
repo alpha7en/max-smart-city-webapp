@@ -40,7 +40,7 @@ from app.integrations.max_api import MaxApi, MaxApiError  # noqa: E402
 from app.main import COMMANDS  # noqa: E402
 from app.web.auth import InitDataError, validate_init_data  # noqa: E402
 
-MINIAPP_URL = "https://alpha7en.github.io/max-smart-city-webapp/"  # закреплён в MAX, не менять
+MINIAPP_URL = "https://maxsmartcity.ru/"  # мини-приложение на проде (тот же сервер, что бот и API)
 FLOW = "smoke"  # payload тестовых callback-кнопок: для работающего бота это «устаревшая кнопка»
 SAVE_UPDATES = ROOT / "data" / "live_updates.jsonl"  # data/ в .gitignore
 HINTS = {

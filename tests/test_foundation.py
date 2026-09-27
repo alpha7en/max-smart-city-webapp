@@ -57,7 +57,7 @@ def test_buttons_validated_not_truncated():
         K.link("Открыть", "https://192.168.1.5/")
     assert K.link("Сайт", "https://max.ru")["url"] == "https://max.ru"
     with pytest.raises(ValueError):
-        K.open_app("Мини-приложение", "https://alpha7en.github.io/app")
+        K.open_app("Мини-приложение", "https://maxsmartcity.ru/")
     assert K.open_app("Мини-приложение", "") is None
     assert K.open_app("Счётчик", "test_bot", "meter_12")["payload"] == "meter_12"
     board = K.kb([K.gbtn("В меню", "menu"), None], [], None)

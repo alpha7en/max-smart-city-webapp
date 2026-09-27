@@ -43,7 +43,7 @@ class Settings:
     tz: str = "Europe/Moscow"
     submit_day_from: int = 15
     submit_day_to: int = 25
-    miniapp_origins: tuple[str, ...] = ()  # CORS: мини-приложение на другом домене (GitHub Pages)
+    miniapp_origins: tuple[str, ...] = ()  # CORS: только если мини-приложение открыто не с домена API
     arshin_mode: str = "live"           # ФГИС «Аршин»: live | fixtures (демо-данные) | off
     arshin_base: str = "https://fgis.gost.ru/fundmetrology/eapi"
     arshin_fallback_ips: tuple[str, ...] = ("212.164.138.19", "212.164.138.14")  # если DNS не резолвит хост

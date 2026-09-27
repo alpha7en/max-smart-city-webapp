@@ -20,8 +20,7 @@
 - `.env` (права 600) лежит только на сервере. В нём `BOT_TOKEN`, `BOT_USERNAME`, `YC_API_KEY`, `YC_FOLDER_ID`,
   `MINIAPP_ORIGINS`, `ARSHIN_MODE=live` и прочее. `RECOGNIZER_URL` там НЕ задаётся: адрес recognizer боту даёт compose.
 - Данные: `./data` (том контейнера app, владелец uid 10001) — `bot.db` (SQLite), `photos/`, `backups/`.
-- Мини-приложение отдаёт nginx с этого же домена, API тот же origin (`<meta name="api-base" content="">`).
-  GitHub Pages для этого сервера не нужен.
+- Мини-приложение отдаёт nginx с этого же домена, API тот же origin (запросы на относительный `/api/…`).
 - nginx и сертификаты настроены отдельно, их не трогаем.
 - До Docker бот работал как systemd-сервисы `max-bot` и `meter-reader` из `.venv` (uv). Они выключены и удалены,
   копии юнитов, `.env` и БД на момент перехода лежат в `/home/user/backups/`. Каталог `.venv` больше не нужен.

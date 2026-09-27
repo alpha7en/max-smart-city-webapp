@@ -9,12 +9,11 @@
   const qs = new URLSearchParams(location.search);
   const INIT = (W && W.initData) || '';
   const DEV_USER = qs.get('dev_user') || ''; // только для локальной разработки (DEV_AUTH=true на сервере)
-  const metaBase = (document.querySelector('meta[name="api-base"]') || {}).content || '';
-  // ?api= — только локальный бэкенд: иначе initData ушёл бы на чужой хост.
+  // API на том же origin (maxsmartcity.ru). ?api= — только локальный бэкенд: иначе initData ушёл бы на чужой хост.
   function localApi(s) {
     try { const u = new URL(s); return /^https?:$/.test(u.protocol) && /^(localhost|127\.0\.0\.1)$/.test(u.hostname) ? u.origin + u.pathname : ''; } catch (e) { return ''; }
   }
-  const API = (localApi(qs.get('api') || '') || metaBase).trim().replace(/\/+$/, '');
+  const API = localApi(qs.get('api') || '').trim().replace(/\/+$/, '');
 
   const $view = document.getElementById('view');
   const $title = document.getElementById('title');
@@ -1151,11 +1150,5 @@
 
   // ---------- старт ----------
   if (!INIT && !DEV_USER) screenOutside();
-  else if (!API && /\.github\.io$/.test(location.hostname)) {
-    // Статика на GitHub Pages, а адрес бэкенда не задан (MINIAPP_API_BASE) — не ходим на github.io/api.
-    // Это не сбой: сервер мини-приложения просто не подключён, а бот в чате работает.
-    setScreen('ЖКХ', stateCard('chat', 'accent', 'Сервер мини-приложения не подключён',
-      'Бот работает — показания можно передать в чате.',
-      btn('Вернуться в чат', closeApp), btn('Повторить', () => location.reload(), 'sec')));
-  } else toHome();
+  else toHome();
 })();

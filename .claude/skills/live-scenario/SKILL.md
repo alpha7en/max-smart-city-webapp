@@ -57,7 +57,7 @@ description: Проходит основной сценарий бота вжи�
      `WebApp.initData.length`, `WebApp.initDataUnsafe.start_param`. В Playwright:
      `page.frames` → `frame.evaluate("window.WebApp && WebApp.initData.length")`. Саму строку initData
      не публикуй: это подпись. Проверяй её через `tools.live_smoke --check-init-data`.
-   - мини-приложение ходит в бэкенд по `MINIAPP_API_BASE`, то есть на сервер. Без деплоя раздел 4 проверяется частично.
+   - мини-приложение ходит в API на `https://maxsmartcity.ru`, то есть на сервер. Без деплоя раздел 4 проверяется частично.
 5. На BUG не останавливайся: запиши и иди дальше, если сценарий позволяет. Если застрял, начни с «меню».
 
 ## 4. Отчёт `data/live_report.md` (data/ в .gitignore, не коммитить)

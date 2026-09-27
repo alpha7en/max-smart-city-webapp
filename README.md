@@ -101,7 +101,7 @@ YC_FOLDER_ID=...
 | `HACKATHON_DEMO_PROFILE` | только для хакатона: команда `/demo_profile` создаёт вымышленный профиль у пользователя без профиля | `true` | нет |
 | `DEV_AUTH` | принимать заголовок `X-Dev-User` без initData, только для локальной разработки | `false` | нет |
 | `INIT_DATA_TTL` | срок действия initData мини-приложения, секунды | `86400` | нет |
-| `MINIAPP_ORIGINS` | CORS: домены мини-приложения через запятую | `https://alpha7en.github.io` | для мини-приложения да |
+| `MINIAPP_ORIGINS` | CORS: домены мини-приложения через запятую, если оно открыто не с домена API | пусто (прод: тот же origin `https://maxsmartcity.ru`) | нет |
 | `DATA_DIR` | каталог SQLite и временных фото | `data` (в Docker `/app/data` = `./data`) | нет |
 | `TZ` | часовой пояс сроков и уведомлений | `Europe/Moscow` | нет |
 | `SUBMIT_DAY_FROM`, `SUBMIT_DAY_TO` | модельное окно подачи показаний, числа месяца | `15`, `25` | нет |
@@ -258,8 +258,8 @@ share_text}` (ошибки `422 empty`, `403 not_owner`, `409 limit`), `DELETE /
 Если адрес из примера уже занят другим проверяющим, бот покажет «нет прав»: нажмите «Открыть доступ (демо)»
 (есть при `DEMO_MODE=true`) и продолжайте с шага 6.
 
-Бот не отвечает — не запущен его процесс (см. [Запуск](#запуск)). Мини-приложение пишет «Сервер мини-приложения
-не подключён» — не задан `MINIAPP_API_BASE`; «Нет связи с сервером» — бэкенд задан, но недоступен.
+Бот не отвечает — не запущен его процесс (см. [Запуск](#запуск)). Мини-приложение пишет «Нет связи с сервером» —
+недоступен API на `https://maxsmartcity.ru` (проверка: `curl https://maxsmartcity.ru/api/health`).
 
 ## Примеры ожидаемого поведения
 
@@ -323,15 +323,9 @@ docker compose run --rm -v ./tests:/app/tests:ro -v ./pytest.ini:/app/pytest.ini
   с ролью и доступом; у собственника строка «Доступ: N человек» с листом участников). Изменения делаются в чате:
   кнопки открывают диплинк `max.ru/<бот>?start=<payload>` — `submit`, `add_meter`, `meters`, `profile`, `phone`,
   `add_address`, `delete_data`, `shares`, `help`, а также `inv_new_<id>` (поделиться адресом) и `inv_acc_<id>` (доступ к адресу).
-- Запасная публикация на GitHub Pages (для прода не нужна): workflow `.github/workflows/pages.yml` запускается при push в `main` с изменениями в `app/web/static/**`
-  или вручную. Адрес бэкенда берётся из переменной репозитория `MINIAPP_API_BASE` и попадает в `<meta name="api-base">`.
-  Пустое значение означает тот же origin.
-- Прод: статику и API отдаёт один сервер `https://maxsmartcity.ru` (API тот же origin, `api-base` пустой).
+- Прод: статику и API отдаёт один сервер `https://maxsmartcity.ru` (API тот же origin).
   Устройство сервера и обновление (`bash deploy/update.sh`) — в `docs/DEPLOY_SERVER.md`.
 - Локальная разработка: `DEV_AUTH=true` в `.env`, затем `http://localhost:8080/app/?dev_user=<MAX user_id>`.
-- Проверить в MAX без хостинга: временный туннель `cloudflared tunnel --url http://localhost:8080`, его адрес —
-  в `MINIAPP_API_BASE`, затем пересборка Pages. По шагам: `.claude/skills/miniapp-tunnel/SKILL.md`
-  (локальному Claude достаточно сказать «подними туннель»). Адрес туннеля меняется при каждом перезапуске.
 
 API `/api/*` служит внутренним бэкендом мини-приложения: `GET /api/me`, `GET /api/meters/{id}`,
 `POST /api/readings`, `POST /api/recognize`, `/api/shares*` (см. [Поделиться доступом](#поделиться-доступом)). Запросы авторизуются заголовком `X-Max-Init-Data`
