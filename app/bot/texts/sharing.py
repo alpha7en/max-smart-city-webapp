@@ -1,10 +1,10 @@
 """Тексты «Поделиться доступом»: ссылка на адреса собственника, список доступа, получатель.
 
-Текстовые значения вынесены в yaml/invite.yaml.
+Текстовые значения вынесены в yaml/sharing.yaml.
 """
 from app.bot.texts.loader import load_texts
 
-_D = load_texts("invite.yaml")
+_D = load_texts("sharing.yaml")
 
 BTN_SHARE: str = _D["BTN_SHARE"]
 BTN_SHARED: str = _D["BTN_SHARED"]

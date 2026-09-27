@@ -10,12 +10,12 @@ import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from app import arshin_service as AS
+from app import verification as AS
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx, Deps
 from app.bot.flows.menu import MENU, PAY, SUBMIT, VERIFY, dashboard, send_menu
 from app.bot.router import call_hook, on_command, on_global
-from app.bot.texts import arshin as TA
+from app.bot.texts import verification as TA
 from app.bot.texts import common as C
 from app.bot.texts import notify as T
 from app.bot.texts.fmt import day_month, esc, left_days, meter_of, money, month_name, with_notes

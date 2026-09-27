@@ -29,14 +29,14 @@ app/
                      recognizer.py (клиент meter-reader или демо-заглушка), address_service.py (DaData/локально),
                      arshin.py (ФГИС «Аршин», поверка по заводскому номеру; ARSHIN_MODE=live|fixtures|off,
                      ARSHIN_FALLBACK_IPS — IP хоста, если DNS в контейнере его не резолвит)
-  arshin_service.py  проверка поверки после подачи и раз в сутки; выбор записи — domain/verification.py
+  verification.py    проверка поверки после подачи и раз в сутки; выбор записи — domain/verification.py
   sharing.py         «Поделиться доступом» (бот + /api/shares): делятся АДРЕСОМ, ссылка inv_<token> на 7 дней,
                      получатель — tenant/granted, granted_by; в UI «доступ от Анны И.», не «собственник»
   bot/
     events.py        сырой update MAX → Event        poller.py   long polling, marker в kv
     router.py        глобальные правила + @on_state/@on_repeat/@on_global/@on_command/@on_hook
     states.py session.py ctx.py photos.py keyboards.py (кнопки + payload "flow|action|arg")
-    flows/           registration, profile, invite, submission, menu, notify;
+    flows/           registration, profile, sharing, submission, menu, notify;
                      hackathon_demo — ТОЛЬКО для хакатона: /demo_profile без профиля (HACKATHON_DEMO_PROFILE)
     texts/           ВСЕ тексты бота (значения в texts/yaml/*.yaml, для редактора); fmt.py
   web/               auth.py (initData), api.py (/api/*), static/ (мини-приложение, vanilla JS)

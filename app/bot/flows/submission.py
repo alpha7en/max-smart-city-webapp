@@ -23,7 +23,7 @@ import logging
 import re
 from dataclasses import dataclass
 
-from app import arshin_service as AS
+from app import verification as AS
 from app.bot import keyboards as K
 from app.bot import photos
 from app.bot.ctx import Ctx
@@ -39,7 +39,7 @@ from app.bot.router import (
 )
 from app.bot.session import save_session
 from app.bot.states import S
-from app.bot.texts import arshin as TA
+from app.bot.texts import verification as TA
 from app.bot.texts import common as C
 from app.bot.texts import fmt
 from app.bot.texts import meters as TM

@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any, Literal
 
-from app.bot.texts import arshin as T
+from app.bot.texts import verification as T
 from app.bot.texts.fmt import full_date, with_notes
 from app.domain.verification import Match, Record, card_url, choose, is_demo_id, short_title
 

@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 
 from app import clock
-from app.arshin_service import refresh_tick
+from app.verification import refresh_tick
 from app.bot import photos
 from app.bot.ctx import Deps
 

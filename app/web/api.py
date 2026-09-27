@@ -28,7 +28,7 @@ from pydantic import BaseModel
 from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app import arshin_service as AS
+from app import verification as AS
 from app import sharing as SH
 from app import clock
 from app.bot import keyboards as K

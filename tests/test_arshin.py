@@ -11,7 +11,7 @@ import httpx
 import pytest
 
 from app.bot.router import Router
-from app.bot.texts import arshin as TA
+from app.bot.texts import verification as TA
 from app.bot.texts import common as C
 from app.bot.texts import submission as T
 from app.domain.verification import card_url, choose

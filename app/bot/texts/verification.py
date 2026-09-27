@@ -1,10 +1,10 @@
-"""Тексты проверки поверки по ФГИС «Аршин» (app/arshin_service.py, подача, меню, уведомления).
+"""Тексты проверки поверки по ФГИС «Аршин» (app/verification.py, подача, меню, уведомления).
 
-Текстовые значения вынесены в yaml/arshin.yaml.
+Текстовые значения вынесены в yaml/verification.yaml.
 """
 from app.bot.texts.loader import load_texts
 
-_D = load_texts("arshin.yaml")
+_D = load_texts("verification.yaml")
 
 # --- После подачи ({date} — 18.10.2029) ---
 FOUND: str = _D["FOUND"]

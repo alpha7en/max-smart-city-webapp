@@ -14,9 +14,9 @@ MODULES = [
     "submission",
     "meters",
     "profile",
-    "invite",
+    "sharing",
     "notify",
-    "arshin",
+    "verification",
     "api",
     "hackathon_demo",
 ]

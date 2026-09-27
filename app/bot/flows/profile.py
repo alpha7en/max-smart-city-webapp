@@ -9,12 +9,12 @@ import logging
 from app import sharing as SH
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx
-from app.bot.flows import invite
+from app.bot.flows import sharing
 from app.bot.flows.registration import AddressFlow, address_notes, parse_phone, phone_line, said, split_notes
 from app.bot.router import drop_scenario, on_global, on_hook, on_repeat, on_state, show_menu
 from app.bot.states import S
 from app.bot.texts import common as C
-from app.bot.texts import invite as IT
+from app.bot.texts import sharing as IT
 from app.bot.texts import profile as T
 from app.bot.texts import registration as RT
 from app.bot.texts.fmt import esc, with_notes
@@ -44,10 +44,10 @@ async def show_profile(ctx: Ctx, footnotes: list[str] | tuple = ()) -> None:
         if a["role"] == "owner":  # собственнику — кто ещё передаёт показания по адресу
             members = await ctx.repo.address_members(a["id"])
             lines.append(f"{esc(a['full_text'])} — {T.ROLE[('owner', 'granted')]}")
-            lines.append(invite.members_line(members))
+            lines.append(sharing.members_line(members))
             owned, shared = True, shared or any(m["access"] != "denied" for m in members)
         else:  # общий адрес: «доступ от Анны И.», запрос или отказ
-            lines.append(f"{esc(a['full_text'])} — {invite.received_role(a)}")
+            lines.append(f"{esc(a['full_text'])} — {sharing.received_role(a)}")
             shared = True
     pending = [a for a in addrs if a["access"] == "pending"]
     req = [K.gbtn(T.BTN_REQUEST if len(pending) == 1 else T.BTN_REQUEST_FOR.format(label=a["label"]),

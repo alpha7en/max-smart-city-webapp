@@ -13,11 +13,11 @@ from app import sharing as SH
 from app.bot import keyboards as K
 from app.bot import photos
 from app.bot.ctx import Ctx
-from app.bot.flows import invite
+from app.bot.flows import sharing
 from app.bot.router import REG_KEEP, call_hook, on_hook, on_repeat, on_state, repeat_step, show_menu
 from app.bot.states import S
 from app.bot.texts import common as C
-from app.bot.texts import invite as IT
+from app.bot.texts import sharing as IT
 from app.bot.texts import registration as T
 from app.bot.texts.fmt import esc, flats, format_phone, with_notes
 from app.db import ts
@@ -419,7 +419,7 @@ async def start_address(ctx: Ctx) -> None:
 
 @on_repeat(S.REG_ADDRESS)
 async def ask_address(ctx: Ctx, text: str | None = None) -> None:
-    shared = None if ctx.data.get("addr") else await invite.pending_invite(ctx)
+    shared = None if ctx.data.get("addr") else await sharing.pending_invite(ctx)
     if shared is None:
         await REG_ADDRESS.ask(ctx, text)
         return
@@ -431,7 +431,7 @@ async def ask_address(ctx: Ctx, text: str | None = None) -> None:
 @on_state(S.REG_ADDRESS)
 async def got_address(ctx: Ctx) -> None:
     if said(ctx) == "inv_none":
-        if not ctx.data.get("addr") and await invite.pending_invite(ctx):
+        if not ctx.data.get("addr") and await sharing.pending_invite(ctx):
             reg = _reg(ctx)
             for key in ("address", "norm_key", "raw_address", "notes_shown"):
                 reg.pop(key, None)
@@ -467,7 +467,7 @@ def _summary(ctx: Ctx, template: str, shared: tuple[str, list[str]] | None, note
 
 async def _shared_or_address(ctx: Ctx) -> tuple[str, list[str]] | None | bool:
     """Ссылка из сессии для сводки. Без своего адреса ссылка обязательна: истекла — False (шаг адреса заново)."""
-    shared = await invite.pending_invite(ctx)
+    shared = await sharing.pending_invite(ctx)
     if shared is None and _reg(ctx).get("no_address"):
         _reg(ctx).pop("no_address")
         ctx.data.pop("invite", None)
@@ -545,7 +545,7 @@ async def finish(ctx: Ctx) -> None:
     ctx.user = await ctx.repo.get_user_by_id(ctx.user["id"])
     if ctx.is_callback:  # сводка остаётся в чате без кнопок
         await ctx.reply(summary)
-    shared_ok, shared_note = await invite.accept_after_registration(ctx)
+    shared_ok, shared_note = await sharing.accept_after_registration(ctx)
     own = await ctx.repo.user_address(ctx.user["id"], res["address_id"]) if res else None
     pending = ctx.data.get("pending_photo_id")
     ctx.session.reset()

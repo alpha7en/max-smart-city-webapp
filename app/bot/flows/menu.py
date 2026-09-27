@@ -12,12 +12,12 @@ from app.bot import keyboards as K
 from app.bot.ctx import Ctx
 from app.bot.router import call_hook, on_command, on_global, on_hook, on_state
 from app.bot.states import S
-from app import arshin_service as AS
+from app import verification as AS
 from app import sharing as SH
-from app.bot.texts import arshin as TA
+from app.bot.texts import verification as TA
 from app.bot.texts import common as C
 from app.bot.texts import menu as T
-from app.bot.texts import invite as TI
+from app.bot.texts import sharing as TI
 from app.bot.texts import meters as TM
 from app.bot.texts import notify as N
 from app.bot.texts.fmt import esc, full_date, money, short_date, with_notes

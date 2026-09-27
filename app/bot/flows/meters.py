@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from app import arshin_service as AS
+from app import verification as AS
 from app import sharing as SH
 from app.bot import keyboards as K
 from app.bot.ctx import Ctx

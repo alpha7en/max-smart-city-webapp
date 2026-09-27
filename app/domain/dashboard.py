@@ -13,7 +13,7 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from app import clock
-from app.bot.texts import arshin as TA
+from app.bot.texts import verification as TA
 from app.bot.texts import menu as T
 from app.bot.texts.fmt import b, day_month, days, esc, money, month_name, n_days, quote, short_date
 from app.domain.meters import (

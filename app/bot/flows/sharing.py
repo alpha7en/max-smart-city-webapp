@@ -22,7 +22,7 @@ from app.bot.router import (
 )
 from app.bot.texts import common as C
 from app.bot.texts import hackathon_demo as HT
-from app.bot.texts import invite as T
+from app.bot.texts import sharing as T
 from app.bot.texts import profile as PT
 from app.bot.texts.fmt import b, day_month, esc, with_notes
 from app.domain.people import short_name, short_name_gen
