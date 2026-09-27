@@ -1,6 +1,6 @@
 ---
 name: deploy
-description: Деплой бота на прод-сервер maxsmartcity.ru. Docker compose (app + recognizer) за готовым nginx, статика мини-приложения в /var/www/maxsmartcity.ru, скрипт deploy/update.sh, проверка /api/health. nginx не трогать, Вызывать на фразы «задеплой на сервер», «выложи бота», «обнови сервер», «выложи ветку».
+description: Деплой бота на прод-сервер maxsmartcity.ru. Docker compose (app + recognizer) за готовым nginx, статика мини-приложения в /var/www/maxsmartcity.ru, скрипт deploy/update.sh, проверка /api/health. nginx не трогать. Вызывать на фразы «задеплой на сервер», «выложи бота», «обнови сервер», «выложи ветку».
 ---
 
 # deploy: задеплой на сервер
