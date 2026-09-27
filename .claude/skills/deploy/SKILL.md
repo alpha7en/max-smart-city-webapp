@@ -6,7 +6,7 @@ description: Деплой бота на прод-сервер maxsmartcity.ru. D
 # deploy: задеплой на сервер
 
 Прод (слова владельца): бот, API и мини-приложение на одном сервере `https://maxsmartcity.ru`.
-Полное устройство — `docs/DEPLOY_SERVER.md`. Коротко:
+Полное устройство — `docs/deploy.md`. Коротко:
 - nginx (настроен отдельно, НЕ ТРОГАТЬ): `/api/` → `127.0.0.1:8080`, `/` → `/var/www/maxsmartcity.ru` (статика).
 - `~/max-smart-city-webapp`: `compose.yaml` (app + recognizer), `.env` и `compose.override.yaml`
   (порт app на 127.0.0.1) лежат только на сервере. Данные в `./data`.
@@ -33,8 +33,8 @@ ssh user@<host> 'cd max-smart-city-webapp && docker compose ps && curl -s localh
 
 ## Живая проверка после деплоя
 - `.venv/bin/python -m tools.live_smoke` локально (без `--listen`: слушание отнимет апдейты у серверного бота).
-- `docs/LIVE_CHECKLIST.md`: разделы 1 и 3 бегло, раздел 4 (мини-приложение) полностью (скилл `live-scenario`).
+- `docs/live-checklist.md`: разделы 1 и 3 бегло, раздел 4 (мини-приложение) полностью (скилл `live-scenario`).
 
 ## Откат и бэкапы
 `git checkout <коммит> && docker compose up -d --build --wait`. Бэкапы БД: `data/backups/` (10 последних),
-восстановление описано в `docs/DEPLOY_SERVER.md`.
+восстановление описано в `docs/deploy.md`.

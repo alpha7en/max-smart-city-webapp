@@ -4,7 +4,7 @@
 #   bash deploy/update.sh <ветка>    # переключиться на другую ветку
 #   bash deploy/update.sh --static   # только статика мини-приложения, без пересборки контейнеров
 # Что делает: git pull → бэкап БД → docker compose up --build → статика мини-приложения в /var/www → проверки.
-# Порядок и устройство сервера: docs/DEPLOY_SERVER.md.
+# Порядок и устройство сервера: docs/deploy.md.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

@@ -21,9 +21,10 @@ app/
   main.py            FastAPI: /api/* + статика мини-приложения на /app; в lifespan poller и scheduler
   config.py          Settings из env (.env.example: все переменные с комментариями)
   db.py schema.sql   SQLite (WAL), миграции по user_version
-  repo.py            весь SQL; секции потоков «# === Sx ===»
+  repo.py            весь SQL; транзакции async with repo.tx() (вложенные допустимы)
   clock.py           время МСК (в тестах подменяется)
   scheduler.py       уведомления, чистка фото, раз в сутки обновление поверки по ФГИС
+  readings.py        подача показания (бот + /api/readings): проверки и запись одной транзакцией
   domain/            чистые функции без I/O: meters, people, addresses, access, serials, verification (+dashboard)
   integrations/      ВЕСЬ внешний HTTP: max_api.py (клиент MAX; CA Минцифры в certs/ корня),
                      recognizer.py (клиент сервиса распознавания или демо-заглушка), address_service.py (DaData/локально),
@@ -36,7 +37,7 @@ app/
     events.py        сырой update MAX → Event        poller.py   long polling, marker в kv
     router.py        глобальные правила + @on_state/@on_repeat/@on_global/@on_command/@on_hook
     states.py session.py ctx.py photos.py keyboards.py (кнопки + payload "flow|action|arg")
-    flows/           registration, profile, sharing, submission, menu, notify;
+    flows/           registration, profile, sharing, submission, menu, meters (карточка счётчика), notify;
                      hackathon_demo — ТОЛЬКО для хакатона: /demo_profile без профиля (HACKATHON_DEMO_PROFILE)
     texts/           ВСЕ тексты бота (значения в texts/yaml/*.yaml, для редактора); fmt.py
   web/               auth.py (initData), api.py (/api/*), static/ (мини-приложение, vanilla JS)
@@ -44,6 +45,8 @@ tests/               pytest; conftest.py (фикстура chat), fakes.py (Fake
 services/recognizer/ сервис распознавания (автор — коллега, свой README): POST /recognize, фото → Qwen
                      в Yandex Cloud → показание, тип, серийник. Свои Dockerfile и тесты, контейнер recognizer в корневом compose
 tools/live_smoke.py  живая проверка MAX API (нужен доступ к MAX, то есть запуск из РФ)
+tools/transcript.py  пример диалога через настоящий роутер → docs/dialog-example.md
+docs/               architecture, bot (сценарии и правила роутера), api, deploy, live-checklist, dialog-example
 certs/               публичный CA Минцифры (russian_trusted_ca.pem) для TLS к MAX; приватных ключей в репо нет
 ```
 
@@ -51,6 +54,7 @@ certs/               публичный CA Минцифры (russian_trusted_ca.
 ```bash
 python3.12 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 python -m pytest -q                                   # все тесты (~2 с), должны быть зелёными
+ruff check app tools tests                            # линтер (pip install ruff; ruff.toml), должен быть чистым
 cp .env.example .env                                  # затем вписать BOT_TOKEN
 docker compose up -d --build && docker compose logs -f app    # бот + API на :8080
 # + распознавание: в .env YC_API_KEY и YC_FOLDER_ID (контейнер recognizer поднимается всегда, адрес боту даёт compose);
@@ -105,7 +109,7 @@ sqlite3 data/bot.db 'select user_id,state,data from sessions'  # состоян�
 - ФИО из Госуслуг MAX боту не отдаёт. Телефон берётся кнопкой `request_contact` (vcf_info + max_info).
 - Прод (слова владельца): бот, API и мини-приложение на одном сервере `https://maxsmartcity.ru` (Docker compose
   за nginx; статика мини-приложения в `/var/www/maxsmartcity.ru`, API тот же origin).
-  Устройство и обновление: `docs/DEPLOY_SERVER.md`, `bash deploy/update.sh`. nginx на сервере не трогать.
+  Устройство и обновление: `docs/deploy.md`, `bash deploy/update.sh`. nginx на сервере не трогать.
 - ФГИС «Аршин» доступен только с российских IP: живьём работает с машины владельца (в Docker понадобился
   ARSHIN_FALLBACK_IPS), из облачных агентов недоступен; реальные ответы — `tests/fixtures/arshin/`. Лимит 2 rps, без
   `verification_date_start`/`year` ищет только текущий год. Проверка с сервера:
@@ -117,7 +121,7 @@ sqlite3 data/bot.db 'select user_id,state,data from sessions'  # состоян�
 
 ## Живая проверка (облачные агенты до MAX не достают, её делает локальный Claude владельца)
 - «проверь бота живьём» → скилл `live-smoke` (`tools/live_smoke.py`: /me, вебхуки, команды, все виды кнопок).
-- «пройди сценарий в MAX» → скилл `live-scenario` (бот + web.max.ru + чек-лист `docs/LIVE_CHECKLIST.md`).
+- «пройди сценарий в MAX» → скилл `live-scenario` (бот + web.max.ru + чек-лист `docs/live-checklist.md`).
 - «разбери логи» → скилл `fix-from-logs` (trace_id / MaxApiError → тест → фикс → pytest).
 - «задеплой на сервер» → скилл `deploy` (maxsmartcity.ru: `deploy/update.sh`, nginx не трогать, /api/health).
 Отчёты живых прогонов пишутся в `data/` (`data/live_report.md`, `data/live_updates.jsonl`): data/ в .gitignore, не коммитить.

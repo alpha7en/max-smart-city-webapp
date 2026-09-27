@@ -1,6 +1,6 @@
 """Пример диалога с ботом: настоящий роутер + FakeMaxApi, печатает markdown.
 
-    python -m tools.transcript > docs/DIALOG_EXAMPLE.md
+    python -m tools.transcript > docs/dialog-example.md
 
 Сеть и токен не нужны: MAX подменён FakeMaxApi из tests/fakes.py, адреса разбираются локально
 (без DaData), распознавание — демо-заглушка, ФГИС «Аршин» — демо-данные (ARSHIN_MODE=fixtures).
@@ -120,7 +120,7 @@ async def main() -> None:
 
 async def run(d: Dialog) -> None:
     print("# Пример диалога с ботом\n")
-    print("Сгенерировано командой `python -m tools.transcript > docs/DIALOG_EXAMPLE.md`: сообщения прошли "
+    print("Сгенерировано командой `python -m tools.transcript > docs/dialog-example.md`: сообщения прошли "
           "через настоящий роутер бота, вместо MAX — тестовый двойник. Дата — 19 октября 2026, окно подачи "
           "открыто. Без ключа DaData адрес разбирается локально, без `RECOGNIZER_URL` цифры подставляет "
           "демо-распознавание, а срок поверки берётся из демо-данных ФГИС «Аршин» (ARSHIN_MODE=fixtures; "
@@ -206,6 +206,7 @@ async def run(d: Dialog) -> None:
     await d.press(MARIA, "Арбат 47к1, кв 32")
     await d.press(MARIA, "Выйти")
     await d.press(MARIA, "Выйти")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
