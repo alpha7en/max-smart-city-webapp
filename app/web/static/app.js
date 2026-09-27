@@ -494,7 +494,8 @@
         h('p', { class: 'foot' }, footnote(dash))]);
     homeHeader(d, key);
   }
-  // Шапка главной: над заголовком «ЖКХ», заголовок — адрес. Адресов больше одного — заголовок открывает выбор.
+  // Шапка главной: над заголовком «ЖКХ», заголовок — адрес, открывает экран адресов (и при одном адресе:
+  // там доступ и «Добавить адрес»). Длинный адрес режем с начала: конец (дом, квартира) важнее города.
   function homeHeader(d, key) {
     const list = addrList(d), g = grantedAddrs(d);
     $ava.hidden = false;
@@ -504,9 +505,8 @@
     $eb.hidden = false;
     $eb.textContent = list.length > 1 ? 'ЖКХ · ' + list.length + ' ' + plural(list.length, ADDR_WORDS) : 'ЖКХ';
     const label = cur ? aFull(cur) : g.length > 1 ? 'Все адреса' : aFull(g[0] || list[0]);
-    if (list.length < 2) return void ($title.textContent = aFull(list[0]));  // один адрес — заголовок, не кнопка
-    $title.replaceChildren(h('button', { class: 'addr', type: 'button', onclick: () => go('addr') },
-      h('span', {}, label), icon('down', 22)));
+    $title.replaceChildren(h('button', { class: 'addr', type: 'button', title: label, onclick: () => go('addr') },
+      h('span', {}, h('span', {}, label)), icon('down', 22)));
   }
   // Выбор адреса и доступ — отдельные экраны, а не шторки: так советует гайдлайн MAX
   // (шторка спорит со свайпом, который закрывает всё мини-приложение), и работает системная кнопка «Назад».
