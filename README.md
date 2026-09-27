@@ -119,23 +119,13 @@ uvicorn app.main:app --env-file .env --port 8080
 
 ## Как устроено
 
-```mermaid
-flowchart LR
-  U((Житель)) <--> MAX[MAX Bot API]
-  subgraph app["контейнер app :8080"]
-    P[poller] --> R[router] --> F[flows]
-    S[scheduler] --> F
-    API["/api/*"]
-    F --> DB[(SQLite)]
-    API --> DB
-  end
-  MAX <--> P
-  MA[мини-приложение] -- initData --> API
-  F -. фото .-> REC[recognizer :8000] -. Qwen .-> YC[Yandex Cloud]
-  API -.-> REC
-  F -.-> DD[DaData]
-  F -.-> FG[ФГИС «Аршин»]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/architecture-dark.svg">
+  <img alt="Схема инфраструктуры: житель в MAX, платформа MAX, сервер maxsmartcity.ru с nginx и Docker Compose (app, recognizer, SQLite), внешние сервисы ФГИС «Аршин», DaData и Yandex Cloud" src="docs/img/architecture-light.svg">
+</picture>
+
+Бот сам забирает обновления из MAX (long polling), входящих подключений к нему нет. Мини-приложение
+и его API отдаёт nginx с одного домена. Синим выделены наши сервисы; во внешние сервисы ходят только они.
 
 Один процесс FastAPI: long polling MAX, роутер и сценарии бота, планировщик уведомлений и API мини-приложения.
 Бизнес-логика общая для бота и API: подача (`app/readings.py`), дашборд (`app/domain/dashboard.py`),
@@ -184,6 +174,7 @@ python -m pytest -q                        # тесты бота (~2 с), без
 ruff check app tools tests                 # линтер (pip install ruff; настройки — ruff.toml)
 (cd services/recognizer && python -m pytest -q)   # тесты сервиса распознавания
 python -m tools.transcript > docs/dialog-example.md   # пересобрать пример диалога
+python -m tools.architecture_svg      # перерисовать схему инфраструктуры (docs/img/)
 python -m tools.live_smoke --dry-run       # запросы живой проверки MAX без сети
 ```
 

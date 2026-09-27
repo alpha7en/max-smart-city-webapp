@@ -2,14 +2,10 @@
 
 Бот, API и мини-приложение работают на одном сервере `https://maxsmartcity.ru`.
 
-```
-Интернет ──443──▶ nginx (HTTPS)
-                   ├─ /api/*  ──▶ 127.0.0.1:8080   контейнер app (бот MAX + API)
-                   └─ /       ──▶ /var/www/maxsmartcity.ru   статика мини-приложения
-
-контейнер app ──▶ http://recognizer:8000/recognize   контейнер recognizer ──▶ Yandex Cloud AI Studio
-              ──▶ platform-api2.max.ru (long polling), fgis.gost.ru, DaData
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/architecture-dark.svg">
+  <img alt="Схема инфраструктуры: житель в MAX, платформа MAX, сервер maxsmartcity.ru с nginx и Docker Compose (app, recognizer, SQLite), внешние сервисы ФГИС «Аршин», DaData и Yandex Cloud" src="img/architecture-light.svg">
+</picture>
 
 - **nginx** настроен отдельно и деплоем не меняется: HTTPS-сертификат, прокси `/api/` на `127.0.0.1:8080`,
   статика из `/var/www/maxsmartcity.ru`. Мини-приложение и API на одном origin, поэтому CORS не нужен.

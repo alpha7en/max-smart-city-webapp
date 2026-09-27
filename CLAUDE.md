@@ -46,6 +46,7 @@ services/recognizer/ сервис распознавания (автор — к�
                      в Yandex Cloud → показание, тип, серийник. Свои Dockerfile и тесты, контейнер recognizer в корневом compose
 tools/live_smoke.py  живая проверка MAX API (нужен доступ к MAX, то есть запуск из РФ)
 tools/transcript.py  пример диалога через настоящий роутер → docs/dialog-example.md
+tools/architecture_svg.py  схема инфраструктуры для README → docs/img/architecture-{light,dark}.svg
 docs/               architecture, bot (сценарии и правила роутера), api, deploy, live-checklist, dialog-example
 certs/               публичный CA Минцифры (russian_trusted_ca.pem) для TLS к MAX; приватных ключей в репо нет
 ```

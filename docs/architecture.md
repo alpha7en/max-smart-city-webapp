@@ -1,5 +1,13 @@
 # Архитектура
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/architecture-dark.svg">
+  <img alt="Схема инфраструктуры: житель в MAX, платформа MAX, сервер maxsmartcity.ru с nginx и Docker Compose (app, recognizer, SQLite), внешние сервисы ФГИС «Аршин», DaData и Yandex Cloud" src="img/architecture-light.svg">
+</picture>
+
+Бот сам забирает обновления из MAX (long polling), входящих подключений к нему нет. Мини-приложение
+и его API отдаёт nginx с одного домена. Синим выделены наши сервисы; во внешние сервисы ходят только они.
+
 ## Компоненты
 
 | Компонент | Где | Что делает |
