@@ -55,10 +55,12 @@ small { font-size: 13px; color: var(--muted); }
 .ttl { flex: 1; min-width: 0; }
 .top h1 { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 750; letter-spacing: -.025em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #eb { margin: 0 0 1px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-/* адрес в заголовке: при 2+ адресах — кнопка выбора */
+/* адрес в заголовке — кнопка экрана адресов; длинный режется с начала (rtl-обёртка, текст внутри ltr) */
 .addr { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin: 0; padding: 0; border: 0; background: none; font: inherit; letter-spacing: inherit; text-align: left; }
-.addr > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.addr .ic { width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+.addr > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; direction: rtl; }
+.addr > span > span { direction: ltr; unicode-bidi: embed; }
+.addr.one { font-size: 24px; }  /* конкретный адрес мельче, чем «Все адреса» */
+.addr .ic { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
 .addr .ic svg { width: 18px; height: 18px; }
 .ava { flex: none; display: grid; place-items: center; width: 42px; height: 42px; margin-left: 8px; border: 0; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 15px; font-weight: 750; letter-spacing: .02em; }
 .ava[hidden] { display: none; }
@@ -137,6 +139,7 @@ body.has-bar main { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px
 .tile .v.mono { font-size: 18px; letter-spacing: 0; font-weight: 650; }
 .tile.t-warn .v, .tile.t-bad .v { color: var(--c); }
 .tile small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile small.src { white-space: normal; overflow: visible; } /* источник поверки («по данным ФГИС «Аршин»») переносится, плитка вытягивается */
 
 /* ---------- списки ---------- */
 .card { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); }

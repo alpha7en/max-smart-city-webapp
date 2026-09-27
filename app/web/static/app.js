@@ -249,7 +249,7 @@
     return n[0].toUpperCase() + n.slice(1) + ' ' + p.y;
   }
   const fmtDay = s => { const p = parseDate(s); return p && p.d ? String(p.d).padStart(2, '0') + '.' + String(p.mo).padStart(2, '0') : ''; };
-  // Полный адрес — в тексте; короткий (address_label, label) — только на кнопках и в шапке-переключателе.
+  // Полный адрес — в тексте; короткий (address_label, label) — только на кнопках. В шапке полный, обрезается по ширине.
   const mAddr = m => m.address_full || m.address_label;
   const aFull = a => a.full_text || a.label;
   const meterTitle = m => [m.type_label, mAddr(m)].filter(Boolean).join(' · ');
@@ -266,12 +266,11 @@
   const METER_WORDS = ['счётчик', 'счётчика', 'счётчиков'];
 
   // ---------- адреса ----------
-  // Ключ адреса — id из /api/me (старый сервер без id — подпись). Выбор запоминаем в браузере.
+  // Ключ адреса — id из /api/me (старый сервер без id — подпись). Выбор живёт до закрытия: при каждом входе — все адреса.
   const mKey = m => String(m.address_id != null ? m.address_id : m.address_label);
   const aKey = a => String(a.id != null ? a.id : a.label);
   let addrSel = '';
-  try { addrSel = localStorage.getItem('gkh.addr') || ''; } catch (e) { /* хранилище недоступно */ }
-  function setAddr(k) { addrSel = k; try { localStorage.setItem('gkh.addr', k); } catch (e) { /* ignore */ } }
+  function setAddr(k) { addrSel = k; }
   const addrList = d => (d && d.addresses) || [];
   const grantedAddrs = d => addrList(d).filter(a => a.access === 'granted');
   // Выбранный адрес: только если доступных адресов больше одного и он среди них; '' — все адреса.
@@ -495,7 +494,8 @@
         h('p', { class: 'foot' }, footnote(dash))]);
     homeHeader(d, key);
   }
-  // Шапка главной: над заголовком «ЖКХ», заголовок — адрес. Адресов больше одного — заголовок открывает выбор.
+  // Шапка главной: над заголовком «ЖКХ», заголовок — адрес, открывает экран адресов (и при одном адресе:
+  // там доступ и «Добавить адрес»). Длинный адрес режем с начала: конец (дом, квартира) важнее города.
   function homeHeader(d, key) {
     const list = addrList(d), g = grantedAddrs(d);
     $ava.hidden = false;
@@ -504,10 +504,10 @@
     const cur = g.find(a => aKey(a) === key);
     $eb.hidden = false;
     $eb.textContent = list.length > 1 ? 'ЖКХ · ' + list.length + ' ' + plural(list.length, ADDR_WORDS) : 'ЖКХ';
-    const label = cur ? cur.label : g.length > 1 ? 'Все адреса' : (g[0] || list[0]).label;
-    if (list.length < 2) return void ($title.textContent = aFull(list[0]));  // один адрес — заголовок, не кнопка
-    $title.replaceChildren(h('button', { class: 'addr', type: 'button', onclick: () => go('addr') },
-      h('span', {}, label), icon('down', 22)));
+    const label = cur ? aFull(cur) : g.length > 1 ? 'Все адреса' : aFull(g[0] || list[0]);
+    const all = !cur && g.length > 1;
+    $title.replaceChildren(h('button', { class: all ? 'addr' : 'addr one', type: 'button', title: label, onclick: () => go('addr') },
+      h('span', {}, h('span', {}, label)), icon('down', 22)));
   }
   // Выбор адреса и доступ — отдельные экраны, а не шторки: так советует гайдлайн MAX
   // (шторка спорит со свайпом, который закрывает всё мини-приложение), и работает системная кнопка «Назад».
@@ -534,10 +534,10 @@
         !key && h('span', { class: 'slot', 'aria-hidden': 'true' }, icon('check', 20))),
       g.map(a => {
         const on = g.length < 2 || aKey(a) === key;
-        return wrap(opt('home', 'accent', a.label, stat(ms.filter(m => mKey(m) === aKey(a))), on && g.length > 1, g.length > 1 ? pick(aKey(a)) : back),
+        return wrap(opt('home', 'accent', aFull(a), stat(ms.filter(m => mKey(m) === aKey(a))), on && g.length > 1, g.length > 1 ? pick(aKey(a)) : back),
           on && g.length > 1, shareBtn(d, a) || keyBtn(a));
       }),
-      addrList(d).filter(a => a.access !== 'granted').map(a => opt('clock', a.access === 'pending' ? 'warn' : 'bad', a.label,
+      addrList(d).filter(a => a.access !== 'granted').map(a => opt('clock', a.access === 'pending' ? 'warn' : 'bad', aFull(a),
         a.access === 'pending' ? 'ждёт одобрения собственника' : 'собственник не открыл доступ', false, () => go('profile', {}, true))),
       h('button', { class: 'opt add', type: 'button', onclick: () => openChat('add_address') },
         ibox('plus', 'accent', 18), h('span', { class: 'grow' }, h('b', {}, 'Добавить адрес'), h('small', {}, 'в чате с ботом'))),
@@ -1099,7 +1099,7 @@
     const src = m.verification_source === 'arshin' ? (m.arshin_demo ? 'демо-данные ФГИС' : 'по данным ФГИС «Аршин»')
       : m.verification_source === 'user' ? 'из паспорта' : m.verification_source === 'model' ? 'ориентировочно' : null;
     if (!src) return null;
-    return h('small', {}, m.arshin_url ? h('a', { href: m.arshin_url, target: '_blank', rel: 'noopener' }, src) : src);
+    return h('small', { class: 'src' }, m.arshin_url ? h('a', { href: m.arshin_url, target: '_blank', rel: 'noopener' }, src) : src);
   }
   function drawMeter(m) {
     const hist = (m.history || []).slice(0, 12);
