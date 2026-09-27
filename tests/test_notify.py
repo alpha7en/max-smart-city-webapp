@@ -63,3 +63,15 @@ async def test_submission_window_notifications(deps, repo, api):
     await repo.add_reading(mid, user["id"], "2026-11", {"t1": 1000}, "manual")
     assert await tick(deps, at(2026, 11, 15, 12)) == []
     assert await sent_kinds(repo) == [("submit", "2026-10:open"), ("submit", "2026-10:last")]
+
+
+async def test_demo_verification_skips_unfit_arshin_meter(chat, api, repo):
+    """/demo «О поверке»: счётчик с записью ФГИС «непригоден» (срока нет) не роняет бота."""
+    user, aid = await make_user(repo, now=clock.now())
+    mid = await repo.create_meter(aid, "cold_water", serial="18-452178", created_by=user["id"])
+    await repo.set_arshin(mid, due=None, vri_id="1-123", mit_title="Счётчики воды", checked_at=clock.now())
+    await chat.text("/demo")
+    await chat.press(T.BTN_DEMO_VERIFY)
+    text = api.named("send")[-1]["text"]
+    assert text.startswith(T.VERIFICATION_SOON.split("{")[0])
+    assert (await repo.get_meter(mid))["verification_source"] == "model"

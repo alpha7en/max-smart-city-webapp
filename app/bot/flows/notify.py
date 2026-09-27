@@ -184,11 +184,12 @@ async def demo(ctx: Ctx) -> None:
 
 
 async def _demo_verification(ctx: Ctx, today: date) -> Notice | None:
-    """Одному счётчику (без даты от пользователя и из ФГИС) ставим поверку через 20 дней (source='model')."""
+    """Одному счётчику без срока от пользователя или из ФГИС ставим поверку через 20 дней (source='model')."""
     meters = await ctx.repo.user_meters(ctx.user["id"])
     if not meters:
         return None
-    target = next((m for m in meters if m.get("verification_source") not in ("user", "arshin")), None)
+    target = next((m for m in meters if not m.get("verification_due")
+                   or m.get("verification_source") not in ("user", "arshin")), None)
     if target is not None:
         due = today + timedelta(days=DEMO_VERIFICATION_DAYS)
         await ctx.repo.set_verification(target["id"], due.isoformat(), "model")
