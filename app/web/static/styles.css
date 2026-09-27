@@ -59,6 +59,7 @@ small { font-size: 13px; color: var(--muted); }
 .addr { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin: 0; padding: 0; border: 0; background: none; font: inherit; letter-spacing: inherit; text-align: left; }
 .addr > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; direction: rtl; }
 .addr > span > span { direction: ltr; unicode-bidi: embed; }
+.addr.one { font-size: 24px; }  /* конкретный адрес мельче, чем «Все адреса» */
 .addr .ic { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
 .addr .ic svg { width: 18px; height: 18px; }
 .ava { flex: none; display: grid; place-items: center; width: 42px; height: 42px; margin-left: 8px; border: 0; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 15px; font-weight: 750; letter-spacing: .02em; }

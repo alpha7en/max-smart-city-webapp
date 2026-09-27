@@ -505,7 +505,8 @@
     $eb.hidden = false;
     $eb.textContent = list.length > 1 ? 'ЖКХ · ' + list.length + ' ' + plural(list.length, ADDR_WORDS) : 'ЖКХ';
     const label = cur ? aFull(cur) : g.length > 1 ? 'Все адреса' : aFull(g[0] || list[0]);
-    $title.replaceChildren(h('button', { class: 'addr', type: 'button', title: label, onclick: () => go('addr') },
+    const all = !cur && g.length > 1;
+    $title.replaceChildren(h('button', { class: all ? 'addr' : 'addr one', type: 'button', title: label, onclick: () => go('addr') },
       h('span', {}, h('span', {}, label)), icon('down', 22)));
   }
   // Выбор адреса и доступ — отдельные экраны, а не шторки: так советует гайдлайн MAX
