@@ -1098,7 +1098,7 @@
     const src = m.verification_source === 'arshin' ? (m.arshin_demo ? 'демо-данные ФГИС' : 'по данным ФГИС «Аршин»')
       : m.verification_source === 'user' ? 'из паспорта' : m.verification_source === 'model' ? 'ориентировочно' : null;
     if (!src) return null;
-    return h('small', {}, m.arshin_url ? h('a', { href: m.arshin_url, target: '_blank', rel: 'noopener' }, src) : src);
+    return h('small', { class: 'src' }, m.arshin_url ? h('a', { href: m.arshin_url, target: '_blank', rel: 'noopener' }, src) : src);
   }
   function drawMeter(m) {
     const hist = (m.history || []).slice(0, 12);

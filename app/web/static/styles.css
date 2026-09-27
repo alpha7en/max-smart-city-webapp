@@ -137,6 +137,7 @@ body.has-bar main { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px
 .tile .v.mono { font-size: 18px; letter-spacing: 0; font-weight: 650; }
 .tile.t-warn .v, .tile.t-bad .v { color: var(--c); }
 .tile small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile small.src { white-space: normal; overflow: visible; } /* источник поверки («по данным ФГИС «Аршин»») переносится, плитка вытягивается */
 
 /* ---------- списки ---------- */
 .card { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); }
