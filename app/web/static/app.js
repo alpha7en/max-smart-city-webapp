@@ -249,7 +249,7 @@
     return n[0].toUpperCase() + n.slice(1) + ' ' + p.y;
   }
   const fmtDay = s => { const p = parseDate(s); return p && p.d ? String(p.d).padStart(2, '0') + '.' + String(p.mo).padStart(2, '0') : ''; };
-  // Полный адрес — в тексте; короткий (address_label, label) — только на кнопках и в шапке-переключателе.
+  // Полный адрес — в тексте; короткий (address_label, label) — только на кнопках. В шапке полный, обрезается по ширине.
   const mAddr = m => m.address_full || m.address_label;
   const aFull = a => a.full_text || a.label;
   const meterTitle = m => [m.type_label, mAddr(m)].filter(Boolean).join(' · ');
@@ -503,7 +503,7 @@
     const cur = g.find(a => aKey(a) === key);
     $eb.hidden = false;
     $eb.textContent = list.length > 1 ? 'ЖКХ · ' + list.length + ' ' + plural(list.length, ADDR_WORDS) : 'ЖКХ';
-    const label = cur ? cur.label : g.length > 1 ? 'Все адреса' : (g[0] || list[0]).label;
+    const label = cur ? aFull(cur) : g.length > 1 ? 'Все адреса' : aFull(g[0] || list[0]);
     if (list.length < 2) return void ($title.textContent = aFull(list[0]));  // один адрес — заголовок, не кнопка
     $title.replaceChildren(h('button', { class: 'addr', type: 'button', onclick: () => go('addr') },
       h('span', {}, label), icon('down', 22)));
@@ -533,10 +533,10 @@
         !key && h('span', { class: 'slot', 'aria-hidden': 'true' }, icon('check', 20))),
       g.map(a => {
         const on = g.length < 2 || aKey(a) === key;
-        return wrap(opt('home', 'accent', a.label, stat(ms.filter(m => mKey(m) === aKey(a))), on && g.length > 1, g.length > 1 ? pick(aKey(a)) : back),
+        return wrap(opt('home', 'accent', aFull(a), stat(ms.filter(m => mKey(m) === aKey(a))), on && g.length > 1, g.length > 1 ? pick(aKey(a)) : back),
           on && g.length > 1, shareBtn(d, a) || keyBtn(a));
       }),
-      addrList(d).filter(a => a.access !== 'granted').map(a => opt('clock', a.access === 'pending' ? 'warn' : 'bad', a.label,
+      addrList(d).filter(a => a.access !== 'granted').map(a => opt('clock', a.access === 'pending' ? 'warn' : 'bad', aFull(a),
         a.access === 'pending' ? 'ждёт одобрения собственника' : 'собственник не открыл доступ', false, () => go('profile', {}, true))),
       h('button', { class: 'opt add', type: 'button', onclick: () => openChat('add_address') },
         ibox('plus', 'accent', 18), h('span', { class: 'grow' }, h('b', {}, 'Добавить адрес'), h('small', {}, 'в чате с ботом'))),
