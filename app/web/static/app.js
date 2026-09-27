@@ -266,12 +266,11 @@
   const METER_WORDS = ['счётчик', 'счётчика', 'счётчиков'];
 
   // ---------- адреса ----------
-  // Ключ адреса — id из /api/me (старый сервер без id — подпись). Выбор запоминаем в браузере.
+  // Ключ адреса — id из /api/me (старый сервер без id — подпись). Выбор живёт до закрытия: при каждом входе — все адреса.
   const mKey = m => String(m.address_id != null ? m.address_id : m.address_label);
   const aKey = a => String(a.id != null ? a.id : a.label);
   let addrSel = '';
-  try { addrSel = localStorage.getItem('gkh.addr') || ''; } catch (e) { /* хранилище недоступно */ }
-  function setAddr(k) { addrSel = k; try { localStorage.setItem('gkh.addr', k); } catch (e) { /* ignore */ } }
+  function setAddr(k) { addrSel = k; }
   const addrList = d => (d && d.addresses) || [];
   const grantedAddrs = d => addrList(d).filter(a => a.access === 'granted');
   // Выбранный адрес: только если доступных адресов больше одного и он среди них; '' — все адреса.
