@@ -185,3 +185,6 @@ SQLite, одно соединение `aiosqlite` на процесс, дост�
   затем убрать пометку «передача смоделирована».
 - **Окно подачи по адресу:** хранить график у адреса и передавать его в `domain/meters.submission_window()`
   вместо общих `SUBMIT_DAY_FROM/TO`.
+- **Webhook вместо long polling:** маршрут в `web/` принимает апдейт от MAX и делает то же, что
+  `Poller.poll_once()` для каждого апдейта: `parse_update()` → `router.handle()`. Подписка — `POST /subscriptions`
+  на HTTPS-адрес за nginx; при активной подписке `GET /updates` не работает, поэтому poller в `main.py` не запускается.
