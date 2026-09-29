@@ -57,7 +57,7 @@ curl -F image=@meter.jpg -F meter_type=hot_water http://localhost:8000/recognize
 }
 ```
 
-Поля про качество фото (сервис никогда не отдаёт «пустой успех»):
+Поля про качество фото:
 - `readable` — основное показание уверенно прочитано. Нет цифр → всегда `false`.
 - `issues` — коды из фиксированного набора (контракт с ботом): `no_meter`, `wrong_type` (тип не совпал с
   переданным `meter_type`), `digits_not_visible`, `blurry`, `glare`, `too_dark`, `angle`, `partially_covered`,
