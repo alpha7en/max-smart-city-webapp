@@ -61,7 +61,7 @@ bash deploy/update.sh --static     # поменялась только app/web/s
 Ожидаемый итог: оба контейнера `(healthy)`, `{"ok":true}` от бота локально и через nginx,
 `{"status":"ok",…}` от `recognizer`, в логе `MAX bot: id=423938205` и `polling started`.
 
-## Проверки и повседневные команды
+## Проверки и полезные команды
 
 ```bash
 curl -s https://maxsmartcity.ru/api/health                                # {"ok":true}
